@@ -400,10 +400,18 @@ app.get('/api/ping/:deviceId', (req, res) => {
     
     if (device) {
         device.lastSeen = Date.now();
-        console.log(`💓 Keep-alive ping from device ${deviceId}`);
-        res.json({ status: 'alive', timestamp: Date.now() });
+        console.log(`💓 Keep-alive ping from device ${deviceId} at ${new Date().toISOString()}`);
+        res.json({ 
+            status: 'alive', 
+            timestamp: Date.now(),
+            deviceId: deviceId 
+        });
     } else {
-        res.json({ status: 'unknown' });
+        console.log(`💔 Keep-alive from unknown device ${deviceId}`);
+        res.status(404).json({ 
+            status: 'unknown', 
+            message: 'Device not registered' 
+        });
     }
 });
 // Start server
