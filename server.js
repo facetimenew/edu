@@ -233,6 +233,21 @@ async function handleCommand(chatId, command, messageId) {
     console.log(`🎯 Handling command ${command} from authorized chat ${chatId}`);
     console.log(`📊 Current devices in memory: ${devices.size}`);
     
+    // SPECIAL HANDLE HELP IMMEDIATELY - BEFORE ANY DEVICE CHECK
+    if (command === '/help' || command === '/start') {
+        console.log('📋 HELP COMMAND DETECTED - sending directly from server');
+        const helpMessage = getHelpMessage();
+        console.log('📋 Help message length:', helpMessage.length);
+        
+        try {
+            await sendTelegramMessage(chatId, helpMessage);
+            console.log('✅ Help message sent successfully');
+        } catch (error) {
+            console.error('❌ Failed to send help message:', error);
+        }
+        return; // Exit immediately
+    }
+
     // Log all registered devices for debugging
     if (devices.size > 0) {
         console.log('Registered devices:');
@@ -268,21 +283,17 @@ async function handleCommand(chatId, command, messageId) {
     // Update last seen
     device.lastSeen = Date.now();
 
-    // Handle help command (shows all available commands)
-if (command === '/help' || command === '/start') {
-    await sendTelegramMessage(chatId, getHelpMessage());
-    console.log('📨 Sent help menu directly from server');
-    return; // Don't queue to device
-}
-
     // For all other commands, add to device's pending queue
     if (!device.pendingCommands) {
         device.pendingCommands = [];
     }
     
-    // IMPORTANT: Add the command to the queue
+    // Remove the leading slash for the app
+    const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
+    
     const commandObject = {
-        command: command,
+        command: cleanCommand, // Send without slash
+        originalCommand: command, // Keep original for logging
         messageId: messageId,
         timestamp: Date.now()
     };
@@ -294,6 +305,7 @@ if (command === '/help' || command === '/start') {
     // Acknowledge command receipt
     await sendTelegramMessage(chatId, `⏳ Processing: ${command}`);
 }
+
 
 // Help message with all commands
 function getHelpMessage() {
@@ -430,6 +442,30 @@ app.get('/api/ping/:deviceId', (req, res) => {
             status: 'unknown', 
             message: 'Device not registered' 
         });
+    }
+});
+app.get('/test', (req, res) => {
+    res.send(`
+        <html>
+        <body>
+            <h1>Server is Alive!</h1>
+            <p>Time: ${new Date().toISOString()}</p>
+            <p>Devices: ${devices.size}</p>
+            <p>Authorized Chats: ${Array.from(authorizedChats).join(', ')}</p>
+        </body>
+        </html>
+    `);
+});
+
+app.get('/test-help', async (req, res) => {
+    const chatId = '5326373447'; // Your chat ID
+    const helpMessage = getHelpMessage();
+    
+    try {
+        await sendTelegramMessage(chatId, helpMessage);
+        res.json({ success: true, message: 'Help sent to your Telegram' });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
     }
 });
 
