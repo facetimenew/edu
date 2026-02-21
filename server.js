@@ -234,19 +234,28 @@ async function handleCommand(chatId, command, messageId) {
     console.log(`📊 Current devices in memory: ${devices.size}`);
     
     // SPECIAL HANDLE HELP IMMEDIATELY - BEFORE ANY DEVICE CHECK
-    if (command === '/help' || command === '/start') {
-        console.log('📋 HELP COMMAND DETECTED - sending directly from server');
-        const helpMessage = getHelpMessage();
-        console.log('📋 Help message length:', helpMessage.length);
+   if (command === '/help' || command === '/start') {
+    console.log('📋 HELP COMMAND DETECTED');
+    
+    // Send a simple test message first
+    try {
+        // Send simple message to verify connection
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: chatId,
+            text: '🤖 Processing your request...'
+        });
         
-        try {
-            await sendTelegramMessage(chatId, helpMessage);
-            console.log('✅ Help message sent successfully');
-        } catch (error) {
-            console.error('❌ Failed to send help message:', error);
-        }
-        return; // Exit immediately
+        // Then send the full help message
+        const helpText = getHelpMessage();
+        await sendTelegramMessage(chatId, helpText);
+        
+        console.log('✅ Help messages sent successfully');
+    } catch (error) {
+        console.error('❌ Failed to send help:', error.response?.data || error.message);
     }
+    
+    return;
+}
 
     // Log all registered devices for debugging
     if (devices.size > 0) {
