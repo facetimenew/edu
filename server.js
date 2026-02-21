@@ -51,22 +51,38 @@ app.post('/webhook', async (req, res) => {
 
     res.sendStatus(200);
 });
+// Add this helper function to ensure valid JSON responses
+function sendJsonResponse(res, data, statusCode = 200) {
+    try {
+        // Ensure we're sending valid JSON
+        const jsonString = JSON.stringify(data);
+        res.status(statusCode).setHeader('Content-Type', 'application/json').send(jsonString);
+    } catch (e) {
+        console.error('Error stringifying JSON:', e);
+        res.status(500).json({ error: 'Internal server error', message: e.message });
+    }
+}
 
 // Endpoint for devices to check pending commands
 app.get('/api/commands/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
-    if (device && device.pendingCommands && device.pendingCommands.length > 0) {
-        const commands = [...device.pendingCommands];
-        device.pendingCommands = []; // Clear after sending
-        console.log(`📤 Sending ${commands.length} command(s) to device ${deviceId}`);
-        console.log('📤 Commands:', JSON.stringify(commands, null, 2));
-        res.json({ commands });
-    } else {
-        res.json({ commands: [] });
+    try {
+        if (device && device.pendingCommands && device.pendingCommands.length > 0) {
+            const commands = [...device.pendingCommands];
+            device.pendingCommands = [];
+            console.log(`📤 Sending ${commands.length} command(s) to device ${deviceId}`);
+            sendJsonResponse(res, { commands });
+        } else {
+            sendJsonResponse(res, { commands: [] });
+        }
+    } catch (e) {
+        console.error('Error in /api/commands:', e);
+        sendJsonResponse(res, { commands: [], error: e.message }, 500);
     }
 });
+
 
 // Endpoint for devices to report command results
 app.post('/api/result/:deviceId', async (req, res) => {
@@ -398,22 +414,27 @@ app.get('/api/ping/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
-    if (device) {
-        device.lastSeen = Date.now();
-        console.log(`💓 Keep-alive ping from device ${deviceId} at ${new Date().toISOString()}`);
-        res.json({ 
-            status: 'alive', 
-            timestamp: Date.now(),
-            deviceId: deviceId 
-        });
-    } else {
-        console.log(`💔 Keep-alive from unknown device ${deviceId}`);
-        res.status(404).json({ 
-            status: 'unknown', 
-            message: 'Device not registered' 
-        });
+    try {
+        if (device) {
+            device.lastSeen = Date.now();
+            console.log(`💓 Keep-alive ping from device ${deviceId}`);
+            sendJsonResponse(res, { 
+                status: 'alive', 
+                timestamp: Date.now(),
+                deviceId: deviceId 
+            });
+        } else {
+            sendJsonResponse(res, { 
+                status: 'unknown',
+                message: 'Device not registered'
+            }, 404);
+        }
+    } catch (e) {
+        console.error('Error in /api/ping:', e);
+        sendJsonResponse(res, { error: e.message }, 500);
     }
 });
+
 // Start server
 app.listen(PORT, () => {
     console.log('🚀 ==================================');
