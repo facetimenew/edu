@@ -1,3 +1,21 @@
+{
+  "name": "telegram-webhook-server",
+  "version": "1.0.0",
+  "description": "Telegram bot webhook server for Android remote control",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
+
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -92,12 +110,16 @@ app.post('/api/result/:deviceId', async (req, res) => {
 app.post('/api/register', async (req, res) => {
     const { deviceId, chatId, deviceInfo } = req.body;
     
+    console.log('📝 Registration attempt:', { deviceId, chatId, deviceInfo });
+    
     // Verify the chatId is authorized
     if (!isAuthorizedChat(chatId)) {
         console.log(`⛔ Unauthorized registration attempt from chat: ${chatId}`);
+        console.log('✅ Authorized chats are:', Array.from(authorizedChats));
         return res.status(403).json({ 
             status: 'unauthorized', 
-            message: 'Chat ID not authorized' 
+            message: 'Chat ID not authorized',
+            authorizedChats: Array.from(authorizedChats)
         });
     }
     
@@ -111,6 +133,7 @@ app.post('/api/register', async (req, res) => {
     
     console.log(`✅ Device registered: ${deviceId} for authorized chat ${chatId}`);
     console.log('📱 Device info:', deviceInfo);
+    console.log(`📊 Total devices now: ${devices.size}`);
     
     // Send confirmation to Telegram
     await sendTelegramMessage(chatId, 
@@ -127,7 +150,7 @@ app.post('/api/register', async (req, res) => {
         `/contacts - Get contacts\n` +
         `/help - Show this menu`);
     
-    res.json({ status: 'registered' });
+    res.json({ status: 'registered', deviceId: deviceId });
 });
 
 // Endpoint to list all registered devices (protected)
