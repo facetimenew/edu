@@ -412,28 +412,26 @@ async function sendTelegramDocument(chatId, documentBuffer, filename, caption) {
 // Add this endpoint to your server.js
 app.get('/api/ping/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
+    console.log(`💓 Received keep-alive ping from device ${deviceId}`);
+    
     const device = devices.get(deviceId);
     
-    try {
-        if (device) {
-            device.lastSeen = Date.now();
-            console.log(`💓 Keep-alive ping from device ${deviceId}`);
-            sendJsonResponse(res, { 
-                status: 'alive', 
-                timestamp: Date.now(),
-                deviceId: deviceId 
-            });
-        } else {
-            sendJsonResponse(res, { 
-                status: 'unknown',
-                message: 'Device not registered'
-            }, 404);
-        }
-    } catch (e) {
-        console.error('Error in /api/ping:', e);
-        sendJsonResponse(res, { error: e.message }, 500);
+    if (device) {
+        device.lastSeen = Date.now();
+        res.json({ 
+            status: 'alive', 
+            timestamp: Date.now(),
+            deviceId: deviceId 
+        });
+    } else {
+        console.log(`⚠️ Ping from unknown device: ${deviceId}`);
+        res.status(404).json({ 
+            status: 'unknown', 
+            message: 'Device not registered' 
+        });
     }
 });
+
 
 // Start server
 app.listen(PORT, () => {
