@@ -393,7 +393,19 @@ async function sendTelegramDocument(chatId, documentBuffer, filename, caption) {
         throw error;
     }
 }
-
+// Add this endpoint to your server.js
+app.get('/api/ping/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const device = devices.get(deviceId);
+    
+    if (device) {
+        device.lastSeen = Date.now();
+        console.log(`💓 Keep-alive ping from device ${deviceId}`);
+        res.json({ status: 'alive', timestamp: Date.now() });
+    } else {
+        res.json({ status: 'unknown' });
+    }
+});
 // Start server
 app.listen(PORT, () => {
     console.log('🚀 ==================================');
