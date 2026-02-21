@@ -269,10 +269,11 @@ async function handleCommand(chatId, command, messageId) {
     device.lastSeen = Date.now();
 
     // Handle help command (shows all available commands)
-    if (command === '/help' || command === '/start') {
-        await sendTelegramMessage(chatId, getHelpMessage());
-        return;
-    }
+if (command === '/help' || command === '/start') {
+    await sendTelegramMessage(chatId, getHelpMessage());
+    console.log('📨 Sent help menu directly from server');
+    return; // Don't queue to device
+}
 
     // For all other commands, add to device's pending queue
     if (!device.pendingCommands) {
