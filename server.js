@@ -79,6 +79,7 @@ function getHelpMessage() {
     return `<b>🤖 COMPLETE COMMAND LIST</b>
 
 <b>🔍 MONITORING COMMANDS</b>
+/help - Get help 
 /status - Get full device status
 /location - Get current GPS location
 /battery - Get battery level only
@@ -98,11 +99,11 @@ function getHelpMessage() {
 /resize_on [width] - Enable resize to specified width (default 800px)
 /resize_off - Disable resize
 
-<b>🤖 AUTO-SCREENSHOT COMMANDS (NEW!)</b>
+<b>🤖 AUTO-SCREENSHOT COMMANDS</b>
 /auto_on - Enable auto-screenshot when apps open
 /auto_off - Disable auto-screenshot
-/auto_status - Check auto-screenshot status
-/auto_interval [seconds] - Set time between screenshots (e.g., /auto_interval 30)
+/auto_status - Check auto-screenshot settings
+/auto_interval [seconds] - Set time between screenshots (e.g., /auto_interval 60)
 /auto_max [number] - Set max screenshots per session (0 = unlimited)
 /auto_stop - Stop monitoring current app immediately
 /auto_reset - Reset to default quality settings
