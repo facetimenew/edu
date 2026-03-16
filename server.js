@@ -237,7 +237,12 @@ function getMainMenuKeyboard(chatId) {
         [
             { text: deviceStatus, callback_data: 'menu_devices' },
             { text: '❌ Close', callback_data: 'close_menu' }
+        ],
+[
+            { text: '⚙️ Services', callback_data: 'menu_services' },  // ← ADD THIS LINE
+            { text: '📊 Stats', callback_data: 'menu_stats' }
         ]
+
     ];
 }
 
