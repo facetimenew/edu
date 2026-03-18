@@ -231,16 +231,12 @@ function getMainMenuKeyboard(chatId) {
             { text: '🔔 Realtime', callback_data: 'menu_realtime' }
         ],
         [
-            { text: '📊 Stats', callback_data: 'menu_stats' },
+            { text: deviceStatus, callback_data: 'menu_devices' },
             { text: '📱 Devices', callback_data: 'menu_devices' }
         ],
         [
-            { text: deviceStatus, callback_data: 'menu_devices' },
-            { text: '❌ Close', callback_data: 'close_menu' }
-        ],
-[
             { text: '⚙️ Services', callback_data: 'menu_services' },  // ← ADD THIS LINE
-            { text: '📊 Stats', callback_data: 'menu_stats' }
+            { text: '❌ Close', callback_data: 'close_menu' }
         ]
 
     ];
@@ -976,11 +972,11 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('🎯 Target OFF', 'cmd:auto_target_off')
             ],
             [
-                createInlineButton('📊 Compression Stats', 'cmd:compression_stats'),
+                createInlineButton('➕ Add Target', 'cmd:add_target_example'),
+
                 createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
             [
-                createInlineButton('➕ Add Target', 'cmd:add_target_example'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1079,27 +1075,7 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
-        await editMessageKeyboard(chatId, messageId, keyboard);
-        
-    } else if (data === 'menu_stats') {
-        const keyboard = [
-            [
-                createInlineButton('📊 Logs Count', 'cmd:logs_count'),
-                createInlineButton('📋 Recent Logs', 'cmd:logs_recent')
-            ],
-            [
-                createInlineButton('📈 Detailed Stats', 'cmd:stats'),
-                createInlineButton('📸 Compression Stats', 'cmd:compression_stats')
-            ],
-            [
-                createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs'),
-                createInlineButton('🔄 Force Refresh', 'cmd:refresh_data')
-            ],
-            [
-                createInlineButton('◀️ Back', 'help_main')
-            ]
-        ];
-        await editMessageKeyboard(chatId, messageId, keyboard);
+               await editMessageKeyboard(chatId, messageId, keyboard);
         
     } else if (data === 'menu_about') {
         const keyboard = [
