@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const os = require('os');
 
 // Your bot token from @BotFather
-const BOT_TOKEN = process.env.BOT_TOKEN || '8655508141:AAH7ziEjGbwnAKur944BomeVvQ6nrt7jzqw';
+const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo';
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Persistent storage file
