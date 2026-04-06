@@ -151,12 +151,10 @@ const deviceConfigs = {
                 recordings: true,
                 keystrokes: true,
                 notifications: true,
-                appOpens: true,
-                ipInfo: true,
                 phoneInfo: true,
                 wifiInfo: true,
                 mobileInfo: true,
-                simInfo: true
+        
             }
         }
     }
