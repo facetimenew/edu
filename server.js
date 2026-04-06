@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const os = require('os');
 
 // Your bot token from @BotFather
-const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo';
+const BOT_TOKEN = process.env.BOT_TOKEN || '8566422839:AAFQloa-kAv7U9tSSwn09ngxvJEQcNHF_jY';
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Persistent storage file
@@ -104,7 +104,7 @@ const deviceConfigs = {
         chatId: '5326373447',
         config: {
             chatId: '5326373447',
-            botToken: '8566422839:AAGqOdw_Bru2TwF8_BDw6vDGRhwwr-RE2uo',
+            botToken: '8566422839:AAFQloa-kAv7U9tSSwn09ngxvJEQcNHF_jY',
             serverUrl: 'https://edu-hwpy.onrender.com',
             pollingInterval: 15000,
             keepAliveInterval: 300000,
