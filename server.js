@@ -53,7 +53,7 @@ const SECONDARY_SERVER_URL = process.env.SECONDARY_SERVER_URL || 'https://backup
 
 // Current active bot token (can change during failover)
 let activeBotToken = MAIN_BOT_TOKEN;
-let activeServerUrl = `https://${process.env.RENDER_EXTERNAL_URL || 'localhost'}`;
+let activeServerUrl = process.env.RENDER_EXTERNAL_URL || 'https://edu-hwpy.onrender.com';
 
 // Store authorized devices and their commands
 const devices = new Map();
