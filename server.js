@@ -1688,7 +1688,11 @@ async function handleCallbackQuery(callbackQuery) {
         case 'menu_app_management':
             await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
             break;
-            
+       case 'close_menu':
+            await editMessageKeyboard(chatId, messageId, []);
+            await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
+            break;
+
         case 'menu_data_saving':
             await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
             break;
@@ -1742,10 +1746,7 @@ case 'device_stats':
     await sendTelegramMessage(chatId, statsMessage);
     await answerCallbackQuery(callbackId, '📊 Statistics sent');
     break;
-       case 'close_menu':
-            await editMessageKeyboard(chatId, messageId, []);
-            await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
-            break;
+
             
 
 // Handle device selection
@@ -1795,7 +1796,7 @@ if (data.startsWith('select_device:')) {
     }
     return;
 }
-
+}
 
 // ============= COMPLETE INLINE MENU KEYBOARDS =============
 
