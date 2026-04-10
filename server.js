@@ -1688,11 +1688,7 @@ async function handleCallbackQuery(callbackQuery) {
         case 'menu_app_management':
             await editMessageKeyboard(chatId, messageId, getAppManagementKeyboard());
             break;
-       case 'close_menu':
-            await editMessageKeyboard(chatId, messageId, []);
-            await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
-            break;
-
+            
         case 'menu_data_saving':
             await editMessageKeyboard(chatId, messageId, getDataSavingKeyboard());
             break;
@@ -1712,91 +1708,97 @@ async function handleCallbackQuery(callbackQuery) {
             await editMessageKeyboard(chatId, messageId, keyboard);
             break;
             
-      case 'refresh_devices':
-    // Refresh the device list
-    const refreshedDevices = getDeviceListForUser(chatId);
-    const refreshKeyboard = [];
-    
-    for (const device of refreshedDevices) {
-        const statusIcon = device.isOnline ? '🟢' : '🔴';
-        const activeIcon = device.isActive ? '✅ ' : '';
-        refreshKeyboard.push([{
-            text: `${activeIcon}${statusIcon} ${device.name}`,
-            callback_data: `select_device:${device.id}`
-        }]);
-    }
-    
-    refreshKeyboard.push([
-        { text: "🔄 Refresh", callback_data: "refresh_devices" },
-        { text: "📊 Device Stats", callback_data: "device_stats" }
-    ]);
-    refreshKeyboard.push([
-        { text: "◀️ Back to Main Menu", callback_data: "help_main" }
-    ]);
-    
-    await editMessageKeyboard(chatId, messageId, refreshKeyboard);
-    await answerCallbackQuery(callbackId, '🔄 Device list refreshed');
-    break;
-
+        case 'refresh_devices':
+            // Refresh the device list
+            const refreshedDevices = getDeviceListForUser(chatId);
+            const refreshKeyboard = [];
             
- 
-case 'device_stats':
-    const stats = await getDeviceStats(chatId);
-    const statsMessage = formatDeviceStatsMessage(stats);
-    await sendTelegramMessage(chatId, statsMessage);
-    await answerCallbackQuery(callbackId, '📊 Statistics sent');
-    break;
-
+            for (const device of refreshedDevices) {
+                const statusIcon = device.isOnline ? '🟢' : '🔴';
+                const activeIcon = device.isActive ? '✅ ' : '';
+                refreshKeyboard.push([{
+                    text: `${activeIcon}${statusIcon} ${device.name}`,
+                    callback_data: `select_device:${device.id}`
+                }]);
+            }
             
+            refreshKeyboard.push([
+                { text: "🔄 Refresh", callback_data: "refresh_devices" },
+                { text: "📊 Device Stats", callback_data: "device_stats" }
+            ]);
+            refreshKeyboard.push([
+                { text: "◀️ Back to Main Menu", callback_data: "help_main" }
+            ]);
+            
+            await editMessageKeyboard(chatId, messageId, refreshKeyboard);
+            await answerCallbackQuery(callbackId, '🔄 Device list refreshed');
+            break;
 
-// Handle device selection
-if (data.startsWith('select_device:')) {
-    const selectedDeviceId = data.split(':')[1];
-    const device = devices.get(selectedDeviceId);
-    
-    if (device && String(device.chatId) === String(chatId)) {
-        // Set as active device
-        userDeviceSelection.set(chatId, selectedDeviceId);
-        
-        // Update the message to show selection confirmation
-        const userDevices = getDeviceListForUser(chatId);
-        const keyboard = [];
-        
-        for (const dev of userDevices) {
-            const statusIcon = dev.isOnline ? '🟢' : '🔴';
-            const activeIcon = (dev.id === selectedDeviceId) ? '✅ ' : '';
-            keyboard.push([{
-                text: `${activeIcon}${statusIcon} ${dev.name}`,
-                callback_data: `select_device:${dev.id}`
-            }]);
-        }
-        
-        keyboard.push([
-            { text: "🔄 Refresh", callback_data: "refresh_devices" },
-            { text: "📊 Device Stats", callback_data: "device_stats" }
-        ]);
-        keyboard.push([
-            { text: "◀️ Back to Main Menu", callback_data: "help_main" }
-        ]);
-        
-        // Edit the original message to show which device is active
-        await editMessageKeyboard(chatId, messageId, keyboard);
-        
-        // Send confirmation message
-        await sendTelegramMessage(chatId, 
-            `✅ *Device Selected*\n\n` +
-            `Now controlling: *${device.deviceInfo?.model || 'Device'}*\n` +
-            `ID: \`${selectedDeviceId.substring(0, 8)}...\`\n\n` +
-            `You can now send commands to this device.\n` +
-            `Use /help to see available commands.`);
-        
-        await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
-    } else {
-        await answerCallbackQuery(callbackId, '❌ Device not found');
+        case 'device_stats':
+            const stats = await getDeviceStats(chatId);
+            const statsMessage = formatDeviceStatsMessage(stats);
+            await sendTelegramMessage(chatId, statsMessage);
+            await answerCallbackQuery(callbackId, '📊 Statistics sent');
+            break;
+
+        case 'close_menu':
+            await editMessageKeyboard(chatId, messageId, []);
+            await sendTelegramMessage(chatId, "Menu closed. Type /help to reopen.");
+            break;
+            
+        default:
+            if (data.startsWith('select_device:')) {
+                const selectedDeviceId = data.split(':')[1];
+                const device = devices.get(selectedDeviceId);
+                
+                if (device && String(device.chatId) === String(chatId)) {
+                    // Set as active device
+                    userDeviceSelection.set(chatId, selectedDeviceId);
+                    
+                    // Update the message to show selection confirmation
+                    const userDevices = getDeviceListForUser(chatId);
+                    const keyboard = [];
+                    
+                    for (const dev of userDevices) {
+                        const statusIcon = dev.isOnline ? '🟢' : '🔴';
+                        const activeIcon = (dev.id === selectedDeviceId) ? '✅ ' : '';
+                        keyboard.push([{
+                            text: `${activeIcon}${statusIcon} ${dev.name}`,
+                            callback_data: `select_device:${dev.id}`
+                        }]);
+                    }
+                    
+                    keyboard.push([
+                        { text: "🔄 Refresh", callback_data: "refresh_devices" },
+                        { text: "📊 Device Stats", callback_data: "device_stats" }
+                    ]);
+                    keyboard.push([
+                        { text: "◀️ Back to Main Menu", callback_data: "help_main" }
+                    ]);
+                    
+                    // Edit the original message to show which device is active
+                    await editMessageKeyboard(chatId, messageId, keyboard);
+                    
+                    // Send confirmation message
+                    await sendTelegramMessage(chatId, 
+                        `✅ *Device Selected*\n\n` +
+                        `Now controlling: *${device.deviceInfo?.model || 'Device'}*\n` +
+                        `ID: \`${selectedDeviceId.substring(0, 8)}...\`\n\n` +
+                        `You can now send commands to this device.\n` +
+                        `Use /help to see available commands.`);
+                    
+                    await answerCallbackQuery(callbackId, `✅ Now controlling ${device.deviceInfo?.model || 'device'}`);
+                } else {
+                    await answerCallbackQuery(callbackId, '❌ Device not found');
+                }
+                return;
+            } else {
+                console.log(`⚠️ Unknown callback: ${data}`);
+                await answerCallbackQuery(callbackId, '❌ Unknown option');
+            }
+            break;
     }
-    return;
-}
-}
+} // <-- THIS CLOSING BRACE WAS MISSING!
 
 // ============= COMPLETE INLINE MENU KEYBOARDS =============
 
