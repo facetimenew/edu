@@ -849,7 +849,7 @@ async function setChatMenuButton(chatId) {
 } catch (error) {
     console.error('Error setting menu button:', error.response?.data || error.message);
 }
-
+}
 async function sendTelegramDocument(chatId, filePath, filename, caption) {
     try {
         const formData = new FormData();
