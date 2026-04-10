@@ -371,6 +371,15 @@ function formatDeviceStatsMessage(stats) {
     
     return message;
 }
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
 
 // ============= SMART GITHUB GIST STORAGE FUNCTIONS =============
 async function readFromGist(filename) {
