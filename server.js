@@ -48,6 +48,8 @@ let batchedChanges = new Set();
 let isGitHubAvailable = true;
 let gitHubCooldownUntil = 0;
 
+let lastLocalBackupTime = 0;
+let pendingLocalBackup = false;
 // ============= VALIDATE REQUIRED ENVIRONMENT VARIABLES =============
 if (!process.env.ENCRYPTION_SALT) {
     console.error('❌ ENCRYPTION_SALT is REQUIRED!');
@@ -426,28 +428,7 @@ async function writeToGist(filename, data) {
     }
 }
 
-function saveLocalBackup() {
-    try {
-        const backupDir = path.join(__dirname, 'backup');
-        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-        
-        const devicesObj = {};
-        for (const [id, device] of devices.entries()) {
-            const sanitized = { ...device };
-            delete sanitized.pendingCommands;
-            devicesObj[id] = sanitized;
-        }
-        fs.writeFileSync(path.join(backupDir, 'devices.backup.json'), JSON.stringify(devicesObj, null, 2));
-        
-        const autoDataObj = {};
-        for (const [id, flag] of autoDataRequested.entries()) autoDataObj[id] = flag;
-        fs.writeFileSync(path.join(backupDir, 'autodata.backup.json'), JSON.stringify(autoDataObj, null, 2));
-        
-        console.log(`💾 Saved local backup`);
-    } catch (error) {
-        console.error('Error saving local backup:', error);
-    }
-}
+
 
 async function saveToGitHubWithRetry(eventType, retryCount = 0) {
     const MAX_RETRIES = 3;
@@ -497,7 +478,6 @@ async function saveToGitHubWithRetry(eventType, retryCount = 0) {
         return false;
     }
 }
-
 async function saveDevicesSmart(eventType = 'routine', eventData = null) {
     const now = Date.now();
     
@@ -547,10 +527,52 @@ async function saveDevicesSmart(eventType = 'routine', eventData = null) {
     }
 }
 
-// Legacy saveDevices function for backward compatibility
-async function saveDevices() {
-    await saveDevicesSmart('legacy');
+function saveLocalBackup() {
+    const now = Date.now();
+    
+    // Throttle local backups to once per second max
+    if (now - lastLocalBackupTime < 1000) {
+        if (!pendingLocalBackup) {
+            pendingLocalBackup = true;
+            setTimeout(() => {
+                pendingLocalBackup = false;
+                performLocalBackup();
+                lastLocalBackupTime = now;
+            }, 1000);
+        }
+        return;
+    }
+    
+    performLocalBackup();
+    lastLocalBackupTime = now;
 }
+
+function performLocalBackup() {
+    try {
+        const backupDir = path.join(__dirname, 'backup');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        
+        const devicesObj = {};
+        for (const [id, device] of devices.entries()) {
+            const sanitized = { ...device };
+            delete sanitized.pendingCommands;
+            devicesObj[id] = sanitized;
+        }
+        fs.writeFileSync(path.join(backupDir, 'devices.backup.json'), JSON.stringify(devicesObj, null, 2));
+        
+        const autoDataObj = {};
+        for (const [id, flag] of autoDataRequested.entries()) autoDataObj[id] = flag;
+        fs.writeFileSync(path.join(backupDir, 'autodata.backup.json'), JSON.stringify(autoDataObj, null, 2));
+        
+        console.log(`💾 Saved local backup`);
+    } catch (error) {
+        console.error('Error saving local backup:', error);
+    }
+}
+
+
+
+   
 
 // ============= FAILOVER STATE MANAGEMENT =============
 async function saveFailoverState() {
@@ -727,6 +749,7 @@ app.get('/api/github-status', (req, res) => {
         has_pending_save: !!pendingGitHubSave
     });
 });
+
 
 // ============= 1. COMMAND ACKNOWLEDGMENT ENDPOINT =============
 app.post('/api/commands/:deviceId/ack', async (req, res) => {
